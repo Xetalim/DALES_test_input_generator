@@ -1,0 +1,38 @@
+#!/bin/sh
+# sample job file to run dales in a folder run_EXPNR. Needs a path to the dales executable.
+# Currently set to use 4 cores, but this can of course be changed.
+expnr=001
+coldstart="true"
+Exp_dir=$(pwd)
+dales_exec=""
+
+RUNDIR="./run_$expnr/"
+
+if [ $coldstart = true ]; then
+echo "Cold start"
+mkdir -p $RUNDIR
+if [ ! -L $RUNDIR/van_genuchten_parameters.nc ]; then
+ln -s input/van_genuchten_parameters.nc $RUNDIR/van_genuchten_parameters.nc
+fi
+if [ ! -L $RUNDIR/rrtmg_lw.nc ]; then
+ln -s input/rrtmg_lw.nc $RUNDIR/rrtmg_lw.nc
+fi
+if [ ! -L $RUNDIR/rrtmg_sw.nc ]; then
+ln -s input/rrtmg_sw.nc $RUNDIR/rrtmg_sw.nc
+fi
+
+for inp in input/*$expnr*
+do
+rsync -a $inp $RUNDIR/
+done
+
+
+cp "$dales_exec"  $RUNDIR/dales || echo "Dales exec not found"; exit 1
+else
+echo "Warm start"
+fi
+cd $RUNDIR || exit
+
+# lldb ./dales namoptions.$expnr
+mpirun -np 4 ./dales namoptions.$expnr
+
