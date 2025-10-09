@@ -1,0 +1,39 @@
+#!/bin/sh
+# sample job file to run dales in a folder run_EXPNR. Needs a path to the dales executable.
+# dales executable sourced from machine_conf.yaml
+expnr=001
+coldstart="true"
+Exp_dir=$(dirname "$0")
+cd "$Exp_dir" || exit
+RUNDIR="./run_$expnr/"
+
+
+if [ $coldstart = true ]; then
+echo "Cold start"
+mkdir -p $RUNDIR
+
+{{required_filetransfers}}
+
+
+for inp in input/*$expnr*
+do
+rsync -a $inp $RUNDIR/ || exit
+done
+
+
+rsync -vt {{dales_exec}} $RUNDIR/dales || echo "Dales exec not found"
+else
+echo "Warm start"
+fi
+cd $RUNDIR || exit
+
+
+if [ "$1" = "DEBUG" ]; then
+    {{debugger}} ./dales namoptions.$expnr
+else
+    if [ "$1" = "singlecore" ]; then
+    ./dales namoptions.$expnr
+    else
+    mpirun -np {{numcores}} ./dales namoptions.$expnr
+    fi
+fi

@@ -2,6 +2,7 @@
 &RUN
 iexpnr     = 001
 lwarmstart = .false.
+irandom      = 0
 startfile  = 'initd_latest_x000y000.001'
 runtime = 3600
 trestart   = 1800
@@ -76,7 +77,7 @@ timeav      = 60
 /
 &NAMFIELDDUMP
 lfielddump  = .true.
-dtav        = 60 ! gives 10 second interval fielddump
+dtav        = 60 ! gives 60 second interval fielddump
 ldiracc     = .false.
 /
 

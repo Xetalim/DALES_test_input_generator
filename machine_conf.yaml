@@ -1,0 +1,7 @@
+job_conf:
+  dales_exec: null
+  debugger: lldb
+  numcores: 4
+case_conf:
+  BASE_OUTPUT_PATH: null
+  SOURCE_PATH: null

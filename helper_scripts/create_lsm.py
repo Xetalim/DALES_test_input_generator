@@ -7,8 +7,7 @@ from .lsm_input_dales import LSM_input_DALES
 # Correction factor for aspect ratio of plots
 ASPECT_CORR = 2
 
-
-def init_dales_grid(domain, lutypes, parnames):
+def generate_dales_domain(domain):
     """
     Initialise a land surface grid with the dimensions of the DALES grid
 
@@ -46,6 +45,34 @@ def init_dales_grid(domain, lutypes, parnames):
     # LES grid in RD coordinates
     x_rd = np.arange(x0+dx/2, x0+xsize, dx)
     y_rd = np.arange(y0+dy/2, y0+ysize, dy)
+    return x_rd, y_rd, itot, jtot
+def init_dales_grid(domain, lutypes, parnames):
+    """
+    Initialise a land surface grid with the dimensions of the DALES grid
+
+    Parameters
+    ----------
+    domain : dict
+        disctionary with domain size and resolution
+    lutypes : dict
+        disctionary with land use types
+    parnames : list
+        List of parameters to process
+
+    Returns
+    -------
+    lsm_input : LSM_input_DALES
+        Class containing Dales input parameters for all LU types.
+    nn_dominant : int
+        Number of grid points (+/-) used in "dominant" interpolation method.
+    nblockx : int
+        Number of blocks in x-direction.
+    nblocky : int
+        Number of blocks in y-direction.
+
+    """
+    # x0, y0 are in RD coordinates
+    x_rd, y_rd, itot, jtot = generate_dales_domain(domain)
     # Instance of `LSM_input` class, which defines/writes the DALES LSM input:
     lsm_input = LSM_input_DALES(itot, jtot, 4, lutypes, parnames, debug=False)
 
