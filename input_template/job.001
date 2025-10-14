@@ -20,7 +20,9 @@ do
 rsync -a $inp $RUNDIR/ || exit
 done
 
-
+if [ "$1" = "NORUN" ]; then
+    exit 0
+fi
 rsync -vt {{dales_exec}} $RUNDIR/dales || echo "Dales exec not found"
 else
 echo "Warm start"

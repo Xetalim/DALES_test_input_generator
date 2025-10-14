@@ -11,7 +11,6 @@ from helper_scripts import do_profiles
 from helper_scripts import landuse_types
 from helper_scripts import create_lsm
 from helper_scripts import geometry_modification
-BASE_OUTPUT_PATH = "/Users/andre/Documents/Documenten/PhD/40_Input_and_Runs/42_Dales_Cases/Case_generator"
 def apply_job_conf(job_conf, output_filepath, required_files):
     with open("input_template/job.001", "r") as f:
         content = f.read()
@@ -33,7 +32,7 @@ def generate_case(config, machine_conf):
         raise ValueError(f"Require path in case YAML file or in the machine conf yaml file to output DALES files. (choose a valid path)\nInput files will be created in USER_GIVEN_PATH/{config['output']['name']}/input")
     else:
         if machine_conf["case_conf"]["BASE_OUTPUT_PATH"]:
-            output_path = pathlib.Path(BASE_OUTPUT_PATH) / config["output"]["name"]
+            output_path = pathlib.Path(machine_conf["case_conf"]["BASE_OUTPUT_PATH"]) / config["output"]["name"]
         else:
             output_path = pathlib.Path(config["output"]["path"]) / config["output"]["name"]
     os.makedirs(output_path, exist_ok=True)
@@ -91,7 +90,7 @@ def generate_case(config, machine_conf):
                               domain,
                               output_path / "input",
                               exp_id,
-                              lplot=False,
+                              lplot=True,
                               modify_func=lambda lu_types, lu_dict, lsm_input: geometry_modification.lsm_modify_func(config, lu_types, lu_dict, lsm_input))
     
     if "ibm_modifications" in config:

@@ -44,21 +44,28 @@ class LsmModifier(modifierClass):
     def returnVars(self):
         return self.lu_types, self.lu_dict, self.lsm_input
 
-    def set_type(self, mask, lu_type):
+    def set_type(self, mask, lu_type,frac=1):
+        if frac != 1:
+            raise Warning("No code yet to handle half fractions correctly, so check if fractions add up to 1")
         if not (lu_type in self.lu_dict.keys()):
             raise KeyError(f"Incorrect lu_type given {lu_type}, {self.lu_dict.keys()}")
         if not (lu_type in self.lu_types.keys()):
             raise KeyError(f"Incorrect lu_type given {lu_type}, {self.lu_types.keys()}")
-        self.lu_types[lu_type]["lu_frac"][mask] = 1
-        for other_lu_type in self.lu_types.keys():
-            if lu_type != other_lu_type:
-                self.lu_types[other_lu_type]["lu_frac"][mask] = 0
-        self.lu_types[lu_type]["lu_frac"][mask] = 1
-        for other_lu_type in self.lu_types.keys():
-            if lu_type != other_lu_type:
-                self.lu_types[other_lu_type]["lu_frac"][mask] = 0
+        self.lu_types[lu_type]["lu_frac"][mask] = frac
+        if frac == 1:
+            for other_lu_type in self.lu_types.keys():
+                if lu_type != other_lu_type:
+                    self.lu_types[other_lu_type]["lu_frac"][mask] = 0
+        self.lu_types[lu_type]["lu_frac"][mask] = frac
+        if frac == 1:
+            for other_lu_type in self.lu_types.keys():
+                if lu_type != other_lu_type:
+                    self.lu_types[other_lu_type]["lu_frac"][mask] = 0
     def do_modification(self, geometry, modification):
-        self.set_type(geometry, modification["type"])
+        if "frac" in modification.keys():
+            self.set_type(geometry, modification["type"],frac=modification["frac"])
+        else:
+            self.set_type(geometry, modification["type"],frac=1)
 
 
 class ibmCreatorClass(modifierClass):

@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 # Custom Python scripts/tools/...
 from .vegetation_properties import ifs_vegetation, top10_to_ifs
 from .lsm_input_dales import LSM_input_DALES
@@ -224,7 +225,7 @@ def calc_totcover(lsm_input, lu_types, ctype):
 
     return totcover
 
-def some_plots(lsm_input, plotvars):
+def some_plots(lsm_input, plotvars, output_path):
     """
     Generate some standard plots of Land Surface Model input data
 
@@ -242,7 +243,7 @@ def some_plots(lsm_input, plotvars):
     """
     import xarray as xr
     data_vars = dict()
-
+    os.makedirs(output_path / ".." / "covers", exist_ok=True)
     for plotvar in plotvars:
         data = getattr(lsm_input, plotvar)
         data_vars[plotvar] = (['y','x'], data)
@@ -254,14 +255,19 @@ def some_plots(lsm_input, plotvars):
                        )
 
     for plotvar in list(ds_lsm.variables):
+        if "cover" in plotvar:
+            vmax = 1
+        else:
+            vmax = None
         if plotvar == 'x' or plotvar == 'y': continue
         fig, ax = plt.subplots(1)
         ax.set_aspect(abs((lsm_input.y[-1] - lsm_input.y[0])/(lsm_input.x[-1] - lsm_input.x[0])) * ASPECT_CORR)
-        ds_lsm[plotvar].plot(ax=ax, cmap='Reds', vmin=0, vmax=None)
+        ds_lsm[plotvar].plot(ax=ax, vmin=0, vmax=vmax)
         plt.tight_layout()
 
-    plt.show()
-
+    
+        plt.savefig(output_path / ".." / "covers" / f"var_{plotvar}.png", dpi=300)
+        plt.close()
     return
 
 
@@ -322,6 +328,6 @@ def process_input(lu_types, domain, output_path, exp_id, lplot, modify_func=None
     if lplot:
         plotvars = ['cover_'+ s for s in lu_types.keys()]
         plotvars.append('cover_tot')
-        some_plots(lsm_input, plotvars)
+        some_plots(lsm_input, plotvars, output_path=output_path)
 
     return lsm_input

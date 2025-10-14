@@ -208,6 +208,10 @@ urb = {'lu_long':'Urban',
       'lu_short':'urb', 
       'lu_ids': np.array([20,22,23,24,25,29,30]),
       'lveg':False, 'laqu':False}
+slb = {'lu_long':'Slurb', 
+      'lu_short':'slb', 
+      'lu_ids': np.array([20,22,23,24,25,29,30]),
+      'lveg':False, 'laqu':False}
 
 
 # set of land use types with 'buildings'
@@ -221,4 +225,5 @@ lu_types_depac = {'ara':ara,
                   'brn':brn,
                   'sem':sem,
                   'grs':grs,
-                  'urb':urb}
+                  'urb':urb,
+                  'slb':slb}
