@@ -120,6 +120,51 @@ class ibmCreatorClass(modifierClass):
             bc_height_var[:, :] = self.bc_height[:, :]
 
 
+class slbCreatorClass(modifierClass):
+    def __init__(self, x, y):
+        super().__init__(x=x, y=y)
+        self.vars = {}
+
+    def init_var(self, submod):
+        varname = submod["varname"]
+        if not (varname in self.vars):
+            if "dtype" in submod:
+                match submod["dtype"]:
+                    case "real":
+                        dtype = float
+                    case "float":
+                        dtype = float
+                    case "int":
+                        dtype = int
+                    case "integer":
+                        dtype = int
+            else:
+                dtype = float
+            self.vars[varname] = dtype
+            setattr(self, varname, np.zeros_like(self.meshx, dtype=dtype))
+
+    def do_modification(self, geometry, modification):
+        for submod in modification["vars"]:
+            self.init_var(submod)
+            getattr(self, submod["varname"])[geometry] = submod["value"]
+
+    def output_nc(self, filename):
+        with netCDF4.Dataset(filename, "w") as nc:
+
+            nc.createDimension("x", len(self.x))
+            nc.createDimension("y", len(self.y))
+
+            var_x = nc.createVariable("x", float, "x")
+            var_y = nc.createVariable("y", float, "y")
+
+            var_x[:] = self.x[:]
+            var_y[:] = self.y[:]
+
+            dims = ["y", "x"]
+            for var, dtype in self.vars.items():
+                nc.createVariable(var, dtype, dims)[:, :] = getattr(self, var)[:, :]
+
+
 def lsm_modify_func(config, lu_types, lu_dict, lsm_input):
     # function that edits the DALES LSM land use types using the modifier class.
     modifier = LsmModifier(lu_types, lu_dict, lsm_input)

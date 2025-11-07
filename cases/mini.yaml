@@ -5,6 +5,8 @@ output:
 
 input_template:
   namoptions_file: 'namoptions.001'
+generation_settings:
+  uselsm: true # set false to disable lsm
 profile:
   grid:
     # define Nz in namelist overrides instead

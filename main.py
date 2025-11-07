@@ -22,6 +22,12 @@ def set_namelist_override(config, namelist, key, value):
     config["namelist_overrides"][namelist][key] = value
 
 
+def add_slb_geometry_modification(config, override):
+    if not ("slb_modifications" in config["namelist_overrides"]):
+        config["slb_modifications"] = []
+    config["slb_modifications"].append(override)
+
+
 def apply_job_conf(job_conf, output_filepath, required_files):
     # sets up the jobfile to link the required files to the run directory
     with open("input_template/job.001", "r") as f:
@@ -164,6 +170,11 @@ def generate_case(config, machine_conf):
     else:
         nml["NAMSURFACE"]["isurf"] = 11
 
+    if "NAMEMISSION" in nml:
+        warnings.warn(
+            f"Using NAMEMISSION, but input generator does NOT yet generate emission files, proceed with warning."
+        )
+
     # LSM requires van_genuchten soil paramaeters, so we add it to the required files list
     if config["generation_settings"]["uselsm"]:
         required_files[f"van_genuchten_parameters.nc"] = (
@@ -202,6 +213,17 @@ def generate_case(config, machine_conf):
         for modification in config["ibm_modifications"]:
             ibm_generator.parse_yaml_name(modification)
         ibm_generator.output_nc(output_path / "input" / f"ibm.inp_{exp_id:03d}.nc")
+        # set up IBM file and output it
+
+    x, y, itot, jtot = create_lsm.generate_dales_domain(
+        create_lsm.get_domain_info_nml(nml)
+    )
+    if config["generation_settings"]["useslurb"]:
+        slb_generator = geometry_modification.slbCreatorClass(x, y)
+        if "slb_modifications" in config:
+            for modification in config["slb_modifications"]:
+                slb_generator.parse_yaml_name(modification)
+        slb_generator.output_nc(output_path / "input" / f"inslurb.{exp_id:03d}.nc")
 
     # set up job script and put it in the case directory
     apply_job_conf(

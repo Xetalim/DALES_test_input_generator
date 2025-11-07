@@ -4,7 +4,8 @@ output:
   plot: true
 input_template:
   namoptions_file: 'namoptions.001'
-
+generation_settings:
+  uselsm: true # set false to disable lsm
 profile:
   grid:
     # define kmax in namelist overrides instead

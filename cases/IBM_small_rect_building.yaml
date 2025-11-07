@@ -5,12 +5,14 @@ output:
 
 input_template:
   namoptions_file: 'namoptions.001'
+generation_settings:
+  uselsm: true # set false to disable lsm
 profile:
   grid:
     # define Nz in namelist overrides instead
     stretch: false
     alpha_stretch: 1.01
-    dz: 20
+    dz: 5
 
   profiles:
     u:
@@ -59,18 +61,18 @@ profile:
 namelist_overrides:
   RUN:
     iexpnr: 001
-    runtime: 120
+    runtime: 600
+    nsv: 1
   DOMAIN:
-    itot: 128
-    jtot: 128
-    kmax: 64
-    xsize: 1024
-    ysize: 1024
+    itot: 64
+    jtot: 64
+    kmax: 128
+    xsize: 640
+    ysize: 640
   NAMFIELDDUMP:
-    dtav: 2 # change this for more frequent field dumps (time between dumps in sec)
+    dtav: 10 # change this for more frequent field dumps (time between dumps in sec)
   NAMCHECKSIM:
-    tcheck: 1
-
+    tcheck: 60
   NAMIBM:
     lapply_ibm: true # Activate immersed boundary method
     lwallheat: false # No heat flux from walls
@@ -89,21 +91,27 @@ land_use_modifications:
   - geometry: 'all'
     type: 'grs'
     params:
-  - geometry: circle_idx
-    type: 'aqu'
-    params:
-      idx0: 16
-      idy0: 16
-      size: 5
 
 ibm_modifications:
   - geometry: 'all'
     height: 0
     params:
   - geometry: rectangle_idx
-    height: 500
+    height: 50
     params:
-      minx: 16
-      maxx: 48
-      miny: 16
-      maxy: 48
+      minx: 30
+      maxx: 34
+      miny: 30
+      maxy: 34
+  - geometry: circle_idx
+    height: 50
+    params:
+      idx0: 16
+      idy0: 16
+      size: 4
+  - geometry: circle_idx
+    height: 50
+    params:
+      idx0: 48
+      idy0: 16
+      size: 8

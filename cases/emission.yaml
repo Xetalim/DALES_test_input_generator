@@ -1,11 +1,11 @@
 output:
-  name: 01_32x32_half_forest_half_grass
+  name: 11_emission_test_test
   path: null
   plot: true
 input_template:
   namoptions_file: 'namoptions.001'
 generation_settings:
-  uselsm: true # set false to disable lsm
+  uselsm: false # set false to disable lsm
 profile:
   grid:
     # define kmax in namelist overrides instead
@@ -63,34 +63,65 @@ namelist_overrides:
     iexpnr: 001
     runtime: 3600
   DOMAIN:
-    itot: 32
-    jtot: 32
+    itot: 64
+    jtot: 64
     xsize: 6400
     ysize: 6400
+    kmax: 64
+    xtime: 12
+  PHYSICS:
+    thls: 295
+  NAMDATETIME:
+    l_datetime: true
+    startyear: 2025
+    startmonth: 10
+    startday: 28
+    timezone: 0
   NAMFIELDDUMP:
     dtav: 60 # change this for more frequent field dumps (time between dumps in sec)
-
-land_use_modifications:
+  NAMFIELDDUMP:
+    dtav: 60 # change this for more frequent field dumps (time between dumps in sec)
+    # namelist/NAMEMISSION/ l_emission, l_points, explicit_plume_rise, kemis, nemis, emisnames, l_scale, scalefactor
+  NAMEMISSION:
+    l_emission: true
+    l_points: true
+    explicit_plume_rise: false
+    nemis: 1
+    emisnames: ['co2']
+  NAMIBM:
+    lapply_ibm: true # Activate immersed boundary method
+    lwallheat: false # No heat flux from walls
+    thlibm: 301 # IBM reference theta_l [K] (not used)
+    thlwall: 301 # Wall theta_l [K] (not used)
+    thlroof: 301 # Roof theta_l [K] (not used)
+    qtibm: 0.001 # IBM reference qt [kg/kg]
+  DYNAMICS:
+    iadv_mom: 2 # necessary for IBM to work
+    iadv_tke: 2 # necessary for IBM to work
+    iadv_thl: 2 # necessary for IBM to work
+    iadv_qt: 2 # necessary for IBM to work
+    iadv_sv: 2 # necessary for IBM to work
+    ibas_prf: 2 # necessary for IBM to work
+ibm_modifications:
   - geometry: 'all'
-    type: 'grs'
+    height: 0
     params:
-  - geometry: 'rectangle_idx'
-    type: 'fbd'
+  - geometry: rectangle_idx
+    height: 50
     params:
-      minx: 0
-      maxx: 32
-      miny: 0
-      maxy: 16
-  - geometry: 'rectangle_idx'
-    type: 'grs'
+      minx: 30
+      maxx: 34
+      miny: 30
+      maxy: 34
+  - geometry: circle_idx
+    height: 50
     params:
-      minx: 0
-      maxx: 32
-      miny: 17
-      maxy: 32
-  # - geometry: circle_idx
-  #   type: 'aqu'
-  #   params:
-  #     idx0: 16
-  #     idy0: 16
-  #     size: 1600
+      idx0: 16
+      idy0: 16
+      size: 4
+  - geometry: circle_idx
+    height: 50
+    params:
+      idx0: 48
+      idy0: 16
+      size: 8
