@@ -138,15 +138,30 @@ class slbCreatorClass(modifierClass):
                         dtype = int
                     case "integer":
                         dtype = int
+                    case "<class 'float'>":
+                        dtype = float
+                    case default:
+                        raise ValueError("Invalid dtype given")
             else:
                 dtype = float
-            self.vars[varname] = dtype
-            setattr(self, varname, np.zeros_like(self.meshx, dtype=dtype))
+            shape = self.meshx.shape
+            if "n_layers" in submod:
+                shape = (submod["n_layers"], *shape)
+                n_layers = submod["n_layers"]
+            else:
+                n_layers = None
+
+            self.vars[varname] = {"dtype": dtype, "n_layers": n_layers}
+            setattr(self, varname, np.zeros(shape, dtype=dtype))
 
     def do_modification(self, geometry, modification):
         for submod in modification["vars"]:
             self.init_var(submod)
-            getattr(self, submod["varname"])[geometry] = submod["value"]
+            if "n_layers" in submod:
+                geometry = np.tile(geometry, [submod["n_layers"], 1, 1])
+                getattr(self, submod["varname"])[geometry] = submod["value"]
+            else:
+                getattr(self, submod["varname"])[geometry] = submod["value"]
 
     def output_nc(self, filename):
         with netCDF4.Dataset(filename, "w") as nc:
@@ -160,9 +175,21 @@ class slbCreatorClass(modifierClass):
             var_x[:] = self.x[:]
             var_y[:] = self.y[:]
 
-            dims = ["y", "x"]
-            for var, dtype in self.vars.items():
-                nc.createVariable(var, dtype, dims)[:, :] = getattr(self, var)[:, :]
+            for var, var_dic in self.vars.items():
+                dtype = var_dic["dtype"]
+
+                if var_dic["n_layers"]:
+                    nc.createDimension(f"z_{var}", var_dic["n_layers"])
+                    nc.createVariable(f"z_{var}", float, f"z_{var}")[:] = np.arange(
+                        var_dic["n_layers"]
+                    )
+                    nc.createVariable(var, dtype, [f"z_{var}", "y", "x"])[:, :, :] = (
+                        getattr(self, var)[:, :, :]
+                    )
+                else:
+                    nc.createVariable(var, dtype, ["y", "x"])[:, :] = getattr(
+                        self, var
+                    )[:, :]
 
 
 def lsm_modify_func(config, lu_types, lu_dict, lsm_input):
