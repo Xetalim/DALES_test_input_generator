@@ -12,8 +12,12 @@ if [ $coldstart = true ]; then
 echo "Cold start"
 mkdir -p $RUNDIR
 
+{{required_folders}}
+
 {{required_filetransfers}}
 
+
+{{required_folder_rsyncs}}
 
 for inp in input/*$expnr*
 do

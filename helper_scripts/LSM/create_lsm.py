@@ -2,15 +2,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+from helper_scripts.grids import generate_dales_domain
+
 # Custom Python scripts/tools/...
-from .vegetation_properties import ifs_vegetation, top10_to_ifs
-from .lsm_input_dales import LSM_input_DALES
+from helper_scripts.LSM.vegetation_properties import ifs_vegetation, top10_to_ifs
+from helper_scripts.LSM.LSM_output_dales import LSM_output_dales
 
 # Correction factor for aspect ratio of plots
 ASPECT_CORR = 2
 
 
-def generate_dales_domain(domain):
+def init_dales_grid(grid, lutypes, parnames):
     """
     Initialise a land surface grid with the dimensions of the DALES grid
 
@@ -36,61 +38,9 @@ def generate_dales_domain(domain):
 
     """
     # x0, y0 are in RD coordinates
-    x0 = domain["x0"]
-    y0 = domain["y0"]
-    dx = domain["dx"]
-    dy = domain["dy"]
-    itot = domain["itot"]
-    jtot = domain["jtot"]
-    xsize = itot * dx
-    ysize = jtot * dy
-
-    # LES grid in RD coordinates
-    x_rd = np.arange(x0 + dx / 2, x0 + xsize, dx)
-    y_rd = np.arange(y0 + dy / 2, y0 + ysize, dy)
-    return x_rd, y_rd, itot, jtot
-
-
-def get_domain_info_nml(nml):
-    return {
-        "x0": 0,
-        "y0": 0,
-        "itot": nml["DOMAIN"]["itot"],
-        "jtot": nml["DOMAIN"]["jtot"],
-        "dx": nml["DOMAIN"]["xsize"] / nml["DOMAIN"]["itot"],
-        "dy": nml["DOMAIN"]["ysize"] / nml["DOMAIN"]["jtot"],
-    }
-
-
-def init_dales_grid(domain, lutypes, parnames):
-    """
-    Initialise a land surface grid with the dimensions of the DALES grid
-
-    Parameters
-    ----------
-    domain : dict
-        disctionary with domain size and resolution
-    lutypes : dict
-        disctionary with land use types
-    parnames : list
-        List of parameters to process
-
-    Returns
-    -------
-    lsm_input : LSM_input_DALES
-        Class containing Dales input parameters for all LU types.
-    nn_dominant : int
-        Number of grid points (+/-) used in "dominant" interpolation method.
-    nblockx : int
-        Number of blocks in x-direction.
-    nblocky : int
-        Number of blocks in y-direction.
-
-    """
-    # x0, y0 are in RD coordinates
-    x_rd, y_rd, itot, jtot = generate_dales_domain(domain)
+    x_rd, y_rd, itot, jtot = grid.xt, grid.yt, grid.itot, grid.jtot
     # Instance of `LSM_input` class, which defines/writes the DALES LSM input:
-    lsm_input = LSM_input_DALES(itot, jtot, 4, lutypes, parnames, debug=False)
+    lsm_input = LSM_output_dales(itot, jtot, 4, lutypes, parnames, debug=False)
 
     lsm_input.x[:] = x_rd
     lsm_input.y[:] = y_rd
@@ -297,7 +247,7 @@ def some_plots(lsm_input, plotvars, output_path):
     return
 
 
-def process_input(lu_types, domain, output_path, exp_id, lplot, modify_func=None):
+def process_input(lu_types, grid, output_path, exp_id, lplot, modify_func=None):
     """Function that connects all processing steps:
     Init DALES grid
     Write output files in netCDF and binary (to be phased out) format
@@ -309,7 +259,7 @@ def process_input(lu_types, domain, output_path, exp_id, lplot, modify_func=None
         LU type properties.
     parnames : list
         List of parameter names to process.
-    domain : dict
+    domain : dict TODO
         Dales domain settings.
     output_path : str
         Dir to write output to.
@@ -343,7 +293,7 @@ def process_input(lu_types, domain, output_path, exp_id, lplot, modify_func=None
         "tskin",
         "lutype",
     ]
-    lsm_input = init_dales_grid(domain, lu_types, parnames)
+    lsm_input = init_dales_grid(grid, lu_types, parnames)
 
     lsm_input.index_soil[:, :] = 2
 

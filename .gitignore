@@ -2,3 +2,6 @@
 /__pycache__
 helper_scripts/__pycache__
 /.idea
+*/__pycache__
+__pycache__
+.vscode

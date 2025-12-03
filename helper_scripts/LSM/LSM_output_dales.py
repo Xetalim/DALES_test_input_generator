@@ -1,10 +1,9 @@
 # import matplotlib.pyplot as plt
 import netCDF4 as nc4
 import numpy as np
-import sys, os
 
 
-class LSM_input_DALES:
+class LSM_output_dales:
     """
     Data structure for the required input for the new LSM
     """
@@ -154,10 +153,8 @@ class LSM_input_DALES:
         return
 
 
-if __name__ == "__main__":
-    """Just for testing..."""
-
-    from landuse_types import lu_types_basic, lu_types_depac
+def test():
+    from helper_scripts.LSM.landuse_types import lu_types_depac
 
     itot = 128
     jtot = 128
@@ -199,7 +196,7 @@ if __name__ == "__main__":
     ]
     parnames = parnames_lsm + parnames_dep
 
-    lsm_input = LSM_input_DALES(
+    lsm_input = LSM_output_dales(
         itot=itot,
         jtot=jtot,
         ktot=kmax_soil,
@@ -212,3 +209,8 @@ if __name__ == "__main__":
 
     # Save NetCDF output (for e.g. visualisation):
     lsm_input.save_netcdf("tmp/test1.nc")
+
+
+if __name__ == "__main__":
+    # Just for testing...
+    test()

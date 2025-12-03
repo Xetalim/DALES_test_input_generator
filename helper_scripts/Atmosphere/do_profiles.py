@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
 
+import os
 import numpy as np
 from scipy.interpolate import interp1d
-import os
 import matplotlib.pyplot as plt
-import numpy as np
 import netCDF4
 
 
@@ -41,32 +40,9 @@ def expsinw(z, surf_val, H, amp, Hp):
     return wbase + wonion
 
 
-def output_profiles(profile_config, nml, out_dir, plot=False):
-    exp_id = nml["RUN"]["iexpnr"]
-    case = "case"
+def output_profiles(profile_config, exp_id, grid, out_dir, plot=False):
+    z = grid.zt
 
-    Nz = nml["DOMAIN"]["kmax"]
-    stretch = profile_config["grid"]["stretch"]
-    alpha = profile_config["grid"]["alpha_stretch"]
-    dz = profile_config["grid"]["dz"]
-
-    if not stretch:
-        # equally spaced levels, first level is 1/2 dz over ground
-        z = (np.arange(Nz) + 0.5) * dz
-    else:
-        # stretched vertical levels. First level is of size dz and located at dz/2, dz then stretched by factor alpha
-        z = np.zeros(Nz)
-        z[0] = dz / 2
-        dz_ = dz
-        for i in range(1, Nz):
-            z[i] = z[i - 1] + dz_
-            dz_ *= alpha
-
-    # total height:
-    if stretch and alpha > 1:
-        Ztot = dz * (1 - alpha**Nz) / (1 - alpha)
-    else:
-        Ztot = dz * Nz
     var_dic = {
         "u": None,
         "v": None,
@@ -83,7 +59,7 @@ def output_profiles(profile_config, nml, out_dir, plot=False):
         "linmlsurf": linmlsurf,
         "exp": exp,
     }
-    for var in var_dic.keys():
+    for var in var_dic:
         if var in profile_config["profiles"]:
             var_config = profile_config["profiles"][var]
             shape_function = shape_function_dic[var_config["shape"]]
@@ -100,7 +76,7 @@ def output_profiles(profile_config, nml, out_dir, plot=False):
         out_dir / f"init.{exp_id:03d}.nc", "w", format="NETCDF3_CLASSIC"
     ) as ncout:
         # create time dimension
-        nc_z_dim = ncout.createDimension("zh", Nz)
+        ncout.createDimension("zh", len(z))
 
         # normal profiles
         nc_z_var = ncout.createVariable("zh", "f8", ("zh",))

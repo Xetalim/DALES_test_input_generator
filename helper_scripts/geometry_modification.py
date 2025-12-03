@@ -3,11 +3,13 @@ import netCDF4
 
 
 class modifierClass:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.meshx, self.meshy = np.meshgrid(x, y)
-        self.idxmesh, self.idymesh = np.meshgrid(np.arange(len(x)), np.arange(len(y)))
+    def __init__(self, grid):
+        self.x = grid.xt
+        self.y = grid.yt
+        self.meshx, self.meshy = np.meshgrid(self.x, self.y)
+        self.idxmesh, self.idymesh = np.meshgrid(
+            np.arange(len(self.x)), np.arange(len(self.y))
+        )
 
     def allGeometry(self):
         return np.ones_like(self.meshx, dtype=bool)
@@ -59,11 +61,11 @@ class modifierClass:
 class LsmModifier(modifierClass):
     # class to edit land use types (lu_types) for the DALES LSM input. Set type using set_type and
     # give a mask with any of the geometry primitives.
-    def __init__(self, lu_types, lu_dict, lsm_input):
+    def __init__(self, lu_types, lu_dict, lsm_input, grid):
         self.lu_types = lu_types
         self.lu_dict = lu_dict
         self.lsm_input = lsm_input
-        super().__init__(x=lsm_input.x, y=lsm_input.y)
+        super().__init__(grid)
 
     def returnVars(self):
         return self.lu_types, self.lu_dict, self.lsm_input
@@ -96,8 +98,8 @@ class LsmModifier(modifierClass):
 
 
 class ibmCreatorClass(modifierClass):
-    def __init__(self, x, y):
-        super().__init__(x=x, y=y)
+    def __init__(self, grid):
+        super().__init__(grid)
         self.bc_height = np.zeros_like(self.meshx)
 
     def do_modification(self, geometry, modification):
@@ -121,12 +123,13 @@ class ibmCreatorClass(modifierClass):
 
 
 class slbCreatorClass(modifierClass):
-    def __init__(self, x, y):
-        super().__init__(x=x, y=y)
+    def __init__(self, grid):
+        super().__init__(grid)
         self.vars = {}
 
     def init_var(self, submod):
         varname = submod["varname"]
+        dtype = float
         if not (varname in self.vars):
             if "dtype" in submod:
                 match submod["dtype"]:
@@ -142,8 +145,6 @@ class slbCreatorClass(modifierClass):
                         dtype = float
                     case default:
                         raise ValueError("Invalid dtype given")
-            else:
-                dtype = float
             shape = self.meshx.shape
             if "n_layers" in submod:
                 shape = (submod["n_layers"], *shape)
@@ -158,8 +159,8 @@ class slbCreatorClass(modifierClass):
         for submod in modification["vars"]:
             self.init_var(submod)
             if "n_layers" in submod:
-                geometry = np.tile(geometry, [submod["n_layers"], 1, 1])
-                getattr(self, submod["varname"])[geometry] = submod["value"]
+                newgeometry = np.tile(geometry, [submod["n_layers"], 1, 1])
+                getattr(self, submod["varname"])[newgeometry] = submod["value"]
             else:
                 getattr(self, submod["varname"])[geometry] = submod["value"]
 
@@ -192,9 +193,9 @@ class slbCreatorClass(modifierClass):
                     )[:, :]
 
 
-def lsm_modify_func(config, lu_types, lu_dict, lsm_input):
+def lsm_modify_func(config, lu_types, lu_dict, lsm_input, grid):
     # function that edits the DALES LSM land use types using the modifier class.
-    modifier = LsmModifier(lu_types, lu_dict, lsm_input)
+    modifier = LsmModifier(lu_types, lu_dict, lsm_input, grid)
     for modification in config["land_use_modifications"]:
         modifier.parse_yaml_name(modification)
     # modifier.set_type(modifier.allGeometry(), "grs")
