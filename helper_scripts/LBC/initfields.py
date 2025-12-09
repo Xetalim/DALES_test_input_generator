@@ -4,9 +4,10 @@ import numpy as np
 import xarray as xr
 from datetime import datetime
 import pandas as pd
+from helper_scripts.grids import GridDalesOpenBC
 
 
-def initial_fields(input_json, grid, data, transform, output_path):
+def initial_fields(input_json, grid: GridDalesOpenBC, data, transform, output_path):
     data = data.isel({"time": 0}, drop=True).chunk({"z": 1})
     # Interpolate data to DALES staggered grid
     u0 = (
@@ -49,10 +50,16 @@ def initial_fields(input_json, grid, data, transform, output_path):
     X, Y = np.meshgrid(grid.xt, grid.yt)
     lat, lon = transform.xy_to_latlon(X, Y)
     lat = xr.DataArray(
-        lat, dims=["yt", "xt"], coords={"yt": grid.yt, "xt": grid.xt}, name="lat"
+        lat,
+        dims=["yt", "xt"],
+        coords={"yt": grid.yt, "xt": grid.xt},
+        name="lat",
     )
     lon = xr.DataArray(
-        lon, dims=["yt", "xt"], coords={"yt": grid.yt, "xt": grid.xt}, name="lon"
+        lon,
+        dims=["yt", "xt"],
+        coords={"yt": grid.yt, "xt": grid.xt},
+        name="lon",
     )
     # Create dataset and add initial fields
     initfields = xr.merge([u0, v0, w0, thl0, qt0, e120, lat, lon], combine_attrs="drop")

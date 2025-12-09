@@ -6,6 +6,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import netCDF4
+from helper_scripts.grids import GridDales
 
 
 # linear profile => Use for u
@@ -40,7 +41,7 @@ def expsinw(z, surf_val, H, amp, Hp):
     return wbase + wonion
 
 
-def output_profiles(profile_config, exp_id, grid, out_dir, plot=False):
+def output_profiles(profile_config, exp_id, grid: GridDales, out_dir, plot=False):
     z = grid.zt
 
     var_dic = {
@@ -75,7 +76,8 @@ def output_profiles(profile_config, exp_id, grid, out_dir, plot=False):
     with netCDF4.Dataset(
         out_dir / f"init.{exp_id:03d}.nc", "w", format="NETCDF3_CLASSIC"
     ) as ncout:
-        # create time dimension
+        # create height dimension, notice zh is from the dephy standard and just means height.
+        # in DALES zh is read into zf (full level/cell center)
         ncout.createDimension("zh", len(z))
 
         # normal profiles

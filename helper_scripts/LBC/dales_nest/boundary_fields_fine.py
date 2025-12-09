@@ -3,22 +3,23 @@ import xarray as xr
 import warnings
 
 from datetime import datetime
-
-from helper_scripts.LBC.dales_nest.get_timesteps0 import (
+from helper_scripts.grids import GridDalesOpenBC, nesting_idx
+from helper_scripts.LBC.dales_nest.get_all_dales_boundaries import (
     get_all_dales_boundaries,
 )
 
 
-def boundary_fields_fine(input_json, grid, output_path):
-    # ix_west = int(input_json["x_offset"] / input_json["dx_coarse"])
-    # ix_east = int(ix_west + grid.xsize / input_json["dx_coarse"])
-    # iy_south = int(input_json["y_offset"] / input_json["dy_coarse"])
-    # iy_north = int(iy_south + grid.ysize / input_json["dy_coarse"])
-    with xr.open_mfdataset(f"{input_json['inpath_coarse']}initfields.inp.*.nc") as ds:
-        ix_west = np.argwhere(ds.xt == np.min(grid.xt))
-        ix_east = np.argwhere(ds.xt == np.max(grid.xt))
-        iy_south = np.argwhere(ds.yt == np.min(grid.yt))
-        iy_north = np.argwhere(ds.yt == np.max(grid.yt))
+def boundary_fields_fine(
+    input_json, grid: GridDalesOpenBC, output_path, grid_indices: nesting_idx
+):
+    if not grid_indices:
+        raise ValueError("No nesting indices provided!")
+
+    ix_west = grid_indices.ix_west
+    ix_east = grid_indices.ix_east
+    iy_south = grid_indices.iy_south
+    iy_north = grid_indices.iy_north
+
     # Get initial boundary fields from initial fields
     (
         uwest,

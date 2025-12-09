@@ -1,15 +1,26 @@
 # Creates DALES grid
 import numpy as np
+from dataclasses import dataclass
 
 
 class GridDales:
     def __init__(self, input_dic):
+        self.input_dic = input_dic
         self.xsize = input_dic["xsize"]
         self.ysize = input_dic["ysize"]
 
         self.itot = input_dic["itot"]
         self.jtot = input_dic["jtot"]
         self.kmax = input_dic["kmax"]
+
+        self.imax = self.itot
+        self.jmax = self.jtot
+        self.i1 = self.imax + 1
+        self.j1 = self.jmax + 1
+        self.k1 = self.kmax + 1
+        self.k2 = self.kmax + 2
+        self.i2 = self.imax + 2
+        self.j2 = self.jmax + 2
 
         self.x0 = input_dic["x0"]
         self.y0 = input_dic["y0"]
@@ -29,12 +40,20 @@ class GridDales:
         self.xm = self.x0 + i_arr * self.dx
         self.ym = self.y0 + j_arr * self.dy
 
+        # self.xt = self.x0 + np.arange(0.5 * self.dx, self.xsize, self.dx)
+        # self.yt = self.y0 + np.arange(0.5 * self.dy, self.ysize, self.dy)
+
+        self.xt_openbc = self.xt
+        self.yt_openbc = self.yt
+
+        self.xm_openbc = self.x0 + np.arange(0, self.xsize + self.dx, self.dx)
+        self.ym_openbc = self.y0 + np.arange(0, self.ysize + self.dy, self.dy)
+
         # self.xt_ghost = self.x0 + (i_arr + 0.5) * self.dx
         # self.yt_ghost = self.y0 + (j_arr + 0.5) * self.dy
 
         # self.xm_ghost = self.x0 + i_arr * self.dx
         # self.ym_ghost = self.y0 + j_arr * self.dy
-
         if self.alpha:
             # Stretched height grid
             self.dz = np.zeros(self.kmax)
@@ -50,12 +69,18 @@ class GridDales:
             self.zsize = self.kmax * self.dz0
             self.zt = np.arange(0.5 * self.dz0, self.zsize, self.dz0)
             self.zm = np.arange(0, self.zsize + self.dz0, self.dz0)
-        # zt = self.zt
-        # zm = self.zm
-        # kmax = self.kmax
-        # k1 = kmax + 1
+        kmax = self.kmax
+        k1 = kmax + 1
+
+        import helper_scripts.LBC.boundary_info as bi
+
+        self.res = bi.openbc_counts_idx(self, fortran_indexing=False)
+
+        print(self.res)
         # zh = np.ones(k1)
         # zf = np.ones(k1)
+
+        # zf[:kmax] = self.zt[:]
         # zh[0] = 0.0
         # for k in range(0, kmax):
         #     zh[k + 1] = zh[k] + 2.0 * (zf[k] - zh[k])
@@ -63,6 +88,20 @@ class GridDales:
 
         # print(zf)
         # print(zh)
+
+    def as_openbc(self):
+        return GridDalesOpenBC(self.input_dic)
+
+
+class GridDalesOpenBC(GridDales):
+    def __init__(self, input_dic):
+        super().__init__(input_dic)
+
+        self.xt = self.x0 + np.arange(0.5 * self.dx, self.xsize, self.dx)
+        self.yt = self.y0 + np.arange(0.5 * self.dy, self.ysize, self.dy)
+
+        self.xm = self.x0 + np.arange(0, self.xsize + self.dx, self.dx)
+        self.ym = self.y0 + np.arange(0, self.ysize + self.dy, self.dy)
 
 
 def get_domain_info_nml(nml, config):
@@ -123,3 +162,16 @@ def generate_dales_domain(domain):
     x_rd = np.arange(x0 + dx / 2, x0 + xsize, dx)
     y_rd = np.arange(y0 + dy / 2, y0 + ysize, dy)
     return x_rd, y_rd, itot, jtot
+
+    # ix_west = nesting_idx.ix_west
+    # ix_east = nesting_idx.ix_east
+    # iy_south = nesting_idx.iy_south
+    # iy_north = nesting_idx.iy_north
+
+
+@dataclass
+class nesting_idx:
+    ix_west: int
+    ix_east: int
+    iy_south: int
+    iy_north: int

@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import Union, List
 import datetime
+from helper_scripts.grids import GridDales
 
 
 @dataclass
@@ -38,60 +39,8 @@ class tracer:
     pointsources: List[pointsource]
 
 
-co2 = tracer_info(
-    name="co2", long_name="Carbon Dioxide (CO2)", unit="ppm", molar_mass=44.009
-)
-pre_existing_tracers = {"co2": co2}
-
-
-def get_emis_sim_hours(nml):
-    sim_start_time = datetime.datetime(
-        year=nml["NAMDATETIME"]["startyear"],
-        month=nml["NAMDATETIME"]["startmonth"],
-        day=nml["NAMDATETIME"]["startday"],
-        hour=nml["DOMAIN"]["xtime"],
-    )
-    end_hour = sim_start_time + datetime.timedelta(seconds=nml["RUN"]["runtime"])
-
-    required_datetimes = []
-    cur_sim_time = sim_start_time - datetime.timedelta(hours=1)
-    while cur_sim_time < end_hour + datetime.timedelta(hours=1):
-        required_datetimes.append(cur_sim_time)
-        cur_sim_time = cur_sim_time + datetime.timedelta(hours=1)
-
-    return [dt.strftime("%Y%m%d%H00") for dt in required_datetimes]
-
-
-def setup_emissions(grid, config, output_path, nml, exp_id):
-    emission_class = emissions(output_path=output_path, grid=grid)
-    if not "emissions" in config:
-        return emission_class
-
-    for tracer_type in config["emissions"]["tracer_types"]:
-        tracer_name = tracer_type["name"]
-        emission_class.add_tracer(parse_tracer_type(tracer_type))
-        for point in config["emissions"]["point_sources"][tracer_name]:
-            emission_class.add_pointsource(tracer_name, pointsource(**point))
-    return emission_class
-
-
-def write_emissions_constant(
-    emission_class: emissions, grid, config, output_path, nml, exp_id
-):
-    if not "emissions" in config:
-        return emission_class
-    emission_class.write_tracers_file()
-    datetime_strs = get_emis_sim_hours(nml)
-    for datetime_str in datetime_strs:
-        emission_class.write_hourly_emission_data(datetime_str)
-
-
-def parse_tracer_type(tracer_conf) -> tracer_info:
-    return tracer_info(**tracer_conf)
-
-
 class emissions:
-    def __init__(self, output_path, grid):
+    def __init__(self, output_path, grid: GridDales):
         self.output_path = output_path
         self.tracers = {}
         self.tracer_profiles = {}
@@ -99,7 +48,7 @@ class emissions:
 
     def add_tracer(self, tracer_info: tracer_info):
         self.tracers[tracer_info.name] = tracer(
-            tracer_info, np.zeros_like(self.grid.zm), []
+            tracer_info, np.zeros_like(self.grid.zt), []
         )
 
     def add_pointsource(self, tracername, source_info: pointsource):
@@ -184,7 +133,7 @@ class emissions:
     def write_tracers_file(self):
         os.makedirs(self.output_path / "input" / "emissions", exist_ok=True)
         with nc.Dataset(self.output_path / "input" / "tracers.001.nc", "w") as file:
-            file.createDimension("z", len(self.grid.zm))
+            file.createDimension("z", len(self.grid.zt))
             for tracername in self.tracers:
                 self.tracerinfo_to_netcdf(file, tracername)
 
@@ -192,3 +141,55 @@ class emissions:
         for tracername in self.tracers:
             self.emissionmap_to_netcdf(datetime_str, tracername)
             self.pointsources_to_netcdf(datetime_str, tracername)
+
+
+co2 = tracer_info(
+    name="co2", long_name="Carbon Dioxide (CO2)", unit="ppm", molar_mass=44.009
+)
+pre_existing_tracers = {"co2": co2}
+
+
+def get_emis_sim_hours(nml):
+    sim_start_time = datetime.datetime(
+        year=nml["NAMDATETIME"]["startyear"],
+        month=nml["NAMDATETIME"]["startmonth"],
+        day=nml["NAMDATETIME"]["startday"],
+        hour=nml["DOMAIN"]["xtime"],
+    )
+    end_hour = sim_start_time + datetime.timedelta(seconds=nml["RUN"]["runtime"])
+
+    required_datetimes = []
+    cur_sim_time = sim_start_time - datetime.timedelta(hours=1)
+    while cur_sim_time < end_hour + datetime.timedelta(hours=1):
+        required_datetimes.append(cur_sim_time)
+        cur_sim_time = cur_sim_time + datetime.timedelta(hours=1)
+
+    return [dt.strftime("%Y%m%d%H00") for dt in required_datetimes]
+
+
+def setup_emissions(grid, config, output_path, nml, exp_id):
+    emission_class = emissions(output_path=output_path, grid=grid)
+    if not "emissions" in config:
+        return emission_class
+
+    for tracer_type in config["emissions"]["tracer_types"]:
+        tracer_name = tracer_type["name"]
+        emission_class.add_tracer(parse_tracer_type(tracer_type))
+        for point in config["emissions"]["point_sources"][tracer_name]:
+            emission_class.add_pointsource(tracer_name, pointsource(**point))
+    return emission_class
+
+
+def write_emissions_constant(
+    emission_class: emissions, grid, config, output_path, nml, exp_id
+):
+    if not "emissions" in config:
+        return emission_class
+    emission_class.write_tracers_file()
+    datetime_strs = get_emis_sim_hours(nml)
+    for datetime_str in datetime_strs:
+        emission_class.write_hourly_emission_data(datetime_str)
+
+
+def parse_tracer_type(tracer_conf) -> tracer_info:
+    return tracer_info(**tracer_conf)

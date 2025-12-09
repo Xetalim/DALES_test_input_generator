@@ -1,10 +1,10 @@
 import xarray as xr
 
-
+from helper_scripts.grids import GridDalesOpenBC
 from datetime import datetime
 
 
-def initial_fields_fine(input_json, grid, output_path):
+def initial_fields_fine(input_json, grid: GridDalesOpenBC, output_path):
     # Load data
     with xr.open_mfdataset(f"{input_json['inpath']}initfields.inp.*.nc") as ds:
         initfields_fine = ds.interp(
@@ -17,7 +17,12 @@ def initial_fields_fine(input_json, grid, output_path):
             assume_sorted=False,
         )
         initfields_fine = initfields_fine.assign_coords(
-            {"xt": grid.xt, "xm": grid.xm, "yt": grid.yt, "ym": grid.ym}
+            {
+                "xt": grid.xt,
+                "xm": grid.xm,
+                "yt": grid.yt,
+                "ym": grid.ym,
+            }
         )
         # Adjust transform
         # initfields_fine["transform"].attrs["false_easting"] = initfields_fine[

@@ -3,6 +3,7 @@ import numpy as np
 import os
 
 from helper_scripts.grids import generate_dales_domain
+from helper_scripts.grids import GridDales
 
 # Custom Python scripts/tools/...
 from helper_scripts.LSM.vegetation_properties import ifs_vegetation, top10_to_ifs
@@ -12,7 +13,7 @@ from helper_scripts.LSM.LSM_output_dales import LSM_output_dales
 ASPECT_CORR = 2
 
 
-def init_dales_grid(grid, lutypes, parnames):
+def init_dales_grid(grid: GridDales, lutypes, parnames):
     """
     Initialise a land surface grid with the dimensions of the DALES grid
 
@@ -247,7 +248,9 @@ def some_plots(lsm_input, plotvars, output_path):
     return
 
 
-def process_input(lu_types, grid, output_path, exp_id, lplot, modify_func=None):
+def process_input(
+    lu_types, grid: GridDales, output_path, exp_id, lplot, modify_func=None
+):
     """Function that connects all processing steps:
     Init DALES grid
     Write output files in netCDF and binary (to be phased out) format

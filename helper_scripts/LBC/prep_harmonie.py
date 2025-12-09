@@ -7,6 +7,7 @@ import dask
 import warnings
 from helper_scripts.LBC.Transform import Transform
 import helper_scripts.LBC.hybrid_levels as hybrid_levels
+from helper_scripts.grids import GridDalesOpenBC
 from helper_scripts.LBC.helper import (
     calcBaseprof,
     differentiate,
@@ -28,7 +29,7 @@ grav = 9.81  # Gravitational constant
 kappa = 0.4  # Von Karman constant
 
 
-def prep_harmonie(input_json, grid):
+def prep_harmonie(input_json, grid: GridDalesOpenBC):
     variables = ["ua", "va", "wa", "ta", "hus", "clw", "ps", "tas", "huss"]
     if "synturb" in input_json:
         variables = variables + ["tke", "tauu", "tauv", "cb", "hfss"]
@@ -40,8 +41,8 @@ def prep_harmonie(input_json, grid):
 
     # Calculate pressure levels
     p = calculate_pressure(input_json, data)
-    print(p.mean(dim=["x", "y"]).values)
-    print(data.lev.values)
+    # print(p.mean(dim=["x", "y"]).values)
+    # print(data.lev.values)
     # drop NAN if levels from harmonie is less than 90
     data = data.assign({"p": p})  # .dropna(dim="lev")
     # print(data.assign({"p": p}).p.values)
@@ -162,7 +163,7 @@ def merge_steps(data, variables):
     return data
 
 
-def get_ref_height_crop(input_json, grid, data):
+def get_ref_height_crop(input_json, grid: GridDalesOpenBC, data):
     if input_json["start"] == input_json["time0"]:  # Define reference height levels
         z_int = (
             data["z3d"]
@@ -183,7 +184,7 @@ def get_ref_height_crop(input_json, grid, data):
 
 
 def calculate_turbulence_vars(
-    grid,
+    grid: GridDalesOpenBC,
     data,
     turbulence_data_dic,
     z_int,
@@ -233,7 +234,7 @@ def calculate_turbulence_vars(
     data = data.assign({"ustar": ustar, "vstar": vstar, "wthls": wthls, "zi": zi})
 
 
-def calc_base_exner(input_json, grid, data, z_int):
+def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
     if input_json["start"] == input_json["time0"]:  # Calculate exnr function
         z_min = data.z.argmin(dim="z")
         tas_exnr = (
@@ -243,8 +244,8 @@ def calc_base_exner(input_json, grid, data, z_int):
             .mean(dim=["x", "y"])
             .values
         )
-        print(data.z.isel(z=z_min))
-        print(data.z.isel(z=0))
+        # print(data.z.isel(z=z_min))
+        # print(data.z.isel(z=0))
         ps_exnr = (
             data["p"]
             .isel({"time": 0, "z": z_min}, drop=True)
@@ -391,7 +392,7 @@ def update_transform(transform, x_sw, y_sw):
     return transform
 
 
-def create_xarray_dataset(input_json, grid, variables):
+def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
     data = []
     # Get time epochs
 
@@ -428,15 +429,15 @@ def create_xarray_dataset(input_json, grid, variables):
                 )
             )
         # Set south west corner of DALES as origin
-        data[-1] = data[-1].assign_coords(
-            {"x": data[-1]["x"].values - x_sw, "y": data[-1]["y"].values - y_sw}
-        )
+        # data[-1] = data[-1].assign_coords(
+        #     {"x": data[-1]["x"].values - x_sw, "y": data[-1]["y"].values - y_sw}
+        # )
     # Merge into xarray dataset
     data = xr.merge(data, compat="override")
     return data, transform, x_sw, y_sw
 
 
-def create_xarray_dataset_POLYTOPE(input_json, grid, variables):
+def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables):
     data = []
     # Get time epochs
 
@@ -449,22 +450,22 @@ def create_xarray_dataset_POLYTOPE(input_json, grid, variables):
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message=".*formula_terms")
         with xr.open_mfdataset(
-            "/Users/andrevanginkel/Documents/20_Code/21 Input_Output scripts/21.03_paris_NWP/atmo_new.nc",
+            "/Users/andrevanginkel/Documents/20_Code/21_Input_Output_scripts/21.03_paris_NWP/atmo_new.nc",
             decode_coords="all",
         ) as ds:
             transform, _, _, time = get_transform_time(input_json, var, ds)
 
-            print(f"Got {(x_sw,y_sw)=}")
-            print(f"{(np.min(grid.xm), np.max(grid.xm))=}")
-            print(f"{(np.min(grid.ym), np.max(grid.ym))=}")
-            print(f"{(np.min(ds.x).values, np.max(ds.x).values)=}")
-            print(f"{(np.min(ds.y).values, np.max(ds.y).values)=}")
+            # print(f"Got {(x_sw,y_sw)=}")
+            # print(f"{(np.min(grid.xm), np.max(grid.xm))=}")
+            # print(f"{(np.min(grid.ym), np.max(grid.ym))=}")
+            # print(f"{(np.min(ds.x).values, np.max(ds.x).values)=}")
+            # print(f"{(np.min(ds.y).values, np.max(ds.y).values)=}")
             # exit()
     for var_raw in variables:
         if var_raw in ["huss", "ps", "tas"]:
-            filename = "/Users/andrevanginkel/Documents/20_Code/21 Input_Output scripts/21.03_paris_NWP/surface_new.nc"
+            filename = "/Users/andrevanginkel/Documents/20_Code/21_Input_Output_scripts/21.03_paris_NWP/surface_new.nc"
         else:
-            filename = "/Users/andrevanginkel/Documents/20_Code/21 Input_Output scripts/21.03_paris_NWP/atmo_new.nc"
+            filename = "/Users/andrevanginkel/Documents/20_Code/21_Input_Output_scripts/21.03_paris_NWP/atmo_new.nc"
         var = {
             "ua": "u",
             "va": "v",

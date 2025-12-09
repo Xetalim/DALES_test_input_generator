@@ -179,7 +179,7 @@ def override_namelists(config, nml):
             nml[section][key] = value
 
 
-def do_slb(grid, config, output_path, nml, exp_id):
+def do_slb(grid: GridDales, config, output_path, nml, exp_id):
     if config["generation_settings"]["useslurb"]:
         return
     slb_generator = geometry_modification.slbCreatorClass(grid)
@@ -189,13 +189,13 @@ def do_slb(grid, config, output_path, nml, exp_id):
     slb_generator.output_nc(output_path / "input" / f"inslurb.{exp_id:03d}.nc")
 
 
-def do_openbc(grid, config, output_path, nml, exp_id):
+def do_openbc(grid: GridDales, config, output_path, nml, exp_id):
     if not config["generation_settings"]["useopenBC"]:
         return
     openboundary.do_openboundary(grid, config, output_path, nml, exp_id)
 
 
-def do_ibm(grid, config, output_path, nml, exp_id):
+def do_ibm(grid: GridDales, config, output_path, nml, exp_id):
     if not ("ibm_modifications" in config):
         return
     ibm_generator = geometry_modification.ibmCreatorClass(grid)
@@ -204,7 +204,7 @@ def do_ibm(grid, config, output_path, nml, exp_id):
     ibm_generator.output_nc(output_path / "input" / f"ibm.inp_{exp_id:03d}.nc")
 
 
-def do_lsm(grid, config, output_path, nml, exp_id):
+def do_lsm(grid: GridDales, config, output_path, nml, exp_id):
     if not config["generation_settings"]["uselsm"]:
         return
     lu_types = landuse_types.lu_types_depac
@@ -239,9 +239,11 @@ if __name__ == "__main__":
         help="Path of yaml file (e.g. 'cases/mini.yaml')",
     )
     logging.basicConfig(level=logging.INFO)
-    args = parser.parse_args()
-    casefile = args.casefile
+    # args = parser.parse_args()
+    # casefile = args.casefile
 
+    # casefile = "my_own_cases/mini_open.yaml"
+    casefile = "my_own_cases/mini_in_mini_open.yaml"
     logger.info("Processing casefile %s", casefile)
     with open("machine_conf.yaml", "r") as file:
         machine_conf = yaml.safe_load(file)

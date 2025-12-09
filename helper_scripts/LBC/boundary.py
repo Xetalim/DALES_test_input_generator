@@ -3,9 +3,10 @@
 import numpy as np
 import xarray as xr
 from datetime import datetime
+from helper_scripts.grids import GridDalesOpenBC
 
 
-def boundary_fields(input_json, grid, data, output_path):
+def boundary_fields(input_json, grid: GridDalesOpenBC, data, output_path):
     # data = data.drop(["lat", "lon"])
     # West boundary
     openboundaries = get_boundaries(input_json, grid, data)
@@ -81,7 +82,7 @@ def set_time_attrs(input_json, openboundaries):
     return openboundaries
 
 
-def get_boundaries(input_json, grid, data):
+def get_boundaries(input_json, grid: GridDalesOpenBC, data):
     uwest = (
         data["u"]
         .interp(z=grid.zt, y=grid.yt, x=grid.xm[0], assume_sorted=False)

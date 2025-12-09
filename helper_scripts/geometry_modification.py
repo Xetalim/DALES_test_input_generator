@@ -1,9 +1,10 @@
 import numpy as np
 import netCDF4
+from helper_scripts.grids import GridDales
 
 
 class modifierClass:
-    def __init__(self, grid):
+    def __init__(self, grid: GridDales):
         self.x = grid.xt
         self.y = grid.yt
         self.meshx, self.meshy = np.meshgrid(self.x, self.y)
@@ -61,7 +62,7 @@ class modifierClass:
 class LsmModifier(modifierClass):
     # class to edit land use types (lu_types) for the DALES LSM input. Set type using set_type and
     # give a mask with any of the geometry primitives.
-    def __init__(self, lu_types, lu_dict, lsm_input, grid):
+    def __init__(self, lu_types, lu_dict, lsm_input, grid: GridDales):
         self.lu_types = lu_types
         self.lu_dict = lu_dict
         self.lsm_input = lsm_input
@@ -98,7 +99,7 @@ class LsmModifier(modifierClass):
 
 
 class ibmCreatorClass(modifierClass):
-    def __init__(self, grid):
+    def __init__(self, grid: GridDales):
         super().__init__(grid)
         self.bc_height = np.zeros_like(self.meshx)
 
@@ -123,7 +124,7 @@ class ibmCreatorClass(modifierClass):
 
 
 class slbCreatorClass(modifierClass):
-    def __init__(self, grid):
+    def __init__(self, grid: GridDales):
         super().__init__(grid)
         self.vars = {}
 
@@ -193,7 +194,7 @@ class slbCreatorClass(modifierClass):
                     )[:, :]
 
 
-def lsm_modify_func(config, lu_types, lu_dict, lsm_input, grid):
+def lsm_modify_func(config, lu_types, lu_dict, lsm_input, grid: GridDales):
     # function that edits the DALES LSM land use types using the modifier class.
     modifier = LsmModifier(lu_types, lu_dict, lsm_input, grid)
     for modification in config["land_use_modifications"]:
