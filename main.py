@@ -239,11 +239,11 @@ if __name__ == "__main__":
         help="Path of yaml file (e.g. 'cases/mini.yaml')",
     )
     logging.basicConfig(level=logging.INFO)
-    # args = parser.parse_args()
-    # casefile = args.casefile
+    args = parser.parse_args()
+    casefile = args.casefile
 
     # casefile = "my_own_cases/mini_open.yaml"
-    casefile = "my_own_cases/mini_in_mini_open.yaml"
+    # casefile = "my_own_cases/mini_in_mini_open.yaml"
     logger.info("Processing casefile %s", casefile)
     with open("machine_conf.yaml", "r") as file:
         machine_conf = yaml.safe_load(file)
