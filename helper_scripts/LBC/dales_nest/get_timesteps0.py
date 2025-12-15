@@ -34,10 +34,10 @@ def load_var(
     }
     if move_x0y0:
         interp_grid_dic = {
-            "xt": grid.xt - grid.x0,
-            "xm": grid.xm - grid.x0,
-            "yt": grid.yt - grid.y0,
-            "ym": grid.ym - grid.y0,
+            "xt": grid.xt - grid.x0 + (indices.subgrid_x0 - indices.supergrid_x0),
+            "xm": grid.xm - grid.x0 + (indices.subgrid_x0 - indices.supergrid_x0),
+            "yt": grid.yt - grid.y0 + (indices.subgrid_y0 - indices.supergrid_y0),
+            "ym": grid.ym - grid.y0 + (indices.subgrid_y0 - indices.supergrid_y0),
             "zt": grid.zt,
             "zm": grid.zm,
         }
@@ -142,7 +142,7 @@ def load_var(
             raise ValueError("Missing time0!")
         if not isel:
             logger.Warning("Are you sure you want to do this?")
-        return (
+        interpolated_ds = (
             ds[f"{var}{var_postfix}"]
             .isel(isel_dict, drop=True)
             .interp(interp_coords, kwargs=interp_kwargs)
@@ -150,13 +150,17 @@ def load_var(
             .assign_coords(assign_coords)
         ).expand_dims({"time": [pd.Timestamp(expand_dims_time0)]}, axis=0)
     else:
-        return (
+        interpolated_ds = (
             ds[f"{var}{var_postfix}"]
             .isel(isel_dict, drop=True)
             .interp(interp_coords, kwargs=interp_kwargs)
             .rename(f"{var}{boundary}")
             .assign_coords(assign_coords)
         )
+
+    if interpolated_ds.isnull().sum() > 0:
+        raise ValueError(f"Found NaN in dataset {boundary} {var}")
+    return interpolated_ds
 
 
 def get_u0(input_json, grid: GridDalesOpenBC, indices: nesting_idx, ds):

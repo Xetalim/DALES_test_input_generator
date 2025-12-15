@@ -29,8 +29,6 @@ xyear = 2025
 /
 
 &PHYSICS
-z0         = 1e-3
-ps          = 100974.68032932281
 lmoist     = .true. 
 lcoriol    = .true. ! read in large scale speed as geostrophic velocity instead of dpdx
 iradiation = 4       ! 4 = RRTMG
@@ -38,8 +36,10 @@ timerad    = 60
 /
 
 &NAMSURFACE
+z0         = 1e-3
 wtsurf     = 0.
 wqsurf     = 0.
+ps          = 100974.68032932281
 
 ! for new LSM scheme
 isurf = 11

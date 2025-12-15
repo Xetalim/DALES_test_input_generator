@@ -18,50 +18,38 @@ def get_all_dales_boundaries(input_json, grid: GridDalesOpenBC, indices: nesting
     # Get later time steps from corresponding coarse simulation output
     # West boundary
     boundary_dict = {
-        "west": sorted(
-            list(
-                Path(input_json["outpath_coarse"]).glob(
-                    f"crossyz.{indices.ix_west+1:04d}*.nc"
-                )
-            )
+        "west": (
+            Path(input_json["outpath_coarse"]) / ".." / "crossyz.nc",
+            {"xm": indices.ix_west + 1, "xt": indices.ix_west + 1},
         ),
-        "east": sorted(
-            list(
-                Path(input_json["outpath_coarse"]).glob(
-                    f"crossyz.{indices.ix_east+1:04d}*.nc"
-                )
-            )
+        "east": (
+            Path(input_json["outpath_coarse"]) / ".." / "crossyz.nc",
+            {"xm": indices.ix_east + 1, "xt": indices.ix_east + 1},
         ),
-        "south": sorted(
-            list(
-                Path(input_json["outpath_coarse"]).glob(
-                    f"crossxz.{indices.iy_south+1:04d}*.nc"
-                )
-            )
+        "south": (
+            Path(input_json["outpath_coarse"]) / ".." / "crossxz.nc",
+            {"ym": indices.iy_south + 1, "yt": indices.iy_south + 1},
         ),
-        "north": sorted(
-            list(
-                Path(input_json["outpath_coarse"]).glob(
-                    f"crossxz.{indices.iy_north+1:04d}*.nc"
-                )
-            )
+        "north": (
+            Path(input_json["outpath_coarse"]) / ".." / "crossxz.nc",
+            {"ym": indices.iy_north + 1, "yt": indices.iy_north + 1},
         ),
-        "top": sorted(
-            list(
-                Path(input_json["outpath_coarse"]).glob(f"crossxy.{grid.kmax:04d}*.nc")
-            )
+        "top": (
+            Path(input_json["outpath_coarse"]) / ".." / "crossxy.nc",
+            {"zt": grid.kmax},
         ),
     }
     all_ls = []
-    for boundary, (boundaryfiles, sel_index) in boundary_dict.items():
-        with xr.open_mfdataset(
-            boundaryfiles,
-            join="outer",
-            # chunks={"time": input_json["tchunk"]},
-            combine="by_coords",
-            coords="all",
-            # chunks={"time": input_json["tchunk"]},
-        ) as ds:
+    for boundary, (boundaryfile, sel_index) in boundary_dict.items():
+        # with xr.open_mfdataset(
+        #     boundaryfiles,
+        #     join="outer",
+        #     # chunks={"time": input_json["tchunk"]},
+        #     combine="by_coords",
+        #     coords="all",
+        #     # chunks={"time": input_json["tchunk"]},
+        # ) as ds:
+        with xr.open_dataset(boundaryfile) as ds:
             for var in [
                 "u",
                 "v",
@@ -77,7 +65,7 @@ def get_all_dales_boundaries(input_json, grid: GridDalesOpenBC, indices: nesting
                     var_postfix = ""
                 all_ls.append(
                     load_var(
-                        ds,
+                        ds.sel(sel_index),
                         var,
                         boundary=boundary,
                         grid=grid,

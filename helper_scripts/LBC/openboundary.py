@@ -61,7 +61,14 @@ def do_openboundary(grid: GridDalesOpenBC, config, output_path, nml, exp_id):
         iztop = list(supergrid.zt).index(np.max(subgrid.zt))
 
         indices = nesting_idx(
-            ix_west=ixwest, ix_east=ixeast, iy_south=iysouth, iy_north=iynorth
+            ix_west=ixwest,
+            ix_east=ixeast,
+            iy_south=iysouth,
+            iy_north=iynorth,
+            subgrid_x0=subgrid.x0,
+            subgrid_y0=subgrid.y0,
+            supergrid_x0=supergrid.x0,
+            supergrid_y0=supergrid.y0,
         )
     else:
         indices = None

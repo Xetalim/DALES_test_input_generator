@@ -175,3 +175,7 @@ class nesting_idx:
     ix_east: int
     iy_south: int
     iy_north: int
+    supergrid_x0: float
+    supergrid_y0: float
+    subgrid_x0: float
+    subgrid_y0: float
