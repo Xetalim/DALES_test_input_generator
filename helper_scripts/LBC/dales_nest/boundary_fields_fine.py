@@ -7,8 +7,14 @@ from helper_scripts.grids import GridDalesOpenBC, nesting_idx
 from helper_scripts.LBC.dales_nest.get_all_dales_boundaries import (
     get_all_dales_boundaries,
 )
+import logging
+from helper_scripts.logging_wrapper import logwrap
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
+@logwrap
 def boundary_fields_fine(
     input_json, grid: GridDalesOpenBC, output_path, grid_indices: nesting_idx
 ):
@@ -35,6 +41,7 @@ def boundary_fields_fine(
     return openboundaries
 
 
+@logwrap
 def set_openboundary_attrs(input_json, openboundaries):
     dts = (
         openboundaries.time.values.astype("datetime64[s]")

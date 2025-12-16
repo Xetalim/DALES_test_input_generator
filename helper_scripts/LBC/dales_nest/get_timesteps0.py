@@ -1,11 +1,14 @@
 import pandas as pd
 from helper_scripts.grids import GridDalesOpenBC, nesting_idx
-import logging
 from typing import Union, List, Dict
+from helper_scripts.logging_wrapper import logwrap
+import logging
 
 logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
+@logwrap
 def load_var(
     ds,
     var: str,

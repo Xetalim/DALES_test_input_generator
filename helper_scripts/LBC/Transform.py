@@ -1,4 +1,8 @@
 from pyproj import Transformer
+import logging
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
 class Transform:

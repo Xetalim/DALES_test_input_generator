@@ -2,7 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 from matplotlib.patches import Patch
+import logging
 
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 ds = xr.open_dataset(
     "/Users/andre/Documents/Documenten/PhD/40_Input_and_Runs/42_Dales_Cases/Case_generator/02_32x32_grass_with_lake/input/lsm.inp_001.nc"

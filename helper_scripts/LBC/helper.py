@@ -1,8 +1,14 @@
 import math
 import numpy as np
 import xarray as xr
+import logging
+from helper_scripts.logging_wrapper import logwrap
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
+@logwrap
 def calcBaseprof(zt, thls, ps, pref0=1e5):
     # constants
     lapserate = np.array([-6.5 / 1000.0, 0.0, 1.0 / 1000, 2.8 / 1000])
@@ -88,6 +94,7 @@ def calcBaseprof(zt, thls, ps, pref0=1e5):
     return rhobf
 
 
+@logwrap
 def differentiate(data, coord, order, acc=6):
     ncoef = int(2 * np.floor((order + 1) / 2) - 1 + acc)
     out = xr.zeros_like(data)
@@ -112,20 +119,77 @@ def differentiate(data, coord, order, acc=6):
 
 
 # @jit(nopython=True, nogil=True)
-def interp_z(z, data, z_int):
-    data_int = np.zeros(
-        (np.shape(data)[0], len(z_int), np.shape(data)[2], np.shape(data)[3])
+# @logwrap
+# def interp_z(z, data, z_int):
+#     data_int = np.zeros(
+#         (np.shape(data)[0], len(z_int), np.shape(data)[2], np.shape(data)[3])
+#     )
+#     # Reverse data if height is descending
+#     if z[0, 1, 0, 0] < z[0, 0, 0, 0]:
+#         data = data[:, ::-1, :, :]
+#         z = z[:, ::-1, :, :]
+#     for it in range(np.shape(data)[0]):
+#         for iy in range(np.shape(data)[2]):
+#             for ix in range(np.shape(data)[3]):
+#                 data_int[it, :, iy, ix] = np.interp(
+#                     z_int, z[it, :, iy, ix], data[it, :, iy, ix]
+#                 )
+#     return data_int
+
+
+@logwrap
+def interp_z(z: xr.DataArray, data: xr.DataArray, z_int: xr.DataArray):
+    """
+    Interpolate `data` onto new vertical levels `z_int`.
+
+    Parameters
+    ----------
+    z : xr.DataArray
+        Height coordinate, dims (time, z, y, x)
+    data : xr.DataArray
+        Data to interpolate, same dims as `z`
+    z_int : array-like
+        1D target height levels
+
+    Returns
+    -------
+    xr.DataArray
+        Interpolated data with dims (time, z_int, y, x)
+    """
+
+    # z_int = xr.DataArray(z_int, dims="lev", name="z")
+
+    # Ensure vertical coordinate is ascending
+    z0 = z.isel(lev=0)
+    z1 = z.isel(lev=1)
+
+    descending = (z1 < z0).any()
+
+    if descending:
+        logger.error(
+            "Z data is not sorted ascending.. This should be fixed at an earlier point."
+        )
+        z = z.isel(lev=slice(None, None, -1))
+        data = data.isel(lev=slice(None, None, -1))
+
+    def _interp_1d(z_new, z_col, data_col):
+        print(z_new.lev)
+        print(z_col.lev)
+        print(data_col.lev)
+        return np.interp(z_new, z_col, data_col)
+
+    data_int = xr.apply_ufunc(
+        _interp_1d,
+        z_int,
+        z,
+        data,
+        input_core_dims=[["lev"], ["lev"], ["lev"]],
+        output_core_dims=[["lev"]],
+        vectorize=False,
+        dask="parallelized",
+        output_dtypes=[data.dtype],
     )
-    # Reverse data if height is descending
-    if z[0, 1, 0, 0] < z[0, 0, 0, 0]:
-        data = data[:, ::-1, :, :]
-        z = z[:, ::-1, :, :]
-    for it in range(np.shape(data)[0]):
-        for iy in range(np.shape(data)[2]):
-            for ix in range(np.shape(data)[3]):
-                data_int[it, :, iy, ix] = np.interp(
-                    z_int, z[it, :, iy, ix], data[it, :, iy, ix]
-                )
+
     return data_int
 
 

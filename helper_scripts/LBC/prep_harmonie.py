@@ -8,12 +8,19 @@ import warnings
 from helper_scripts.LBC.Transform import Transform
 import helper_scripts.LBC.hybrid_levels as hybrid_levels
 from helper_scripts.grids import GridDalesOpenBC
+from helper_scripts.logging_wrapper import logwrap
 from helper_scripts.LBC.helper import (
     calcBaseprof,
     differentiate,
     interp_z,
     load_data,
 )
+
+import logging
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
+
 
 xr.set_options(use_new_combine_kwarg_defaults=True)
 DATA_LAT_VAR = "latitude"
@@ -29,6 +36,7 @@ grav = 9.81  # Gravitational constant
 kappa = 0.4  # Von Karman constant
 
 
+@logwrap
 def prep_harmonie(input_json, grid: GridDalesOpenBC):
     variables = ["ua", "va", "wa", "ta", "hus", "clw", "ps", "tas", "huss"]
     if "synturb" in input_json:
@@ -82,17 +90,20 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
     # Interpolate data to reference height levels
     data = interpolate_ref_height(input_json, data, z_int)
 
+    # make sure z_int is also dimension z now..
+    z_int = z_int.compute().rename({"lev": "z"})
+
     # Calculate qt
     data = data.assign({"qt": data["clwc"] + data["q"]})
     # Calculate base profiles and exnr function
     ps_exnr, exnrs, thls_exnr, exnr = calc_base_exner(input_json, grid, data, z_int)
 
-    print(f"ps = {ps_exnr}")
-    print(f"thls = {thls_exnr}")
-    input_json["ps"] = ps_exnr  # save the ps value used for the profile
-    input_json["thls"] = thls_exnr  # and thls
+    # print(f"ps = {float(ps_exnr)}")
+    # print(f"thls = {float(thls_exnr)}")
+    input_json["ps"] = float(ps_exnr)  # save the ps value used for the profile
+    input_json["thls"] = float(thls_exnr)  # and thls
     exnr = xr.DataArray(
-        np.concatenate([exnrs[None], exnr]),
+        np.concatenate([[exnrs], exnr]),
         dims=["z"],
         coords={"z": z_int},
         name="exnr",
@@ -131,6 +142,7 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
     return data, transform
 
 
+@logwrap
 def merge_steps(data, variables):
     dic = {
         "ua": "u",
@@ -163,25 +175,39 @@ def merge_steps(data, variables):
     return data
 
 
+@logwrap
 def get_ref_height_crop(input_json, grid: GridDalesOpenBC, data):
     if input_json["start"] == input_json["time0"]:  # Define reference height levels
         z_int = (
-            data["z3d"]
-            .isel({"time": 0}, drop=True)
+            data["z3d"].isel({"time": 0}, drop=True)
             # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
             .mean(dim=["x", "y"])  # [::-1]
         )
-        try:
-            arg = np.argwhere(z_int < grid.zsize).max()
-        except ValueError:
-            arg = -2
-        z_int = z_int[: arg + 1]
+        # try:
+        #     arg = np.argwhere(z_int < grid.zsize).max()
+        # except ValueError:
+        #     arg = -2
+
+        # we do not mask z_int at all!
+
+        # # we set 1.2 as a threshold, we don't want to waste too much computing time, but if we only select interpolating poihnts directly in our domain,
+        # # the top value will not be able to be interpolated correctly...
+        # mask = z_int < 1.2 * grid.zsize
+
+        # if grid.zsize > z_int.max():
+        #     logger.error("Grid size larger than input vertical domain...")
+        # if mask.sum() < 2:
+        #     logger.error("Too few vertical points to interpolate from...")
+        # # we compute the mask because dask doesn't like arrays of unknown shape...
+        # z_int = z_int[mask.compute()]
+        # z_int = z_int[: arg + 1]
     else:  # Take reference height levels from exnr.inp.xxx
         exnr = np.loadtxt(input_json["exnr_file"], skiprows=1)
         z_int = exnr[:, 0]
     return z_int
 
 
+@logwrap
 def calculate_turbulence_vars(
     grid: GridDalesOpenBC,
     data,
@@ -233,20 +259,19 @@ def calculate_turbulence_vars(
     data = data.assign({"ustar": ustar, "vstar": vstar, "wthls": wthls, "zi": zi})
 
 
+@logwrap
 def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
     if input_json["start"] == input_json["time0"]:  # Calculate exnr function
         z_min = data.z.argmin(dim="z")
         tas_exnr = (
-            data["t"]
-            .isel({"time": 0, "z": z_min}, drop=True)
+            data["t"].isel({"time": 0, "z": z_min}, drop=True)
             # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
             .mean(dim=["x", "y"])
         )
         # print(data.z.isel(z=z_min))
         # print(data.z.isel(z=0))
         ps_exnr = (
-            data["p"]
-            .isel({"time": 0, "z": z_min}, drop=True)
+            data["p"].isel({"time": 0, "z": z_min}, drop=True)
             # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
             .mean(dim=["x", "y"])
         )
@@ -256,7 +281,7 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
         p_exnr = (
             rhobf[1:]
             * Rd
-            * data["t"][0, 1:]
+            * data["t"].isel(time=0, z=slice(1, None, None))
             # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
             .mean(dim=["x", "y"])
             * (
@@ -281,6 +306,7 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
     return ps_exnr, exnrs, thls_exnr, exnr
 
 
+@logwrap
 def interpolate_ref_height(input_json, data, z_int):
     data_intz = []
     its = 0
@@ -307,36 +333,77 @@ def interpolate_ref_height(input_json, data, z_int):
     }
     if "synturb" in input_json:
         variables.append("tke")
-    for untranslated_var in variables:
-        var = dic[untranslated_var]
-        its = 0
-        var_intz = []
-        # Loop over time chunks (allows for parallel calculation in time index)
-        for tchunk in data.chunks["time"]:
-            ite = its + tchunk
-            data_slice = dask.delayed(load_data)(
-                data[var], {"time": np.arange(its, ite)}, drop=False
+
+    # make sure data is ascending
+    z0 = data["z3d"].isel(lev=0)
+    z1 = data["z3d"].isel(lev=1)
+
+    descending = (z1 < z0).any()
+
+    if descending:
+        logger.warning("Data is sorted vertically descending, inverting...")
+        data = data.isel(lev=slice(None, None, -1))
+
+    def vertical_interp_all(ds, z3d, z_new):
+        """
+        Interpolate all variables in ds along a 4D vertical coordinate z3d
+        onto target heights z_new.
+
+        Parameters
+        ----------
+        ds : xarray.Dataset
+            Dataset with dims (time, x, y, lev)
+        z3d : xarray.DataArray
+            4D array with actual heights (time, x, y, lev)
+        z_new : 1D array
+            Target vertical levels (physical heights)
+
+        Returns
+        -------
+        ds_interp : xarray.Dataset
+            Dataset with all variables interpolated to z_new
+        """
+        z_target = z_new
+
+        def _interp_func(var_col, z_col, z_target=z_target):
+            # var_col, z_col: 1D arrays of shape (lev,)
+            return np.interp(z_target, z_col, var_col, left=np.nan, right=np.nan)
+
+        interp_vars = {}
+        for var in ds.data_vars:
+            da = ds[var]
+            # Apply vertical interpolation along lev dimension
+            da_interp = xr.apply_ufunc(
+                _interp_func,
+                da,
+                z3d,
+                input_core_dims=[["lev"], ["lev"]],
+                output_core_dims=[["lev"]],
+                vectorize=True,
+                dask="parallelized",
+                output_dtypes=[da.dtype],
             )
-            z_slice = dask.delayed(load_data)(
-                data["z3d"], {"time": np.arange(its, ite)}, drop=False
-            )
-            var_intz.append(dask.delayed(interp_z)(z_slice, data_slice, z_int))
-            its = ite
-        # Concatenate data along time chunks and convert back to xarray
-        var_intz = dask.delayed(np.concatenate)(var_intz, axis=0)
-        var_intz = xr.DataArray(
-            dask.array.from_delayed(var_intz, new_shape, dtype=float),
-            dims=new_dims,
-            coords=new_coords,
-            name=var,
-            attrs=data[var].attrs,
-        ).chunk({"time": input_json["tchunk"]})
-        data_intz.append(var_intz)
+            da_interp = da_interp.assign_coords(lev=z_target)
+            interp_vars[var] = da_interp
+
+        # Build new dataset
+        ds_interp = xr.Dataset(
+            interp_vars, coords={k: v for k, v in ds.coords.items() if k != "lev"}
+        )
+        ds_interp = ds_interp.assign_coords(lev=z_target)
+
+        return ds_interp.rename({"lev": "z"}).persist()
+
     # Store interpolated height data in a DataSet
-    data = xr.merge(data_intz).assign({"x": data.x, "y": data.y})
+    # data = xr.merge(data_intz).assign({"x": data.x, "y": data.y})
+    # data = interp_to_z(data, data["z3d"], z_int).assign({"x": data.x, "y": data.y})
+
+    data = vertical_interp_all(data, data["z3d"].compute(), z_int.compute())
+    # data = xr.merge(data_intz).assign({"x": data.x, "÷y": data.y})
     return data
 
 
+@logwrap
 def calculate_3d_height_levels(data):
     rho = data["p"] / (
         Rd
@@ -355,6 +422,7 @@ def calculate_3d_height_levels(data):
     return z
 
 
+@logwrap
 def calculate_pressure(input_json, data):
 
     # hybrid_coeff = np.loadtxt(f"{input_json['inpath']}H43_65lev.txt")
@@ -370,6 +438,7 @@ def calculate_pressure(input_json, data):
     return p.sel(lev=data["lev"].values)
 
 
+@logwrap
 def update_transform(transform, x_sw, y_sw):
     return transform
     transform.parameters["false_easting"] = transform.parameters["false_easting"] - x_sw
@@ -389,6 +458,7 @@ def update_transform(transform, x_sw, y_sw):
     return transform
 
 
+@logwrap
 def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
     data = []
     # Get time epochs
@@ -410,7 +480,7 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
             if var in ["tauu", "tauv", "hfss"]:
                 ds = ds.interp(
                     time=time, assume_sorted=True, kwargs={"fill_value": "extrapolate"}
-                ).chunk({"time": input_json["tchunk"]})
+                )  # .chunk({"time": input_json["tchunk"]})
             # Crop data to time and spatial range, using harmonie spatial resolution or filter as buffer
             dx = ds["x"][1].values - ds["x"][0].values
             dy = ds["y"][1].values - ds["y"][0].values
@@ -434,6 +504,7 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
     return data, transform, x_sw, y_sw
 
 
+@logwrap
 def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables):
     data = []
     # Get time epochs
@@ -447,12 +518,11 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message=".*formula_terms")
         with xr.open_mfdataset(
-            "/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs/d1_on-demand-extremes-dt_aac6_oper_2023-08-20_1200_fc_u09tvk_ml*.nc",
-            decode_coords="all",parallel=True
+            input_json["HARMONIE_ml_glob"],
+            decode_coords="all",
+            parallel=True,
         ) as ds:
             transform, _, _, time = get_transform_time(input_json, var, ds)
-
-            print(time)
 
             # print(f"Got {(x_sw,y_sw)=}")
             # print(f"{(np.min(grid.xm), np.max(grid.xm))=}")
@@ -462,9 +532,11 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
             # exit()
     for var_raw in variables:
         if var_raw in ["huss", "ps", "tas"]:
-            filename = "/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs/d1_on-demand-extremes-dt_aac6_oper_2023-08-20_1200_fc_u09tvk_sfc*.nc"
+            filename = input_json["HARMONIE_sfc_glob"]
+            # filename = "/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs/d1_on-demand-extremes-dt_aac6_oper_2023-08-20_1200_fc_u09tvk_sfc*.nc"
         else:
-            filename = "/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs/d1_on-demand-extremes-dt_aac6_oper_2023-08-20_1200_fc_u09tvk_ml*.nc"
+            filename = input_json["HARMONIE_ml_glob"]
+            # filename = "/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs/d1_on-demand-extremes-dt_aac6_oper_2023-08-20_1200_fc_u09tvk_ml*.nc"
         var = {
             "ua": "u",
             "va": "v",
@@ -478,7 +550,7 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
         }[var_raw]
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message=".*formula_terms")
-            with xr.open_mfdataset(filename, decode_coords="all",parallel=True) as ds:
+            with xr.open_mfdataset(filename, decode_coords="all", parallel=True) as ds:
                 # Interpolate fluxes to same time
                 if var in ["tauu", "tauv", "hfss"]:
                     ds = ds.interp(
@@ -486,7 +558,6 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
                         assume_sorted=True,
                         kwargs={"fill_value": "extrapolate"},
                     ).chunk({"time": input_json["tchunk"]})
-                print(ds)
 
                 # make sure we all have the same dates and times in the files
                 # ds = ds.sel(time=time)
@@ -500,12 +571,14 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
                 else:
                     buffer = dx
                 data.append(
-                    ds[var].sel(  # also step TODO
+                    ds[var]
+                    .sel(  # also step TODO
                         x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
                         y=slice(
                             int(y_sw - buffer), int(y_sw + grid.ysize + buffer)
                         ),  # TODO INT
-                    ).drop_duplicates(dim="time")
+                    )
+                    .drop_duplicates(dim="time")
                     # .isel(x=slice(0, 10), y=slice(0, 10))
                 )
         # DO NOT SET SOUTH WEST CORNER OF DALES AS ORIGIN
@@ -514,12 +587,15 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
         #     {"x": data[-1]["x"].values - x_sw, "y": data[-1]["y"].values - y_sw}
         # )
     # Merge into xarray dataset
-    data = xr.merge(data, compat="override",join="outer")
+    data = xr.merge(data, compat="override", join="outer")
     return data, transform, x_sw, y_sw
 
 
+@logwrap
 def get_transform_time(input_json, var, ds):
+    # sometimes dask doesn't recognise that rioxarray has been imported. We import rioxarray to make sure we can acess rio.crs..
     import rioxarray
+
     # Read transform information and transform lat/lon of southwest corner to harmonie x/y
     # proj = "+proj=eqc +ellps=WGS84 +a=6378137.0 +lon_0=0.0 +to_meter=111319.4907932736 +no_defs +type=crs"
     proj = ds.rio.crs.to_proj4()

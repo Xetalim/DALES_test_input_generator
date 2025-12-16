@@ -11,8 +11,14 @@ import re
 import numpy as np
 import xarray as xr
 from typing import Tuple, Dict, Generic
+import logging
+from helper_scripts.logging_wrapper import logwrap
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
+@logwrap
 def get_all_dales_boundaries(input_json, grid: GridDalesOpenBC, indices: nesting_idx):
     ds_timestep0 = timestep0(input_json, grid, indices)
     # Get later time steps from corresponding coarse simulation output

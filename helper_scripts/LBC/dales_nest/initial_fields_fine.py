@@ -2,8 +2,14 @@ import xarray as xr
 
 from helper_scripts.grids import GridDalesOpenBC
 from datetime import datetime
+import logging
+from helper_scripts.logging_wrapper import logwrap
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
+@logwrap
 def initial_fields_fine(input_json, grid: GridDalesOpenBC, output_path):
     # Load data
     with xr.open_mfdataset(f"{input_json['inpath']}initfields.inp.*.nc") as ds:

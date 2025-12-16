@@ -1,6 +1,11 @@
 import numpy as np
 import netCDF4
 from helper_scripts.grids import GridDales
+import logging
+from helper_scripts.logging_wrapper import logwrap
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
 class modifierClass:

@@ -8,12 +8,16 @@ import helper_scripts.LBC.dales_nest.initial_fields_fine as initial_fields_fine
 from helper_scripts.grids import GridDalesOpenBC, GridDales, nesting_idx
 import json
 import yaml
-import logging
 import numpy as np
 
+import logging
+from helper_scripts.logging_wrapper import logwrap
+
 logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
+@logwrap
 def do_openboundary(grid: GridDalesOpenBC, config, output_path, nml, exp_id):
     if not type(grid) is GridDalesOpenBC:
         logger.warning(

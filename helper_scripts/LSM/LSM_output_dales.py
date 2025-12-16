@@ -1,6 +1,11 @@
 # import matplotlib.pyplot as plt
 import netCDF4 as nc4
 import numpy as np
+import logging
+from helper_scripts.logging_wrapper import logwrap
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
 class LSM_output_dales:
@@ -8,6 +13,7 @@ class LSM_output_dales:
     Data structure for the required input for the new LSM
     """
 
+    @logwrap
     def __init__(self, itot, jtot, ktot, lu_types, parnames, debug=False):
         dtype_float = np.float64
         dtype_int = np.int32
@@ -98,6 +104,7 @@ class LSM_output_dales:
         fields.append(varname)
         return fields
 
+    @logwrap
     def save_netcdf(self, nc_file):
         """
         Save to NetCDF for visualisation et al.

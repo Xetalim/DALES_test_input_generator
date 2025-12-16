@@ -5,8 +5,14 @@ import xarray as xr
 from datetime import datetime
 import pandas as pd
 from helper_scripts.grids import GridDalesOpenBC
+from helper_scripts.logging_wrapper import logwrap
+import logging
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
+@logwrap
 def initial_fields(input_json, grid: GridDalesOpenBC, data, transform, output_path):
     data = data.isel({"time": 0}, drop=True).chunk({"z": 1})
     # Interpolate data to DALES staggered grid
@@ -85,6 +91,7 @@ def initial_fields(input_json, grid: GridDalesOpenBC, data, transform, output_pa
     return initfields
 
 
+@logwrap
 def add_units_and_names(initfields):
     initfields["xt"] = initfields["xt"].assign_attrs(
         {"longname": "West-East displacement of cell centers", "units": "m"}

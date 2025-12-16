@@ -4,8 +4,14 @@ import numpy as np
 import xarray as xr
 from datetime import datetime
 from helper_scripts.grids import GridDalesOpenBC
+import logging
+from helper_scripts.logging_wrapper import logwrap
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
+@logwrap
 def boundary_fields(input_json, grid: GridDalesOpenBC, data, output_path):
     # data = data.drop(["lat", "lon"])
     # West boundary
@@ -31,6 +37,7 @@ def boundary_fields(input_json, grid: GridDalesOpenBC, data, output_path):
     return openboundaries
 
 
+@logwrap
 def set_variable_attributes(input_json, openboundaries):
     openboundaries["time"] = openboundaries["time"].assign_attrs(
         {"longname": "Time", "units": f"seconds since {input_json['time0']}"}
@@ -74,6 +81,7 @@ def set_variable_attributes(input_json, openboundaries):
             )
 
 
+@logwrap
 def set_time_attrs(input_json, openboundaries):
     ts = openboundaries["time"].values.astype("datetime64[s]")
     dts = (ts - np.datetime64(input_json["time0"], "s")) / np.timedelta64(1, "s")
@@ -82,6 +90,7 @@ def set_time_attrs(input_json, openboundaries):
     return openboundaries
 
 
+@logwrap
 def get_boundaries(input_json, grid: GridDalesOpenBC, data):
     uwest = (
         data["u"]

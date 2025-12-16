@@ -8,11 +8,17 @@ from helper_scripts.grids import GridDales
 # Custom Python scripts/tools/...
 from helper_scripts.LSM.vegetation_properties import ifs_vegetation, top10_to_ifs
 from helper_scripts.LSM.LSM_output_dales import LSM_output_dales
+import logging
+from helper_scripts.logging_wrapper import logwrap
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 # Correction factor for aspect ratio of plots
 ASPECT_CORR = 2
 
 
+@logwrap
 def init_dales_grid(grid: GridDales, lutypes, parnames):
     """
     Initialise a land surface grid with the dimensions of the DALES grid
@@ -49,6 +55,7 @@ def init_dales_grid(grid: GridDales, lutypes, parnames):
     return lsm_input
 
 
+@logwrap
 def fill_lu_types(lu_types, lsm_input):
     """
     Fills lu_types
@@ -91,6 +98,7 @@ def fill_lu_types(lu_types, lsm_input):
     return lsm_input, lu_types
 
 
+@logwrap
 def init_lutypes_ifs(lsm_input, lu_dict, lu_types, parnames_lsm):
     """Assign surface properties to DALES land use types based on ECMWF
        lookup table.
@@ -174,6 +182,7 @@ def init_lutypes_ifs(lsm_input, lu_dict, lu_types, parnames_lsm):
     return lsm_input
 
 
+@logwrap
 def calc_totcover(lsm_input, lu_types, ctype):
     """
     Calculate sum over cover of individual LU types to check if it sums up to 1
@@ -201,6 +210,7 @@ def calc_totcover(lsm_input, lu_types, ctype):
     return totcover
 
 
+@logwrap
 def some_plots(lsm_input, plotvars, output_path):
     """
     Generate some standard plots of Land Surface Model input data
@@ -248,6 +258,7 @@ def some_plots(lsm_input, plotvars, output_path):
     return
 
 
+@logwrap
 def process_input(
     lu_types, grid: GridDales, output_path, exp_id, lplot, modify_func=None
 ):

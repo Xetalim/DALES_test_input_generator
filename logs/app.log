@@ -1,0 +1,274 @@
+2025-12-16 15:03:41,657 | INFO     | 72084 | MainThread | __main__:276 | <module> | Processing casefile my_own_cases/mini_open.yaml
+2025-12-16 15:03:41,663 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.boundary_info:6 | <module> | Entered module: helper_scripts.LBC.boundary_info
+2025-12-16 15:03:41,664 | DEBUG    | 72084 | MainThread | helper_scripts.Atmosphere.do_profiles:15 | wrapper | Entering output_profiles
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.Atmosphere.do_profiles:22 | wrapper | Exiting output_profiles
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:15 | wrapper | Entering process_input
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:15 | wrapper | Entering init_dales_grid
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.LSM_output_dales:15 | wrapper | Entering __init__
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.LSM_output_dales:22 | wrapper | Exiting __init__
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:22 | wrapper | Exiting init_dales_grid
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:15 | wrapper | Entering fill_lu_types
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:22 | wrapper | Exiting fill_lu_types
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:15 | wrapper | Entering init_lutypes_ifs
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:15 | wrapper | Entering calc_totcover
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:22 | wrapper | Exiting calc_totcover
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:15 | wrapper | Entering calc_totcover
+2025-12-16 15:03:42,374 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:22 | wrapper | Exiting calc_totcover
+2025-12-16 15:03:42,375 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:15 | wrapper | Entering calc_totcover
+2025-12-16 15:03:42,375 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:22 | wrapper | Exiting calc_totcover
+2025-12-16 15:03:42,375 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:15 | wrapper | Entering calc_totcover
+2025-12-16 15:03:42,375 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:22 | wrapper | Exiting calc_totcover
+2025-12-16 15:03:42,375 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:22 | wrapper | Exiting init_lutypes_ifs
+2025-12-16 15:03:42,375 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.LSM_output_dales:15 | wrapper | Entering save_netcdf
+2025-12-16 15:03:42,397 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.LSM_output_dales:22 | wrapper | Exiting save_netcdf
+2025-12-16 15:03:42,398 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:15 | wrapper | Entering some_plots
+2025-12-16 15:03:43,408 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:22 | wrapper | Exiting some_plots
+2025-12-16 15:03:43,408 | DEBUG    | 72084 | MainThread | helper_scripts.LSM.create_lsm:22 | wrapper | Exiting process_input
+2025-12-16 15:03:43,409 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.openboundary:15 | wrapper | Entering do_openboundary
+2025-12-16 15:03:43,409 | WARNING  | 72084 | MainThread | helper_scripts.LBC.openboundary:23 | do_openboundary | Passing wrong grid type to openboundary, converting to GridDalesOpenBC with as_openBC.
+2025-12-16 15:03:43,409 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:15 | wrapper | Entering prep_harmonie
+2025-12-16 15:03:43,409 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:15 | wrapper | Entering create_xarray_dataset_POLYTOPE
+2025-12-16 15:03:43,715 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:15 | wrapper | Entering get_transform_time
+2025-12-16 15:03:43,752 | DEBUG    | 72084 | MainThread | rasterio.session:15 | <module> | Could not import boto3, continuing with reduced functionality.
+2025-12-16 15:03:43,875 | DEBUG    | 72084 | MainThread | pyproj:40 | __new__ | PROJ_ERROR: proj_create: several objects matching this name: Krovak (Greenwich), Equal Earth Greenwich, Laborde Grid (Greenwich), Modified Krovak (Greenwich), Krovak East North (Greenwich), Modified Krovak East North (Greenwich), ...
+2025-12-16 15:03:43,883 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:22 | wrapper | Exiting get_transform_time
+2025-12-16 15:03:44,328 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:22 | wrapper | Exiting create_xarray_dataset_POLYTOPE
+2025-12-16 15:03:44,328 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:15 | wrapper | Entering update_transform
+2025-12-16 15:03:44,328 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:22 | wrapper | Exiting update_transform
+2025-12-16 15:03:44,328 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:15 | wrapper | Entering calculate_pressure
+2025-12-16 15:03:44,334 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:22 | wrapper | Exiting calculate_pressure
+2025-12-16 15:03:44,338 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:15 | wrapper | Entering merge_steps
+2025-12-16 15:03:44,345 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:22 | wrapper | Exiting merge_steps
+2025-12-16 15:03:44,345 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:15 | wrapper | Entering calculate_3d_height_levels
+2025-12-16 15:03:44,392 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:22 | wrapper | Exiting calculate_3d_height_levels
+2025-12-16 15:03:44,398 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:15 | wrapper | Entering get_ref_height_crop
+2025-12-16 15:03:44,399 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:22 | wrapper | Exiting get_ref_height_crop
+2025-12-16 15:03:44,399 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:15 | wrapper | Entering interpolate_ref_height
+2025-12-16 15:03:44,688 | WARNING  | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:344 | interpolate_ref_height | Data is sorted vertically descending, inverting...
+2025-12-16 15:03:45,146 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:22 | wrapper | Exiting interpolate_ref_height
+2025-12-16 15:03:45,171 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-5ee7b4f851ea33f0d5eb533406638e35', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-5ee7b4f851ea33f0d5eb533406638e35', 0, 0, 0)->('rechunk-split-rechunk-merge-5ee7b4f851ea33f0d5eb533406638e35', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-5ee7b4f851ea33f0d5eb533406638e35', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-5ee7b4f851ea33f0d5eb533406638e35', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-5ee7b4f851ea33f0d5eb533406638e35', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-5ee7b4f851ea33f0d5eb533406638e35', 0, 0, 0)})
+
+2025-12-16 15:03:45,171 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('truediv-0f77e7225e1fb41a195e701e35ed72eb', 0, 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: <Task ('truediv-0f77e7225e1fb41a195e701e35ed72eb', 0, 0, 0, 0) _execute_subgraph(...)>
+new run_spec: <Task ('truediv-0f77e7225e1fb41a195e701e35ed72eb', 0, 0, 0, 0) _execute_subgraph(...)>
+old dependencies: {('where-3a2fc327d6f1433db8b534778a6e698a', 0, 0, 0, 0), ('where-615981b64feff17b5b822e843c1cb3b1', 0, 0, 0, 0), ('where-f3662e9f9d6ee0f91a90622a894223f1', 0, 0, 0, 0), ('rechunk-merge-16a027324f966979050bc04cb34e485a', 0, 0, 0, 0)}
+new dependencies: frozenset({('array-a9358716b9b174b29b83ded2f9b4af18', 0, 0, 0, 0), ('getitem-59ace6d46d34a6782acaccb28dc30410', 0, 0, 0, 0), ('array-e9febf2d10292b4bf86da41586932e9c', 0, 0, 0, 0), ('array-258646e3899767aa423f55a845eeec5a', 0, 0, 0, 0), ('rechunk-merge-16a027324f966979050bc04cb34e485a', 0, 0, 0, 0), ('getitem-30f905e87d57d786639603d54261f57b', 0, 0, 0, 0), ('array-f8cbacb5dc6c2f99a105ef9fe9b05b99', 0, 0, 0, 0), ('getitem-22cf5116544615519ccc1951c921e082', 0, 0, 0, 0)})
+
+2025-12-16 15:03:45,171 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-9521429a3f7c3eb1d8785aa9eb0ab384', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-9521429a3f7c3eb1d8785aa9eb0ab384', 0, 0, 0)->('rechunk-split-rechunk-merge-9521429a3f7c3eb1d8785aa9eb0ab384', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-9521429a3f7c3eb1d8785aa9eb0ab384', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-9521429a3f7c3eb1d8785aa9eb0ab384', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-9521429a3f7c3eb1d8785aa9eb0ab384', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-9521429a3f7c3eb1d8785aa9eb0ab384', 0, 0, 0)})
+
+2025-12-16 15:03:45,171 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-4d8e872201ac28b0634b1a7195839d7b', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-4d8e872201ac28b0634b1a7195839d7b', 0, 0, 0)->('rechunk-split-rechunk-merge-4d8e872201ac28b0634b1a7195839d7b', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-4d8e872201ac28b0634b1a7195839d7b', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-4d8e872201ac28b0634b1a7195839d7b', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-4d8e872201ac28b0634b1a7195839d7b', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-4d8e872201ac28b0634b1a7195839d7b', 0, 0, 0)})
+
+2025-12-16 15:03:45,171 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-00c3f2e931ebaece9b2013c4a1db6928', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-00c3f2e931ebaece9b2013c4a1db6928', 0, 0, 0)->('rechunk-split-rechunk-merge-00c3f2e931ebaece9b2013c4a1db6928', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-00c3f2e931ebaece9b2013c4a1db6928', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-00c3f2e931ebaece9b2013c4a1db6928', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-00c3f2e931ebaece9b2013c4a1db6928', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-00c3f2e931ebaece9b2013c4a1db6928', 0, 0, 0)})
+
+2025-12-16 15:03:45,171 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-8291999862264a21c3e2dea8d8692b46', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-8291999862264a21c3e2dea8d8692b46', 0, 0, 0)->('rechunk-split-rechunk-merge-8291999862264a21c3e2dea8d8692b46', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-8291999862264a21c3e2dea8d8692b46', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-8291999862264a21c3e2dea8d8692b46', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-8291999862264a21c3e2dea8d8692b46', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-8291999862264a21c3e2dea8d8692b46', 0, 0, 0)})
+
+2025-12-16 15:03:45,171 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-2778c768770b710a3a62ada431141257', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-2778c768770b710a3a62ada431141257', 0, 0, 0)->('rechunk-split-rechunk-merge-2778c768770b710a3a62ada431141257', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-2778c768770b710a3a62ada431141257', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-2778c768770b710a3a62ada431141257', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-2778c768770b710a3a62ada431141257', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-2778c768770b710a3a62ada431141257', 0, 0, 0)})
+
+2025-12-16 15:03:45,171 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-7b17e5f7078f1984ac72c6048f78317e', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-7b17e5f7078f1984ac72c6048f78317e', 0, 0, 0)->('rechunk-split-rechunk-merge-7b17e5f7078f1984ac72c6048f78317e', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-7b17e5f7078f1984ac72c6048f78317e', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-7b17e5f7078f1984ac72c6048f78317e', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-7b17e5f7078f1984ac72c6048f78317e', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-7b17e5f7078f1984ac72c6048f78317e', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-8c4bc25b968e9c5dd380422fd8427be6', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-8c4bc25b968e9c5dd380422fd8427be6', 0, 0, 0)->('rechunk-split-rechunk-merge-8c4bc25b968e9c5dd380422fd8427be6', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-8c4bc25b968e9c5dd380422fd8427be6', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-8c4bc25b968e9c5dd380422fd8427be6', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-8c4bc25b968e9c5dd380422fd8427be6', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-8c4bc25b968e9c5dd380422fd8427be6', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-8e0975aa3be65f30bfa73180d517dacc', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-8e0975aa3be65f30bfa73180d517dacc', 0, 0, 0)->('rechunk-split-rechunk-merge-8e0975aa3be65f30bfa73180d517dacc', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-8e0975aa3be65f30bfa73180d517dacc', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-8e0975aa3be65f30bfa73180d517dacc', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-8e0975aa3be65f30bfa73180d517dacc', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-8e0975aa3be65f30bfa73180d517dacc', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-e6b7090c9c797dd3120d99a7479c855c', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-e6b7090c9c797dd3120d99a7479c855c', 0, 0, 0)->('rechunk-split-rechunk-merge-e6b7090c9c797dd3120d99a7479c855c', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-e6b7090c9c797dd3120d99a7479c855c', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-e6b7090c9c797dd3120d99a7479c855c', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-e6b7090c9c797dd3120d99a7479c855c', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-e6b7090c9c797dd3120d99a7479c855c', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-c077a74b6fba51edc79dd36fd56b51f1', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-c077a74b6fba51edc79dd36fd56b51f1', 0, 0, 0)->('rechunk-split-rechunk-merge-c077a74b6fba51edc79dd36fd56b51f1', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-c077a74b6fba51edc79dd36fd56b51f1', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-c077a74b6fba51edc79dd36fd56b51f1', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-c077a74b6fba51edc79dd36fd56b51f1', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-c077a74b6fba51edc79dd36fd56b51f1', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-dc06017a3301503d6a245d81ac1d0d40', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-dc06017a3301503d6a245d81ac1d0d40', 0, 0, 0)->('rechunk-split-rechunk-merge-dc06017a3301503d6a245d81ac1d0d40', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-dc06017a3301503d6a245d81ac1d0d40', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-dc06017a3301503d6a245d81ac1d0d40', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-dc06017a3301503d6a245d81ac1d0d40', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-dc06017a3301503d6a245d81ac1d0d40', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-612ea5af2b857abb90e20fd8ceb1595f', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-612ea5af2b857abb90e20fd8ceb1595f', 0, 0, 0)->('rechunk-split-rechunk-merge-612ea5af2b857abb90e20fd8ceb1595f', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-612ea5af2b857abb90e20fd8ceb1595f', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-612ea5af2b857abb90e20fd8ceb1595f', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-612ea5af2b857abb90e20fd8ceb1595f', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-612ea5af2b857abb90e20fd8ceb1595f', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-4403a676a0658c66aed1876011005ad8', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-4403a676a0658c66aed1876011005ad8', 0, 0, 0)->('rechunk-split-rechunk-merge-4403a676a0658c66aed1876011005ad8', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-4403a676a0658c66aed1876011005ad8', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-4403a676a0658c66aed1876011005ad8', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-4403a676a0658c66aed1876011005ad8', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-4403a676a0658c66aed1876011005ad8', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-8221627d29d864e5ea06436e3a6c4dc4', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-8221627d29d864e5ea06436e3a6c4dc4', 0, 0, 0)->('rechunk-split-rechunk-merge-8221627d29d864e5ea06436e3a6c4dc4', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-8221627d29d864e5ea06436e3a6c4dc4', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-8221627d29d864e5ea06436e3a6c4dc4', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-8221627d29d864e5ea06436e3a6c4dc4', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-8221627d29d864e5ea06436e3a6c4dc4', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-e9326a2af494bab071c5dccd0305b823', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-e9326a2af494bab071c5dccd0305b823', 0, 0, 0)->('rechunk-split-rechunk-merge-e9326a2af494bab071c5dccd0305b823', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-e9326a2af494bab071c5dccd0305b823', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-e9326a2af494bab071c5dccd0305b823', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-e9326a2af494bab071c5dccd0305b823', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-e9326a2af494bab071c5dccd0305b823', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-f18e0cf82215664703ff57e6fc1b0ec0', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-f18e0cf82215664703ff57e6fc1b0ec0', 0, 0, 0)->('rechunk-split-rechunk-merge-f18e0cf82215664703ff57e6fc1b0ec0', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-f18e0cf82215664703ff57e6fc1b0ec0', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-f18e0cf82215664703ff57e6fc1b0ec0', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-f18e0cf82215664703ff57e6fc1b0ec0', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-f18e0cf82215664703ff57e6fc1b0ec0', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-c25b84860274fd820015ee2265fb6ef3', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-c25b84860274fd820015ee2265fb6ef3', 0, 0, 0)->('rechunk-split-rechunk-merge-c25b84860274fd820015ee2265fb6ef3', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-c25b84860274fd820015ee2265fb6ef3', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-c25b84860274fd820015ee2265fb6ef3', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-c25b84860274fd820015ee2265fb6ef3', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-c25b84860274fd820015ee2265fb6ef3', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('concatenate-04b545668b5209c36907ff48b96f81d8', 20, 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('concatenate-04b545668b5209c36907ff48b96f81d8', 20, 0, 0, 0)->('rechunk-merge-rechunk-split-concatenate-04b545668b5209c36907ff48b96f81d8', 20, 0, 0, 0))
+new run_spec: Alias(('concatenate-04b545668b5209c36907ff48b96f81d8', 20, 0, 0, 0)->('getitem-rechunk-merge-rechunk-split-concatenate-04b545668b5209c36907ff48b96f81d8', 20, 0, 0, 0))
+old dependencies: {('rechunk-merge-rechunk-split-concatenate-04b545668b5209c36907ff48b96f81d8', 20, 0, 0, 0)}
+new dependencies: frozenset({('getitem-rechunk-merge-rechunk-split-concatenate-04b545668b5209c36907ff48b96f81d8', 20, 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-6a5493906cedaad386f06ea67adacfdb', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-6a5493906cedaad386f06ea67adacfdb', 0, 0, 0)->('rechunk-split-rechunk-merge-6a5493906cedaad386f06ea67adacfdb', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-6a5493906cedaad386f06ea67adacfdb', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-6a5493906cedaad386f06ea67adacfdb', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-6a5493906cedaad386f06ea67adacfdb', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-6a5493906cedaad386f06ea67adacfdb', 0, 0, 0)})
+
+2025-12-16 15:03:45,172 | WARNING  | 72084 | IO loop | distributed.scheduler:5044 | _generate_taskstates | Detected different `run_spec` for key ('rechunk-merge-d872c0f135cb869810a725a7e31fb12e', 0, 0, 0) between two consecutive calls to `update_graph`. This can cause failures and deadlocks down the line. Please ensure unique key names. If you are using a standard dask collections, consider releasing all the data before resubmitting another computation. More details and help can be found at https://github.com/dask/dask/issues/9888. 
+Debugging information
+---------------------
+old task state: waiting
+old run_spec: Alias(('rechunk-merge-d872c0f135cb869810a725a7e31fb12e', 0, 0, 0)->('rechunk-split-rechunk-merge-d872c0f135cb869810a725a7e31fb12e', 0, 0, 0))
+new run_spec: Alias(('rechunk-merge-d872c0f135cb869810a725a7e31fb12e', 0, 0, 0)->('rechunk-split-sub-rechunk-merge-d872c0f135cb869810a725a7e31fb12e', 0, 0, 0))
+old dependencies: {('rechunk-split-rechunk-merge-d872c0f135cb869810a725a7e31fb12e', 0, 0, 0)}
+new dependencies: frozenset({('rechunk-split-sub-rechunk-merge-d872c0f135cb869810a725a7e31fb12e', 0, 0, 0)})
+
+2025-12-16 15:03:45,372 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:15 | wrapper | Entering calc_base_exner
+2025-12-16 15:03:45,374 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.helper:15 | wrapper | Entering calcBaseprof
+2025-12-16 15:03:46,683 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.helper:22 | wrapper | Exiting calcBaseprof
+2025-12-16 15:03:46,710 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:22 | wrapper | Exiting calc_base_exner
+2025-12-16 15:03:46,817 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.prep_harmonie:22 | wrapper | Exiting prep_harmonie
+2025-12-16 15:03:46,817 | INFO     | 72084 | MainThread | helper_scripts.LBC.openboundary:85 | do_openboundary | Setting namelist NAMSURFACE:ps to 102034.328745
+2025-12-16 15:03:46,817 | INFO     | 72084 | MainThread | helper_scripts.LBC.openboundary:90 | do_openboundary | Setting namelist NAMSURFACE:thls to 292.593524
+2025-12-16 15:03:46,817 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.boundary:15 | wrapper | Entering boundary_fields
+2025-12-16 15:03:46,817 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.boundary:15 | wrapper | Entering get_boundaries
+2025-12-16 15:03:46,927 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.boundary:22 | wrapper | Exiting get_boundaries
+2025-12-16 15:03:46,927 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.boundary:15 | wrapper | Entering set_time_attrs
+2025-12-16 15:03:46,928 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.boundary:22 | wrapper | Exiting set_time_attrs
+2025-12-16 15:03:46,928 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.boundary:15 | wrapper | Entering set_variable_attributes
+2025-12-16 15:03:46,943 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.boundary:22 | wrapper | Exiting set_variable_attributes
+2025-12-16 15:03:47,410 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.boundary:22 | wrapper | Exiting boundary_fields
+2025-12-16 15:03:47,411 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.initfields:15 | wrapper | Entering initial_fields
+2025-12-16 15:03:47,453 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.initfields:15 | wrapper | Entering add_units_and_names
+2025-12-16 15:03:47,457 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.initfields:22 | wrapper | Exiting add_units_and_names
+2025-12-16 15:03:49,189 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.initfields:22 | wrapper | Exiting initial_fields
+2025-12-16 15:03:49,191 | DEBUG    | 72084 | MainThread | helper_scripts.LBC.openboundary:22 | wrapper | Exiting do_openboundary
+2025-12-16 15:03:49,191 | DEBUG    | 72084 | MainThread | helper_scripts.Emission.create_emis:15 | wrapper | Entering setup_emissions
+2025-12-16 15:03:49,191 | DEBUG    | 72084 | MainThread | helper_scripts.Emission.create_emis:15 | wrapper | Entering __init__
+2025-12-16 15:03:49,191 | DEBUG    | 72084 | MainThread | helper_scripts.Emission.create_emis:22 | wrapper | Exiting __init__
+2025-12-16 15:03:49,191 | DEBUG    | 72084 | MainThread | helper_scripts.Emission.create_emis:22 | wrapper | Exiting setup_emissions
+2025-12-16 15:03:49,191 | DEBUG    | 72084 | MainThread | helper_scripts.Emission.create_emis:15 | wrapper | Entering write_emissions_constant
+2025-12-16 15:03:49,191 | DEBUG    | 72084 | MainThread | helper_scripts.Emission.create_emis:22 | wrapper | Exiting write_emissions_constant
+2025-12-16 15:03:49,192 | INFO     | 72084 | MainThread | __main__:87 | apply_job_conf | Writing job file to /Users/andrevanginkel/Documents/40_Input_and_Runs/42_Dales_Cases/42.01_generated_cases/15_openboundary/job.001
+2025-12-16 15:03:49,353 | INFO     | 72084 | MainThread | __main__:168 | generate_case | Written input files to /Users/andrevanginkel/Documents/40_Input_and_Runs/42_Dales_Cases/42.01_generated_cases/15_openboundary/input

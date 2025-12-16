@@ -28,7 +28,29 @@ from helper_scripts.check_inputs import (
 )
 from helper_scripts.grids import GridDales, get_domain_info_nml
 
+
 logger = logging.getLogger(__name__)
+from dask.distributed import Client
+
+# import dask
+
+
+# dask.config.set(
+#     scheduler="synchronous"
+# )  # overwrite default with single-threaded scheduler
+
+
+def setup_logging(config_path="logging.yaml"):
+    import logging.config
+
+    path = pathlib.Path(config_path)
+    if path.exists():
+        with path.open() as f:
+            user_cfg = yaml.safe_load(f)
+
+        logging.config.dictConfig(user_cfg)
+    else:
+        logging.basicConfig()
 
 
 def apply_job_conf(job_conf, output_filepath, required_files, required_folder_list):
@@ -62,7 +84,7 @@ def apply_job_conf(job_conf, output_filepath, required_files, required_folder_li
 
     for varname, replacement in job_conf.items():
         content = content.replace(f"{{{{{varname}}}}}", f'"{str(replacement)}"')
-    print(f"Writing job file to {output_filepath}")
+    logger.info(f"Writing job file to {output_filepath}")
     with open(output_filepath, "w") as f:
         f.write(content)
 
@@ -143,7 +165,7 @@ def generate_case(config, machine_conf):
 
     # put the required files in the case directory
     write_files(output_path, nml, exp_id, required_files)
-    print(f"Written input files to {output_path / 'input'}")
+    logger.info(f"Written input files to {output_path / 'input'}")
 
 
 def write_files(output_path, nml, exp_id, required_files):
@@ -238,7 +260,10 @@ if __name__ == "__main__":
         "casefile",
         help="Path of yaml file (e.g. 'cases/mini.yaml')",
     )
-    logging.basicConfig(level=logging.INFO)
+    client = Client()  # start distributed scheduler locally.
+
+    setup_logging("logging.yaml")
+
     args = parser.parse_args()
     casefile = args.casefile
 

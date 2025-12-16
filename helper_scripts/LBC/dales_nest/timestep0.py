@@ -8,15 +8,21 @@ from helper_scripts.LBC.dales_nest.get_timesteps0 import (
     load_var,
 )
 from helper_scripts.grids import GridDalesOpenBC, nesting_idx
-
+from helper_scripts.logging_wrapper import logwrap
 
 import pandas as pd
 import xarray as xr
+
+import logging
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
 from pathlib import Path
 
 
+@logwrap
 def timestep0(input_json, grid: GridDalesOpenBC, indices: nesting_idx):
     if input_json["time0"] == input_json["start"]:
         all_ls = []

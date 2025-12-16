@@ -7,6 +7,11 @@ from dataclasses import dataclass
 from typing import Union, List
 import datetime
 from helper_scripts.grids import GridDales
+import logging
+from helper_scripts.logging_wrapper import logwrap
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
 @dataclass
@@ -40,6 +45,7 @@ class tracer:
 
 
 class emissions:
+    @logwrap
     def __init__(self, output_path, grid: GridDales):
         self.output_path = output_path
         self.tracers = {}
@@ -71,6 +77,7 @@ class emissions:
             raise KeyError(f"Unknown property {property_name} to set to tracer.")
         setattr(self.tracers[tracername].info, property_name, property_value)
 
+    @logwrap
     def tracerinfo_to_netcdf(self, file, tracername):
         info = self.tracers[tracername].info
 
@@ -84,6 +91,7 @@ class emissions:
         new_tracer.lags = int(info.lags)
         new_tracer[:] = self.tracers[tracername].profile
 
+    @logwrap
     def emissionmap_to_netcdf(self, datetime_str, tracername):
         with nc.Dataset(
             self.output_path
@@ -103,6 +111,7 @@ class emissions:
             tracer_var.units = "kg hour-1"
             tracer_var[:, :, :] = 0
 
+    @logwrap
     def pointsources_to_netcdf(self, datetime_str, tracername):
         num_pointsources = len(self.tracers[tracername].pointsources)
         source_list = self.tracers[tracername].pointsources
@@ -130,6 +139,7 @@ class emissions:
             nc_volume_var[:] = [source.volume for source in source_list]
             nc_emission_var[:] = [source.emission for source in source_list]
 
+    @logwrap
     def write_tracers_file(self):
         os.makedirs(self.output_path / "input" / "emissions", exist_ok=True)
         with nc.Dataset(self.output_path / "input" / "tracers.001.nc", "w") as file:
@@ -167,6 +177,7 @@ def get_emis_sim_hours(nml):
     return [dt.strftime("%Y%m%d%H00") for dt in required_datetimes]
 
 
+@logwrap
 def setup_emissions(grid, config, output_path, nml, exp_id):
     emission_class = emissions(output_path=output_path, grid=grid)
     if not "emissions" in config:
@@ -180,6 +191,7 @@ def setup_emissions(grid, config, output_path, nml, exp_id):
     return emission_class
 
 
+@logwrap
 def write_emissions_constant(
     emission_class: emissions, grid, config, output_path, nml, exp_id
 ):

@@ -1,6 +1,10 @@
 # Creates DALES grid
 import numpy as np
 from dataclasses import dataclass
+import logging
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
 class GridDales:
@@ -76,7 +80,6 @@ class GridDales:
 
         self.res = bi.openbc_counts_idx(self, fortran_indexing=False)
 
-        print(self.res)
         # zh = np.ones(k1)
         # zf = np.ones(k1)
 

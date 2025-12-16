@@ -7,6 +7,11 @@ from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import netCDF4
 from helper_scripts.grids import GridDales
+import logging
+from helper_scripts.logging_wrapper import logwrap
+
+logger = logging.getLogger(__name__)
+logger.debug("Entered module: %s", __name__)
 
 
 # linear profile => Use for u
@@ -41,6 +46,7 @@ def expsinw(z, surf_val, H, amp, Hp):
     return wbase + wonion
 
 
+@logwrap
 def output_profiles(profile_config, exp_id, grid: GridDales, out_dir, plot=False):
     z = grid.zt
 
