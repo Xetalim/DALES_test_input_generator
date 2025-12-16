@@ -518,7 +518,7 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message=".*formula_terms")
         with xr.open_mfdataset(
-            input_json["HARMONIE_ml_glob"],
+            input_json["HARMONIE_sfc_glob"],
             decode_coords="all",
             parallel=True,
         ) as ds:
@@ -530,6 +530,7 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
             # print(f"{(np.min(ds.x).values, np.max(ds.x).values)=}")
             # print(f"{(np.min(ds.y).values, np.max(ds.y).values)=}")
             # exit()
+    logger.debug("Succesfully read in time from HARMONIE_sfc_glob")
     for var_raw in variables:
         if var_raw in ["huss", "ps", "tas"]:
             filename = input_json["HARMONIE_sfc_glob"]
@@ -548,6 +549,7 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
             "tas": "2t",
             "huss": "2sh",
         }[var_raw]
+        logger.debug(f"Reading in filenames {filename}")
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message=".*formula_terms")
             with xr.open_mfdataset(filename, decode_coords="all", parallel=True) as ds:
@@ -587,6 +589,7 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
         #     {"x": data[-1]["x"].values - x_sw, "y": data[-1]["y"].values - y_sw}
         # )
     # Merge into xarray dataset
+    logger.debug("Succesfully read in vars, merging now...")
     data = xr.merge(data, compat="override", join="outer")
     return data, transform, x_sw, y_sw
 
