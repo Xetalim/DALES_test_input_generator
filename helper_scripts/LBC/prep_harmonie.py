@@ -170,7 +170,6 @@ def get_ref_height_crop(input_json, grid: GridDalesOpenBC, data):
             .isel({"time": 0}, drop=True)
             # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
             .mean(dim=["x", "y"])  # [::-1]
-            .values
         )
         try:
             arg = np.argwhere(z_int < grid.zsize).max()
@@ -242,7 +241,6 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
             .isel({"time": 0, "z": z_min}, drop=True)
             # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
             .mean(dim=["x", "y"])
-            .values
         )
         # print(data.z.isel(z=z_min))
         # print(data.z.isel(z=0))
@@ -251,7 +249,6 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
             .isel({"time": 0, "z": z_min}, drop=True)
             # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
             .mean(dim=["x", "y"])
-            .values
         )
         exnrs = (ps_exnr / p0) ** (Rd / cp)
         thls_exnr = tas_exnr / exnrs
@@ -261,7 +258,7 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
             * Rd
             * data["t"][0, 1:]
             # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
-            .mean(dim=["x", "y"]).values
+            .mean(dim=["x", "y"])
             * (
                 1
                 + (Rv / Rd - 1) * data["qt"][0, 1:]
@@ -269,7 +266,7 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
                 .mean(dim=["x", "y"]).values
                 - Rv / Rd * data["clwc"][0, 1:]
                 # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
-                .mean(dim=["x", "y"]).values
+                .mean(dim=["x", "y"])
             )
         )  # Ideal gas law
         exnr = (p_exnr / p0) ** (Rd / cp)
@@ -450,10 +447,12 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message=".*formula_terms")
         with xr.open_mfdataset(
-            "/Users/andrevanginkel/Documents/20_Code/21_Input_Output_scripts/21.03_paris_NWP/atmo_new.nc",
-            decode_coords="all",
+            "/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs/d1_on-demand-extremes-dt_aac6_oper_2023-08-20_1200_fc_u09tvk_ml*.nc",
+            decode_coords="all",parallel=True
         ) as ds:
             transform, _, _, time = get_transform_time(input_json, var, ds)
+
+            print(time)
 
             # print(f"Got {(x_sw,y_sw)=}")
             # print(f"{(np.min(grid.xm), np.max(grid.xm))=}")
@@ -463,9 +462,9 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
             # exit()
     for var_raw in variables:
         if var_raw in ["huss", "ps", "tas"]:
-            filename = "/Users/andrevanginkel/Documents/20_Code/21_Input_Output_scripts/21.03_paris_NWP/surface_new.nc"
+            filename = "/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs/d1_on-demand-extremes-dt_aac6_oper_2023-08-20_1200_fc_u09tvk_sfc*.nc"
         else:
-            filename = "/Users/andrevanginkel/Documents/20_Code/21_Input_Output_scripts/21.03_paris_NWP/atmo_new.nc"
+            filename = "/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs/d1_on-demand-extremes-dt_aac6_oper_2023-08-20_1200_fc_u09tvk_ml*.nc"
         var = {
             "ua": "u",
             "va": "v",
@@ -479,7 +478,7 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
         }[var_raw]
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message=".*formula_terms")
-            with xr.open_mfdataset(filename, decode_coords="all") as ds:
+            with xr.open_mfdataset(filename, decode_coords="all",parallel=True) as ds:
                 # Interpolate fluxes to same time
                 if var in ["tauu", "tauv", "hfss"]:
                     ds = ds.interp(
@@ -487,9 +486,10 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
                         assume_sorted=True,
                         kwargs={"fill_value": "extrapolate"},
                     ).chunk({"time": input_json["tchunk"]})
+                print(ds)
 
                 # make sure we all have the same dates and times in the files
-                ds = ds.sel(time=time)
+                # ds = ds.sel(time=time)
                 # Crop data to time and spatial range, using harmonie spatial resolution or filter as buffer
                 dx = ds["x"][1].values - ds["x"][0].values
                 dy = ds["y"][1].values - ds["y"][0].values
@@ -505,7 +505,7 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
                         y=slice(
                             int(y_sw - buffer), int(y_sw + grid.ysize + buffer)
                         ),  # TODO INT
-                    )
+                    ).drop_duplicates(dim="time")
                     # .isel(x=slice(0, 10), y=slice(0, 10))
                 )
         # DO NOT SET SOUTH WEST CORNER OF DALES AS ORIGIN
@@ -514,11 +514,12 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
         #     {"x": data[-1]["x"].values - x_sw, "y": data[-1]["y"].values - y_sw}
         # )
     # Merge into xarray dataset
-    data = xr.merge(data, compat="override")
+    data = xr.merge(data, compat="override",join="outer")
     return data, transform, x_sw, y_sw
 
 
 def get_transform_time(input_json, var, ds):
+    import rioxarray
     # Read transform information and transform lat/lon of southwest corner to harmonie x/y
     # proj = "+proj=eqc +ellps=WGS84 +a=6378137.0 +lon_0=0.0 +to_meter=111319.4907932736 +no_defs +type=crs"
     proj = ds.rio.crs.to_proj4()
