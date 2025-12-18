@@ -336,17 +336,18 @@ def interpolate_ref_height(input_json, data, z_int):
         variables.append("tke")
     logger.debug("Checking if data is ascending..")
     # make sure data is ascending
-    z_col = data["z3d"].isel(time=0, x=0, y=0, lev=slice(0, 2)).persist()
+    z_col = data["z3d"].isel(time=0, x=0, y=0, lev=slice(0, 2))
     z0 = z_col.isel(lev=0)
     z1 = z_col.isel(lev=1)
     logger.debug("Checking if data is ascending.. SUCCEEDED")
-    logger.debug(z0.compute())
-    logger.debug(z1.compute())
+    logger.debug(z0)
+    logger.debug(z1)
     descending = float(z1) < float(z0)
 
-    if descending:
-        logger.warning("Data is sorted vertically descending, inverting...")
-        data = data.isel(lev=slice(None, None, -1)).persist()
+    data = data.where(z1 < z0, data.isel(lev=slice(None, None, -1)), data)
+    # if descending:
+    #     logger.warning("Data is sorted vertically descending, inverting...")
+    #     data = data.isel(lev=slice(None, None, -1))
     logger.debug("Successfully inverted data!")
 
     def vertical_interp_all(ds, z3d, z_new):
@@ -397,13 +398,13 @@ def interpolate_ref_height(input_json, data, z_int):
         )
         ds_interp = ds_interp.assign_coords(lev=z_target)
 
-        return ds_interp.rename({"lev": "z"}).persist()
+        return ds_interp.rename({"lev": "z"})
 
     # Store interpolated height data in a DataSet
     # data = xr.merge(data_intz).assign({"x": data.x, "y": data.y})
     # data = interp_to_z(data, data["z3d"], z_int).assign({"x": data.x, "y": data.y})
 
-    data = vertical_interp_all(data, data["z3d"].compute(), z_int.compute())
+    data = vertical_interp_all(data, data["z3d"], z_int)
     # data = xr.merge(data_intz).assign({"x": data.x, "÷y": data.y})
     return data
 
