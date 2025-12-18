@@ -47,6 +47,7 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
     # Change transform parameters to new DALES origin and update transform
     transform = update_transform(transform, x_sw, y_sw)
 
+
     # Calculate pressure levels
     p = calculate_pressure(input_json, data)
     # print(p.mean(dim=["x", "y"]).values)
@@ -73,7 +74,7 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
     variables = ["ua", "va", "wa", "ta", "hus", "clw", "p"]
     if "synturb" in input_json:
         variables.append("tke")
-    data = merge_steps(data, variables)
+    data = merge_steps(data, variables).persist()
 
     # Calculate 3D height levels
 
@@ -81,14 +82,14 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
     data = data.assign(
         {
             "z3d": xr.concat(z, dim="lev")
-            .chunk({"lev": data.sizes["lev"] + 1})
-            .transpose("time", "lev", "y", "x")
+            # .chunk({"lev": data.sizes["lev"] + 1})
+            # .transpose("time", "lev", "y", "x")
         }
-    )
+    ).persist()
     # Get reference height levels (mean of height field first time step) and crop to grid.zsize
     z_int = get_ref_height_crop(input_json, grid, data)
     # Interpolate data to reference height levels
-    data = interpolate_ref_height(input_json, data, z_int)
+    data = interpolate_ref_height(input_json, data, z_int).persis()
 
     # make sure z_int is also dimension z now..
     z_int = z_int.compute().rename({"lev": "z"})
@@ -156,21 +157,22 @@ def merge_steps(data, variables):
         "huss": "2sh",
         "p": "p",
     }
-    data = xr.merge(
-        [
-            xr.concat(
-                [
-                    data[dic[var]].assign_coords({"lev": data["lev"]})
-                    # .expand_dims({"lev": [data.sizes["lev"] + 1]}, axis=1),
-                    # data[dic[var] + "s"].expand_dims(
-                    #     {"lev": [data.sizes["lev"] + 1]}, axis=1
-                    # ),
-                ],
-                dim="lev",
-            ).chunk({"lev": data.sizes["lev"] + 1})
-            for var in variables
-        ]
-    )
+    # data = xr.merge(
+    #     [
+    #         xr.concat(
+    #             [
+    #                 data[dic[var]].assign_coords({"lev": data["lev"]})
+    #                 # .expand_dims({"lev": [data.sizes["lev"] + 1]}, axis=1),
+    #                 # data[dic[var] + "s"].expand_dims(
+    #                 #     {"lev": [data.sizes["lev"] + 1]}, axis=1
+    #                 # ),
+    #             ],
+    #             dim="lev",
+    #         ).chunk({"lev": data.sizes["lev"] + 1})
+    #         for var in variables
+    #     ]
+    # )
+    # data = 
 
     return data
 
@@ -333,17 +335,21 @@ def interpolate_ref_height(input_json, data, z_int):
     }
     if "synturb" in input_json:
         variables.append("tke")
-
+    logger.debug("Checking if data is ascending..")
     # make sure data is ascending
-    z0 = data["z3d"].isel(lev=0)
-    z1 = data["z3d"].isel(lev=1)
-
-    descending = (z1 < z0).any()
+    z_col = data["z3d"].isel(time=0,x=0,y=0,lev=slice(0,2)).persist()
+    z0 = z_col.isel(lev=0)
+    z1 = z_col.isel(lev=1)
+    logger.debug("Checking if data is ascending.. SUCCEEDED")
+    logger.debug(z0.compute())
+    logger.debug(z1.compute())
+    descending = float(z1) < float(z0)
+    
 
     if descending:
         logger.warning("Data is sorted vertically descending, inverting...")
-        data = data.isel(lev=slice(None, None, -1))
-
+        data = data.isel(lev=slice(None, None, -1)).persist()
+    logger.debug("Successfully inverted data!")
     def vertical_interp_all(ds, z3d, z_new):
         """
         Interpolate all variables in ds along a 4D vertical coordinate z3d
@@ -434,8 +440,8 @@ def calculate_pressure(input_json, data):
     )
     ph = (hybrid_A + hybrid_B * data["msl"]).transpose("time", "lev", "y", "x")
     # calculate on pressure levels
-    p = 0.5 * (ph.assign_coords({"lev": ph["lev"].values - 1}) + ph)
-    return p.sel(lev=data["lev"].values)
+    p = 0.5 * (ph.assign_coords({"lev": ph["lev"] - 1}) + ph)
+    return p.sel(lev=data["lev"])
 
 
 @logwrap
@@ -515,29 +521,40 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
     # ["ua", "va", "wa", "ta", "hus", "clw", "ps", "tas", "huss"]
     x_sw, y_sw = grid.x0, grid.y0
     var = variables[0]
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message=".*formula_terms")
-        with xr.open_mfdataset(
-            input_json["HARMONIE_sfc_glob"],
-            decode_coords="all",
-            parallel=True,
-        ) as ds:
-            transform, _, _, time = get_transform_time(input_json, var, ds)
+    ds_ml =  xr.open_mfdataset(
+        input_json["HARMONIE_ml_glob"],
+        decode_coords="all",
+        parallel=True, chunks={"x":"auto","y":"auto","time":"auto","lev":-1}
+    ).drop_duplicates(dim="time")
+    transform, _, _, time = get_transform_time(input_json, var, ds_ml)
 
-            # print(f"Got {(x_sw,y_sw)=}")
-            # print(f"{(np.min(grid.xm), np.max(grid.xm))=}")
-            # print(f"{(np.min(grid.ym), np.max(grid.ym))=}")
-            # print(f"{(np.min(ds.x).values, np.max(ds.x).values)=}")
-            # print(f"{(np.min(ds.y).values, np.max(ds.y).values)=}")
-            # exit()
-    logger.debug("Succesfully read in time from HARMONIE_sfc_glob")
+    # print(ds_ml.lev)
+    # print(time.values)
+
+    
+    ds_sfc = xr.open_mfdataset(input_json["HARMONIE_sfc_glob"],
+                               decode_coords="all",
+                               parallel=True,
+                               chunks={"x":"auto","y":"auto","time":"auto","lev":-1})
+
+    
+    ds_sfc = ds_sfc.drop_duplicates(dim="time")
+    # interpolate surface fluxes to higher time resolution, without assuming correct sorting as I've had problems with this before.
+    ds_sfc = ds_sfc.interp(
+        time=time,
+        assume_sorted=False,
+        kwargs={"fill_value": "extrapolate"},
+            )
+    # print(ds_sfc.lev)
+
+    # ds = xr.merge([ds_ml, ds_sfc], compat="override", join="outer").drop_duplicates(dim="time")
+
+    # print(ds.lev)
+
+    logger.debug("Succesfully read in and interpolated HARMONIE_sfc_glob")
+    # with warnings.catch_warnings():
+    #     warnings.filterwarnings("ignore", message=".*formula_terms")
     for var_raw in variables:
-        if var_raw in ["huss", "ps", "tas"]:
-            filename = input_json["HARMONIE_sfc_glob"]
-            # filename = "/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs/d1_on-demand-extremes-dt_aac6_oper_2023-08-20_1200_fc_u09tvk_sfc*.nc"
-        else:
-            filename = input_json["HARMONIE_ml_glob"]
-            # filename = "/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs/d1_on-demand-extremes-dt_aac6_oper_2023-08-20_1200_fc_u09tvk_ml*.nc"
         var = {
             "ua": "u",
             "va": "v",
@@ -549,48 +566,44 @@ def create_xarray_dataset_POLYTOPE(input_json, grid: GridDalesOpenBC, variables)
             "tas": "2t",
             "huss": "2sh",
         }[var_raw]
-        logger.debug(f"Reading in filenames {filename}")
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message=".*formula_terms")
-            with xr.open_mfdataset(filename, decode_coords="all", parallel=True) as ds:
-                # Interpolate fluxes to same time
-                if var in ["tauu", "tauv", "hfss"]:
-                    ds = ds.interp(
-                        time=time,
-                        assume_sorted=True,
-                        kwargs={"fill_value": "extrapolate"},
-                    ).chunk({"time": input_json["tchunk"]})
+        logger.debug(f"Reading in variable {var}")
 
-                # make sure we all have the same dates and times in the files
-                # ds = ds.sel(time=time)
-                # Crop data to time and spatial range, using harmonie spatial resolution or filter as buffer
-                dx = ds["x"][1].values - ds["x"][0].values
-                dy = ds["y"][1].values - ds["y"][0].values
-                if (
-                    "filter" in input_json
-                ):  # add some extra width for gaussian filtering
-                    buffer = 4 * input_json["filter"]["sigma"]
-                else:
-                    buffer = dx
-                data.append(
-                    ds[var]
-                    .sel(  # also step TODO
-                        x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
-                        y=slice(
-                            int(y_sw - buffer), int(y_sw + grid.ysize + buffer)
-                        ),  # TODO INT
-                    )
-                    .drop_duplicates(dim="time")
-                    # .isel(x=slice(0, 10), y=slice(0, 10))
-                )
-        # DO NOT SET SOUTH WEST CORNER OF DALES AS ORIGIN
-        # Set south west corner of DALES as origin
-        # data[-1] = data[-1].assign_coords(
-        #     {"x": data[-1]["x"].values - x_sw, "y": data[-1]["y"].values - y_sw}
-        # )
+
+
+        # make sure we all have the same dates and times in the files
+        # ds = ds.sel(time=time)
+        # Crop data to time and spatial range, using harmonie spatial resolution or filter as buffer
+        dx = ds_ml["x"][1] - ds_ml["x"][0]
+        dy = ds_ml["y"][1] - ds_ml["y"][0]
+        if (
+            "filter" in input_json
+        ):  # add some extra width for gaussian filtering
+            buffer = 4 * input_json["filter"]["sigma"]
+        else:
+            buffer = dx
+
+
+        # Interpolate fluxes and surface levels to same time
+        if var in ["tauu", "tauv", "hfss","msl","2t","2sh"]:
+            data.append(ds_sfc[var])
+        else:
+            data.append(
+                ds_ml[var]
+                # .isel(x=slice(0, 10), y=slice(0, 10))
+            )
+    # DO NOT SET SOUTH WEST CORNER OF DALES AS ORIGIN
+    # Set south west corner of DALES as origin
+    # data[-1] = data[-1].assign_coords(
+    #     {"x": data[-1]["x"].values - x_sw, "y": data[-1]["y"].values - y_sw}
+    # )
     # Merge into xarray dataset
     logger.debug("Succesfully read in vars, merging now...")
-    data = xr.merge(data, compat="override", join="outer")
+    data = xr.merge(data, compat="override", join="outer").sel(  # also step TODO
+                            x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
+                            y=slice(
+                                int(y_sw - buffer), int(y_sw + grid.ysize + buffer)
+                            ),  # TODO INT
+                        )
     return data, transform, x_sw, y_sw
 
 
@@ -607,5 +620,5 @@ def get_transform_time(input_json, var, ds):
     # Round to 5 meters to avoid numerical error in coordinates
     x_sw = np.round(x_sw, 0)
     y_sw = np.round(y_sw, 0)
-    time = ds["time"].values
+    time = ds["time"]
     return transform, x_sw, y_sw, time
