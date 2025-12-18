@@ -44,6 +44,8 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
     data, transform, x_sw, y_sw = create_xarray_dataset_POLYTOPE(
         input_json, grid, variables
     )
+
+    data, = dask.optimize(data.chunk({"x":"auto","y":"auto","time":5,"lev":"auto"}))
     # Change transform parameters to new DALES origin and update transform
     transform = update_transform(transform, x_sw, y_sw)
 
@@ -73,7 +75,7 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
     variables = ["ua", "va", "wa", "ta", "hus", "clw", "p"]
     if "synturb" in input_json:
         variables.append("tke")
-    data = merge_steps(data, variables).persist()
+    data = merge_steps(data, variables)
 
     # Calculate 3D height levels
 
@@ -87,11 +89,13 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
     )
     # Get reference height levels (mean of height field first time step) and crop to grid.zsize
     z_int = get_ref_height_crop(input_json, grid, data)
+
+    data, = dask.optimize(data)
     # Interpolate data to reference height levels
-    data = interpolate_ref_height(input_json, data, z_int).persist()
+    data = interpolate_ref_height(input_json, data, z_int)
 
     # make sure z_int is also dimension z now..
-    z_int = z_int.compute().rename({"lev": "z"})
+    z_int = z_int.rename({"lev": "z"})
 
     # Calculate qt
     data = data.assign({"qt": data["clwc"] + data["q"]})
@@ -335,19 +339,21 @@ def interpolate_ref_height(input_json, data, z_int):
     if "synturb" in input_json:
         variables.append("tke")
     logger.debug("Checking if data is ascending..")
-    # make sure data is ascending
     z_col = data["z3d"].isel(time=0, x=0, y=0, lev=slice(0, 2))
     z0 = z_col.isel(lev=0)
     z1 = z_col.isel(lev=1)
     logger.debug("Checking if data is ascending.. SUCCEEDED")
     logger.debug(z0)
     logger.debug(z1)
-    descending = float(z1) < float(z0)
-
-    data = data.where(z1 < z0, data.isel(lev=slice(None, None, -1)), data)
-    # if descending:
-    #     logger.warning("Data is sorted vertically descending, inverting...")
-    #     data = data.isel(lev=slice(None, None, -1))
+    # descending = float(z1) < float(z0)
+    if float(z1) < float(z0):
+        data = data.isel(lev=slice(None, None, -1))
+    else:
+        pass
+# data = xr.where(float(z1) < float(z0), data.isel(lev=slice(None, None, -1)), data)
+# if descending:
+#     logger.warning("Data is sorted vertically descending, inverting...")
+#     data = data.isel(lev=slice(None, None, -1))
     logger.debug("Successfully inverted data!")
 
     def vertical_interp_all(ds, z3d, z_new):
@@ -417,7 +423,7 @@ def calculate_3d_height_levels(data):
             Rd
             * data["t"]
             * (1 + (Rv / Rd - 1) * (data["q"] + data["clwc"]) - Rv / Rd * data["clwc"])
-        ).compute()
+        )
     )
     # p = data["p"].compute()
     rhoh = 0.5 * (rho.assign_coords({"lev": rho["lev"].values - 1}) + rho)
