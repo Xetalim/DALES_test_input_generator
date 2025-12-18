@@ -80,11 +80,11 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
     z = calculate_3d_height_levels(data)
     data = data.assign(
         {
-            "z3d": xr.concat(z, dim="lev").chunk({"lev": -1})
+            "z3d": z
             # .chunk({"lev": data.sizes["lev"] + 1})
             # .transpose("time", "lev", "y", "x")
         }
-    ).persist()
+    )
     # Get reference height levels (mean of height field first time step) and crop to grid.zsize
     z_int = get_ref_height_crop(input_json, grid, data)
     # Interpolate data to reference height levels
@@ -410,21 +410,51 @@ def interpolate_ref_height(input_json, data, z_int):
 
 @logwrap
 def calculate_3d_height_levels(data):
-    rho = data["p"] / (
-        Rd
-        * data["t"]
-        * (1 + (Rv / Rd - 1) * (data["q"] + data["clwc"]) - Rv / Rd * data["clwc"])
+    rho = (
+        data["p"]
+        / (
+            Rd
+            * data["t"]
+            * (1 + (Rv / Rd - 1) * (data["q"] + data["clwc"]) - Rv / Rd * data["clwc"])
+        ).compute()
     )
+    # p = data["p"].compute()
     rhoh = 0.5 * (rho.assign_coords({"lev": rho["lev"].values - 1}) + rho)
-    z = [xr.zeros_like(data["p"].isel(lev=1, drop=True).rename("z3d"))]
-    for k in np.arange(data.sizes["lev"] - 2, -1, -1):
-        z = [
-            z[0]
-            - (data["p"].isel(lev=k, drop=True) - data["p"].isel(lev=k + 1, drop=True))
-            / (rhoh.isel(lev=k, drop=True) * grav)
-        ] + z
+    # z = [xr.zeros_like(data["p"].isel(lev=1, drop=True).rename("z3d"))]
+    # for k in np.arange(data.sizes["lev"] - 2, -1, -1):
+    #     z = [
+    #         z[0]
+    #         - (data["p"].isel(lev=k, drop=True) - data["p"].isel(lev=k + 1, drop=True))
+    #         / (rhoh.isel(lev=k, drop=True) * grav)
+    #     ] + z
 
-    return z
+    pdiff = data["p"].diff(dim="lev", label="lower")
+    z1 = (
+        (pdiff / (rhoh * grav))
+        .isel(lev=slice(None, None, -1))
+        .cumsum(dim="lev")
+        .isel(lev=slice(None, None, -1))
+    ).reindex(lev=data.lev, fill_value=0)
+    # print([zi.isel(x=0, y=0, time=0).values for zi in z])
+    # # z1 = xr.zeros_like(data["p"].rename("z3d"))
+    # # z1 = z1.where(z1.lev == z1_no_zero.lev, z1_no_zero, 0)
+    # print(z1.isel(x=0, y=0, time=0).compute())
+    # # for k in np.arange(data.sizes["lev"] - 2, -1, -1):
+    # for k in z1.lev.sel(lev=slice(z1.lev.max() - 1, None, -1)):
+    #     z1 = z1.where(
+    #         z1.lev == k,
+    #         (
+    #             z1.isel(lev=-1)
+    #             - (
+    #                 data["p"].sel(lev=k, drop=True)
+    #                 - data["p"].sel(lev=k - 1, drop=True)
+    #             )
+    #             / (rhoh.sel(lev=k, drop=True) * grav)
+    #         ),
+    #         z1,
+    #     )
+
+    return z1
 
 
 @logwrap
