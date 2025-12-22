@@ -36,118 +36,126 @@ grav = 9.81  # Gravitational constant
 kappa = 0.4  # Von Karman constant
 
 
-@logwrap
-def prep_harmonie(input_json, grid: GridDalesOpenBC):
-    variables = ["ua", "va", "wa", "ta", "hus", "clw", "ps", "tas", "huss"]
-    if "synturb" in input_json:
-        variables = variables + ["tke", "tauu", "tauv", "cb", "hfss"]
-    data, transform, x_sw, y_sw = create_xarray_dataset(
-        input_json, grid, variables
-    )
+class harmoniePrepper:
+    def __init__(self, input_json, grid: GridDalesOpenBC):
+        self.input_json = input_json
+        self.grid = grid
 
-    data, = dask.optimize(data)
-    # Change transform parameters to new DALES origin and update transform
-    transform = update_transform(transform, x_sw, y_sw)
-
-    # Calculate pressure levels
-    p = calculate_pressure(input_json, data)
-    # print(p.mean(dim=["x", "y"]).values)
-    # print(data.lev.values)
-    # drop NAN if levels from harmonie is less than 90
-    data = data.assign({"p": p})  # .dropna(dim="lev")
-    # print(data.assign({"p": p}).p.values)
-    # print(data.assign({"p": p}).p.values)
-    # Add missing surface fields to 3d fields
-    variables = ["uas", "vas", "was", "clws"]
-    if "synturb" in input_json:
-        variables.append("tkes")
-    data = data.assign({var: xr.zeros_like(data["msl"]) for var in variables})
-
-    if "synturb" in input_json:
-        turbulence_data_dic = {
-            "tauu": data["tauu"],
-            "tauv": data["tauv"],
-            "hfss": data["hfss"],
-            "cb": data["cb"],
-        }
-
-    # Concatenate surface and 3D fields
-    variables = ["ua", "va", "wa", "ta", "hus", "clw", "p"]
-    if "synturb" in input_json:
-        variables.append("tke")
-    data = merge_steps(data, variables)
-
-    # Calculate 3D height levels
-
-    z = calculate_3d_height_levels(input_json, data)
-    data = data.assign(
-        {
-            "z3d": z
-        }
-    )
-    # Get reference height levels (mean of height field first time step) and crop to grid.zsize
-    z_int = get_ref_height_crop(input_json, grid, data)
-
-    data, = dask.optimize(data)
-
-    z_int = z_int.compute()
-
-
-    
-    # Interpolate data to reference height levels
-    data = interpolate_ref_height(input_json, data, z_int)
-
-    # make sure z_int is also dimension z now..
-    z_int = z_int.rename({"lev": "z"})
-
-    # Calculate qt
-    data = data.assign({"qt": data["clwc"] + data["q"]})
-    
-    # Calculate base profiles and exnr function
-    ps_exnr, exnrs, thls_exnr, exnr = calc_base_exner(input_json, grid, data, z_int)
-
-
-    input_json["ps"] = float(ps_exnr)  # save the ps value used for the profile
-    input_json["thls"] = float(thls_exnr)  # and thls
-    exnr = xr.DataArray(
-        np.concatenate([[exnrs], exnr]),
-        dims=["z"],
-        coords={"z": z_int},
-        name="exnr",
-        attrs={"thls": thls_exnr, "ps": ps_exnr},
-    )
-
-    data = data.assign({"exnr": exnr})
-
-    # Calculate liquid potential temperature and total specific humidity
-    thl = data["t"] / exnr - Lv * data["clwc"] / (cp * exnr)
-    data = data.assign({"thl": thl})
-    # Calculate turbulence parameters
-    if "synturb" in input_json:
-        calculate_turbulence_vars(
-            grid,
-            data,
-            turbulence_data_dic,
-            z_int,
-            ps_exnr,
-            exnrs,
-            thls_exnr,
-            thl,
+    def load_data(self):
+        variables = ["ua", "va", "wa", "ta", "hus", "clw", "ps", "tas", "huss"]
+        if "synturb" in self.input_json:
+            variables = variables + ["tke", "tauu", "tauv", "cb", "hfss"]
+        self.data, self.transform, x_sw, y_sw = create_xarray_dataset(
+            self.input_json, self.grid, variables
         )
-    # Organize data, rename variables and drop non DALES prognostic variables
-    data = (
-        data.rename({"wz": "w"})
-        .drop(["t", "p", "clwc", "q"])
-        .assign(
-            {
-                "transform": xr.DataArray(
-                    [], name="Lambert_Conformal", attrs=transform.parameters
-                )
+
+        (self.data,) = dask.optimize(self.data)
+        # Change transform parameters to new DALES origin and update transform
+        self.transform = update_transform(self.transform, x_sw, y_sw)
+
+    @logwrap
+    def prep_harmonie(self):
+
+        # Calculate pressure levels
+        self.p = calculate_pressure(self.input_json, self.data)
+        # print(p.mean(dim=["x", "y"]).values)
+        # print(data.lev.values)
+        # drop NAN if levels from harmonie is less than 90
+        self.data = self.data.assign({"p": self.p})  # .dropna(dim="lev")
+        # print(data.assign({"p": p}).p.values)
+        # print(data.assign({"p": p}).p.values)
+        # Add missing surface fields to 3d fields
+        variables = ["uas", "vas", "was", "clws"]
+        if "synturb" in self.input_json:
+            variables.append("tkes")
+        self.data = self.data.assign(
+            {var: xr.zeros_like(self.data["msl"]) for var in variables}
+        )
+
+        if "synturb" in self.input_json:
+            turbulence_data_dic = {
+                "tauu": self.data["tauu"],
+                "tauv": self.data["tauv"],
+                "hfss": self.data["hfss"],
+                "cb": self.data["cb"],
             }
+
+        # Concatenate surface and 3D fields
+        variables = ["ua", "va", "wa", "ta", "hus", "clw", "p"]
+        if "synturb" in self.input_json:
+            variables.append("tke")
+        self.data = merge_steps(self.data, variables)
+
+        # Calculate 3D height levels
+
+        self.z = calculate_3d_height_levels(self.input_json, self.data)
+        self.data = self.data.assign({"z3d": self.z})
+        # Get reference height levels (mean of height field first time step) and crop to grid.zsize
+        self.z_int = get_ref_height_crop(self.input_json, self.grid, self.data)
+
+        (self.data,) = dask.optimize(self.data)
+
+        self.z_int = self.z_int.compute()
+
+        # Interpolate data to reference height levels
+        self.data = interpolate_ref_height(self.input_json, self.data, self.z_int)
+
+        # make sure z_int is also dimension z now..
+        self.z_int = self.z_int.rename({"lev": "z"})
+
+        # Calculate qt
+        self.data = self.data.assign({"qt": self.data["clwc"] + self.data["q"]})
+
+        # Calculate base profiles and exnr function
+        self.ps_exnr, self.exnrs, self.thls_exnr, self.exnr = calc_base_exner(
+            self.input_json, self.grid, self.data, self.z_int
         )
-    )
-    data, = dask.optimize(data)
-    return data, transform
+
+        self.input_json["ps"] = float(
+            self.ps_exnr
+        )  # save the ps value used for the profile
+        self.input_json["thls"] = float(self.thls_exnr)  # and thls
+        self.exnr = xr.DataArray(
+            np.concatenate([[self.exnrs], self.exnr]),
+            dims=["z"],
+            coords={"z": self.z_int},
+            name="exnr",
+            attrs={"thls": self.thls_exnr, "ps": self.ps_exnr},
+        )
+
+        self.data = self.data.assign({"exnr": self.exnr})
+
+        # Calculate liquid potential temperature and total specific humidity
+        self.thl = self.data["t"] / self.exnr - Lv * self.data["clwc"] / (
+            cp * self.exnr
+        )
+        self.data = self.data.assign({"thl": self.thl})
+        # Calculate turbulence parameters
+        if "synturb" in self.input_json:
+            calculate_turbulence_vars(
+                self.grid,
+                self.data,
+                turbulence_data_dic,
+                self.z_int,
+                self.ps_exnr,
+                self.exnrs,
+                self.thls_exnr,
+                self.thl,
+            )
+        # Organize data, rename variables and drop non DALES prognostic variables
+        self.data = (
+            self.data.rename({"wz": "w"})
+            .drop(["t", "p", "clwc", "q"])
+            .assign(
+                {
+                    "transform": xr.DataArray(
+                        [], name="Lambert_Conformal", attrs=self.transform.parameters
+                    )
+                }
+            )
+        )
+        (self.data,) = dask.optimize(self.data)
+        return self.data, self.transform
 
 
 @logwrap
@@ -254,7 +262,9 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
         thls_exnr = tas_exnr / exnrs
         # somehow this function doesn't like being dasked. max size of array going in is (lev,) or (1,) so shouldn't be too big of a problem?
         # if ever you have performance issues, look at among others this function..
-        rhobf = calcBaseprof(z_int.compute(), thls_exnr.compute(), ps_exnr.compute(), pref0=p0)
+        rhobf = calcBaseprof(
+            z_int.compute(), thls_exnr.compute(), ps_exnr.compute(), pref0=p0
+        )
         p_exnr = (
             rhobf[1:]
             * Rd
@@ -281,6 +291,7 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
         exnrs = exnr[0, 1]
         exnr = exnr[1:, 1]
     return ps_exnr, exnrs, thls_exnr, exnr
+
 
 @logwrap
 def vertical_interp_all(ds, z3d, z_new):
@@ -333,6 +344,7 @@ def vertical_interp_all(ds, z3d, z_new):
 
     return ds_interp.rename({"lev": "z"})
 
+
 @logwrap
 def interpolate_ref_height(input_json, data, z_int):
     data_intz = []
@@ -378,22 +390,21 @@ def interpolate_ref_height(input_json, data, z_int):
 
 @logwrap
 def calculate_3d_height_levels(input_json, data):
-    rho = (
-        data["p"]
-        / (
-            Rd
-            * data["t"]
-            * (1 + (Rv / Rd - 1) * (data["q"] + data["clwc"]) - Rv / Rd * data["clwc"])
-        )
+    rho = data["p"] / (
+        Rd
+        * data["t"]
+        * (1 + (Rv / Rd - 1) * (data["q"] + data["clwc"]) - Rv / Rd * data["clwc"])
     )
     rhoh = 0.5 * (rho.assign_coords({"lev": rho["lev"].values + 1}) + rho)
 
     pdiff = data["p"].diff(dim="lev", label="upper")
     dz = pdiff / (rhoh * grav)
 
-    z = (xr.concat(
-        [dz.sum(dim="lev").assign_coords({"lev":70}), -dz], dim="lev"
-    ).cumsum(dim="lev")).chunk({"time":input_json["tchunk"],"lev":-1})
+    z = (
+        xr.concat(
+            [dz.sum(dim="lev").assign_coords({"lev": 70}), -dz], dim="lev"
+        ).cumsum(dim="lev")
+    ).chunk({"time": input_json["tchunk"], "lev": -1})
 
     return z
 
@@ -433,6 +444,7 @@ def update_transform(transform, x_sw, y_sw):
     transform = Transform(transform.parameters)
     return transform
 
+
 @logwrap
 def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
     data = []
@@ -448,7 +460,7 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
         input_json["HARMONIE_ml_glob"],
         decode_coords="all",
         parallel=True,
-        chunks={"time":input_json["tchunk"],"lev":-1},
+        chunks={"time": input_json["tchunk"], "lev": -1},
         # chunks={"x": "auto", "y": "auto", "time": "auto", "lev": -1},
     ).drop_duplicates(dim="time")
     transform, _, _, time = get_transform_time(input_json, var, ds_ml)
@@ -460,14 +472,14 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
         input_json["HARMONIE_sfc_glob"],
         decode_coords="all",
         parallel=True,
-        chunks={"time":input_json["tchunk"]},
+        chunks={"time": input_json["tchunk"]},
         # chunks={"x": "auto", "y": "auto", "time": "auto", "lev": -1},
     )
 
     logger.debug("Succesfully read in HARMONIE_ml_glob")
 
     ds_sfc = ds_sfc.drop_duplicates(dim="time")
-    
+
     # interpolate surface fluxes to higher time resolution, without assuming correct sorting as I've had problems with this before.
     ds_sfc = ds_sfc.interp(
         time=time,
@@ -475,7 +487,7 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
         kwargs={"fill_value": "extrapolate"},
     )
     logger.debug("Succesfully read in and interpolated HARMONIE_sfc_glob")
-    
+
     for var_raw in variables:
         var = {
             "ua": "u",
@@ -493,7 +505,7 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
         # Crop data to time and spatial range, using harmonie spatial resolution or filter as buffer
         dx = ds_ml["x"][1] - ds_ml["x"][0]
         dy = ds_ml["y"][1] - ds_ml["y"][0]
-        
+
         if "filter" in input_json:  # add some extra width for gaussian filtering
             buffer = 4 * input_json["filter"]["sigma"]
         else:
@@ -503,13 +515,13 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
         if var in ["tauu", "tauv", "hfss", "msl", "2t", "2sh"]:
             data.append(ds_sfc[var])
         else:
-            data.append(
-                ds_ml[var]
-            )
+            data.append(ds_ml[var])
     # Merge into xarray dataset
     logger.debug("Succesfully read in vars, merging now...")
     data = xr.merge(data, compat="override", join="outer").sel(  # also step TODO
-        time=time.sortby("time").sel(time=slice(input_json["start"],input_json["end"])),
+        time=time.sortby("time").sel(
+            time=slice(input_json["start"], input_json["end"])
+        ),
         x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
         y=slice(int(y_sw - buffer), int(y_sw + grid.ysize + buffer)),  # TODO INT
     )

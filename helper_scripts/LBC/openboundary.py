@@ -92,9 +92,11 @@ class do_openboundary:
     def prepare_calculation(self, config, output_path, nml, exp_id):
 
         if config["openboundary"]["source"] == "HARMONIE":
-            self.data, transform = prep_harmonie.prep_harmonie(
+            self.harmonieprepper = prep_harmonie.harmoniePrepper(
                 config["openboundary"], self.openBCgrid
             )
+            self.harmonieprepper.load_data()
+            self.data, self.transform = self.harmonieprepper.prep_harmonie()
             # we need to use the right surface pressure as calculated from the input data
             logger.info(
                 "Setting namelist NAMSURFACE:ps to %f", config["openboundary"]["ps"]
@@ -116,7 +118,7 @@ class do_openboundary:
                 config["openboundary"],
                 self.openBCgrid,
                 self.data,
-                transform,
+                self.transform,
                 output_path=output_path,
             )
             logger.debug("Setup all openBC writers, optimizing writers now..")
