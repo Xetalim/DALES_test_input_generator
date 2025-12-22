@@ -14,7 +14,7 @@ logger.debug("Entered module: %s", __name__)
 
 @logwrap
 def initial_fields(input_json, grid: GridDalesOpenBC, data, transform, output_path):
-    data = data.isel({"time": 0}, drop=True).chunk({"z": 1})
+    data = data.isel({"time": 0}, drop=True)
     # Interpolate data to DALES staggered grid
     u0 = (
         data["u"]
@@ -73,6 +73,7 @@ def initial_fields(input_json, grid: GridDalesOpenBC, data, transform, output_pa
     initfields = initfields.assign({"transform": data["transform"]})
     # Add variable attributes
     add_units_and_names(initfields)
+    
     # Add global attributes
     initfields = initfields.assign_attrs(
         {
@@ -87,6 +88,7 @@ def initial_fields(input_json, grid: GridDalesOpenBC, data, transform, output_pa
         path=output_path / "input" / initfields.attrs["title"],
         mode="w",
         format="NETCDF4",
+        compute=False
     )
     return initfields
 

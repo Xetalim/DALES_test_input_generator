@@ -9,7 +9,7 @@ from helper_scripts.grids import GridDalesOpenBC, GridDales, nesting_idx
 import json
 import yaml
 import numpy as np
-
+import dask
 import logging
 from helper_scripts.logging_wrapper import logwrap
 
@@ -91,12 +91,20 @@ def do_openboundary(grid: GridDalesOpenBC, config, output_path, nml, exp_id):
             "Setting namelist NAMSURFACE:thls to %f", config["openboundary"]["thls"]
         )
         nml["NAMSURFACE"]["thls"] = config["openboundary"]["thls"]
-        boundary.boundary_fields(
+        data, = dask.optimize(data)
+        boundaries_writer = boundary.boundary_fields(
             config["openboundary"], openBCgrid, data, output_path=output_path
         )
-        initfields.initial_fields(
+        initfields_writer = initfields.initial_fields(
             config["openboundary"], openBCgrid, data, transform, output_path=output_path
         )
+        logger.debug("Setup all openBC writers, optimizing writers now..")
+        boundaries_writer, initfields_writer = dask.optimize(boundaries_writer, initfields_writer)
+        logger.debug("Optimized writers")
+        logger.debug("Writing initial fields")
+        initfields_writer.compute()
+        logger.debug("Writing boundaries")
+        boundaries_writer.compute()
     elif config["openboundary"]["source"] == "DALES":
         data = initial_fields_fine.initial_fields_fine(
             config["openboundary"], grid=openBCgrid, output_path=output_path

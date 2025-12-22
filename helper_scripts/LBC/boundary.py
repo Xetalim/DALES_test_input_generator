@@ -6,7 +6,7 @@ from datetime import datetime
 from helper_scripts.grids import GridDalesOpenBC
 import logging
 from helper_scripts.logging_wrapper import logwrap
-
+import dask
 logger = logging.getLogger(__name__)
 logger.debug("Entered module: %s", __name__)
 
@@ -33,6 +33,7 @@ def boundary_fields(input_json, grid: GridDalesOpenBC, data, output_path):
         path=output_path / "input" / openboundaries.attrs["title"],
         mode="w",
         format="NETCDF4",
+        compute=False
     )
     return openboundaries
 
