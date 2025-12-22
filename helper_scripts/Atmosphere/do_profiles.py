@@ -46,76 +46,82 @@ def expsinw(z, surf_val, H, amp, Hp):
     return wbase + wonion
 
 
-@logwrap
-def output_profiles(profile_config, exp_id, grid: GridDales, out_dir, plot=False):
-    z = grid.zt
+class AtmosphereWriter:
+    def __init__(self, grid: GridDales):
+        self.z = grid.zt
 
-    var_dic = {
-        "u": None,
-        "v": None,
-        "w": None,
-        "thl": None,
-        "qt": None,
-        "tke": None,
-        "thl_tend": None,
-        "qt_tend": None,
-    }
-    shape_function_dic = {
-        "lin": lin,
-        "expsinw": expsinw,
-        "linmlsurf": linmlsurf,
-        "exp": exp,
-    }
-    for var in var_dic:
-        if var in profile_config["profiles"]:
-            var_config = profile_config["profiles"][var]
-            shape_function = shape_function_dic[var_config["shape"]]
-            shape_config = var_config["params"]
-            var_dic[var] = shape_function(z, **shape_config)
-        elif var in profile_config["interpolated"]:
-            var_config = profile_config["interpolated"][var]
-            z_points = var_config["z"]
-            var_points = var_config["points"]
-            fill_value = var_config["fill_value"]
-            var_dic[var] = interp1d(z_points, var_points, fill_value=fill_value)(z)
+        self.var_dic = {
+            "u": None,
+            "v": None,
+            "w": None,
+            "thl": None,
+            "qt": None,
+            "tke": None,
+            "thl_tend": None,
+            "qt_tend": None,
+        }
+        self.shape_function_dic = {
+            "lin": lin,
+            "expsinw": expsinw,
+            "linmlsurf": linmlsurf,
+            "exp": exp,
+        }
 
-    with netCDF4.Dataset(
-        out_dir / f"init.{exp_id:03d}.nc", "w", format="NETCDF3_CLASSIC"
-    ) as ncout:
-        # create height dimension, notice zh is from the dephy standard and just means height.
-        # in DALES zh is read into zf (full level/cell center)
-        ncout.createDimension("zh", len(z))
+    def apply_profiles(self, profile_config):
 
-        # normal profiles
-        nc_z_var = ncout.createVariable("zh", "f8", ("zh",))
-        nc_thetal_var = ncout.createVariable("thetal", "f8", ("zh",))
-        nc_qt_var = ncout.createVariable("qt", "f8", ("zh",))
-        nc_ua_var = ncout.createVariable("ua", "f8", ("zh",))
-        nc_va_var = ncout.createVariable("va", "f8", ("zh",))
-        nc_tke_var = ncout.createVariable("tke", "f8", ("zh",))
+        for var in self.var_dic:
+            if var in profile_config["profiles"]:
+                var_config = profile_config["profiles"][var]
+                shape_function = self.shape_function_dic[var_config["shape"]]
+                shape_config = var_config["params"]
+                self.var_dic[var] = shape_function(self.z, **shape_config)
+            elif var in profile_config["interpolated"]:
+                var_config = profile_config["interpolated"][var]
+                z_points = var_config["z"]
+                var_points = var_config["points"]
+                fill_value = var_config["fill_value"]
+                self.var_dic[var] = interp1d(
+                    z_points, var_points, fill_value=fill_value
+                )(self.z)
 
-        # geostrophic
-        nc_ug_var = ncout.createVariable("ug", "f8", ("zh",))
-        nc_vg_var = ncout.createVariable("vg", "f8", ("zh",))
-        nc_w_subs_var = ncout.createVariable("wa", "f8", ("zh",))
-        nc_qt_tend_var = ncout.createVariable("tnqt_adv", "f8", ("zh",))
-        nc_dthlrad_var = ncout.createVariable("tnthetal_rad", "f8", ("zh",))
+    def write_profiles(self, output_path, exp_id):
+        with netCDF4.Dataset(
+            output_path / f"init.{exp_id:03d}.nc", "w", format="NETCDF3_CLASSIC"
+        ) as ncout:
+            # create height dimension, notice zh is from the dephy standard and just means height.
+            # in DALES zh is read into zf (full level/cell center)
+            ncout.createDimension("zh", len(self.z))
 
-        nc_z_var[:] = z
-        nc_thetal_var[:] = var_dic["thl"]
-        nc_qt_var[:] = var_dic["qt"]
-        nc_ua_var[:] = var_dic["u"]
-        nc_va_var[:] = var_dic["v"]
-        nc_tke_var[:] = var_dic["tke"]
+            # normal profiles
+            nc_z_var = ncout.createVariable("zh", "f8", ("zh",))
+            nc_thetal_var = ncout.createVariable("thetal", "f8", ("zh",))
+            nc_qt_var = ncout.createVariable("qt", "f8", ("zh",))
+            nc_ua_var = ncout.createVariable("ua", "f8", ("zh",))
+            nc_va_var = ncout.createVariable("va", "f8", ("zh",))
+            nc_tke_var = ncout.createVariable("tke", "f8", ("zh",))
 
-        nc_ug_var[:] = var_dic["u"]
-        nc_vg_var[:] = var_dic["v"]
-        nc_w_subs_var[:] = var_dic["w"]
-        nc_qt_tend_var[:] = var_dic["qt_tend"]
-        nc_dthlrad_var[:] = var_dic["thl_tend"]
+            # geostrophic
+            nc_ug_var = ncout.createVariable("ug", "f8", ("zh",))
+            nc_vg_var = ncout.createVariable("vg", "f8", ("zh",))
+            nc_w_subs_var = ncout.createVariable("wa", "f8", ("zh",))
+            nc_qt_tend_var = ncout.createVariable("tnqt_adv", "f8", ("zh",))
+            nc_dthlrad_var = ncout.createVariable("tnthetal_rad", "f8", ("zh",))
 
-    if plot:
-        os.makedirs(out_dir / ".." / "profiles", exist_ok=True)
+            nc_z_var[:] = self.z
+            nc_thetal_var[:] = self.var_dic["thl"]
+            nc_qt_var[:] = self.var_dic["qt"]
+            nc_ua_var[:] = self.var_dic["u"]
+            nc_va_var[:] = self.var_dic["v"]
+            nc_tke_var[:] = self.var_dic["tke"]
+
+            nc_ug_var[:] = self.var_dic["u"]
+            nc_vg_var[:] = self.var_dic["v"]
+            nc_w_subs_var[:] = self.var_dic["w"]
+            nc_qt_tend_var[:] = self.var_dic["qt_tend"]
+            nc_dthlrad_var[:] = self.var_dic["thl_tend"]
+
+    def plot_profiles(self, output_path, exp_id):
+        os.makedirs(output_path / ".." / "profiles", exist_ok=True)
         for var, varname in zip(
             ["thl", "qt", "u", "v", "tke", "w", "qt_tend", "thl_tend"],
             [
@@ -130,9 +136,11 @@ def output_profiles(profile_config, exp_id, grid: GridDales, out_dir, plot=False
             ],
         ):
             fig, ax = plt.subplots()
-            ax.plot(var_dic[var], z)
+            ax.plot(self.var_dic[var], self.z)
             ax.set_xlabel(varname)
             ax.set_ylabel("z (m)")
             ax.set_title(f"exp {exp_id:03d} {varname}")
-            fig.savefig(out_dir / ".." / "profiles" / f"profile_{varname}.png", dpi=300)
+            fig.savefig(
+                output_path / ".." / "profiles" / f"profile_{varname}.png", dpi=300
+            )
             plt.close()

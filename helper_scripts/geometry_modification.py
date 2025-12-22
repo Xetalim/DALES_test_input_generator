@@ -67,34 +67,36 @@ class modifierClass:
 class LsmModifier(modifierClass):
     # class to edit land use types (lu_types) for the DALES LSM input. Set type using set_type and
     # give a mask with any of the geometry primitives.
-    def __init__(self, lu_types, lu_dict, lsm_input, grid: GridDales):
-        self.lu_types = lu_types
-        self.lu_dict = lu_dict
+    def __init__(self, lsm_input, grid: GridDales):
         self.lsm_input = lsm_input
         super().__init__(grid)
 
     def returnVars(self):
-        return self.lu_types, self.lu_dict, self.lsm_input
+        return self.lsm_input
 
     def set_type(self, mask, lu_type, frac=1):
         if frac != 1:
             raise Warning(
                 "No code yet to handle half fractions correctly, so check if fractions add up to 1"
             )
-        if not (lu_type in self.lu_dict.keys()):
-            raise KeyError(f"Incorrect lu_type given {lu_type}, {self.lu_dict.keys()}")
-        if not (lu_type in self.lu_types.keys()):
-            raise KeyError(f"Incorrect lu_type given {lu_type}, {self.lu_types.keys()}")
-        self.lu_types[lu_type]["lu_frac"][mask] = frac
+        if not (lu_type in self.lsm_input.lu_types.keys()):
+            raise KeyError(
+                f"Incorrect lu_type given {lu_type}, {self.lsm_input.lu_types.keys()}"
+            )
+        if not (lu_type in self.lsm_input.lu_types.keys()):
+            raise KeyError(
+                f"Incorrect lu_type given {lu_type}, {self.lsm_input.lu_types.keys()}"
+            )
+        self.lsm_input.lu_types[lu_type]["lu_frac"][mask] = frac
         if frac == 1:
-            for other_lu_type in self.lu_types.keys():
+            for other_lu_type in self.lsm_input.lu_types.keys():
                 if lu_type != other_lu_type:
-                    self.lu_types[other_lu_type]["lu_frac"][mask] = 0
-        self.lu_types[lu_type]["lu_frac"][mask] = frac
+                    self.lsm_input.lu_types[other_lu_type]["lu_frac"][mask] = 0
+        self.lsm_input.lu_types[lu_type]["lu_frac"][mask] = frac
         if frac == 1:
-            for other_lu_type in self.lu_types.keys():
+            for other_lu_type in self.lsm_input.lu_types.keys():
                 if lu_type != other_lu_type:
-                    self.lu_types[other_lu_type]["lu_frac"][mask] = 0
+                    self.lsm_input.lu_types[other_lu_type]["lu_frac"][mask] = 0
 
     def do_modification(self, geometry, modification):
         if "frac" in modification.keys():
@@ -199,9 +201,9 @@ class slbCreatorClass(modifierClass):
                     )[:, :]
 
 
-def lsm_modify_func(config, lu_types, lu_dict, lsm_input, grid: GridDales):
+def lsm_modify_func(config, lsm_input, grid: GridDales):
     # function that edits the DALES LSM land use types using the modifier class.
-    modifier = LsmModifier(lu_types, lu_dict, lsm_input, grid)
+    modifier = LsmModifier(lsm_input, grid)
     for modification in config["land_use_modifications"]:
         modifier.parse_yaml_name(modification)
     # modifier.set_type(modifier.allGeometry(), "grs")

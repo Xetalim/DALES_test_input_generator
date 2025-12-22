@@ -1,19 +1,15 @@
-import numpy as np
 import os
-import glob
 import f90nml
 import yaml  # install pyyaml
 import subprocess
 import pathlib
-import re
-import warnings
 import argparse
 import logging
 
 # Custom Python scripts/tools/...
 from helper_scripts.Atmosphere import do_profiles
 from helper_scripts.LSM import landuse_types
-from helper_scripts.LSM import create_lsm
+from helper_scripts.LSM import LSM_output_dales
 from helper_scripts.LBC import openboundary
 from helper_scripts.Emission import create_emis
 from helper_scripts import geometry_modification
@@ -32,12 +28,12 @@ from helper_scripts.grids import GridDales, get_domain_info_nml
 logger = logging.getLogger(__name__)
 from dask.distributed import Client
 
-# import dask
+import dask
 
 
-# dask.config.set(
-#     scheduler="synchronous"
-# )  # overwrite default with single-threaded scheduler
+dask.config.set(
+    scheduler="single-threaded"
+)  # overwrite default with single-threaded scheduler
 
 
 def setup_logging(config_path="logging.yaml"):
@@ -89,83 +85,161 @@ def apply_job_conf(job_conf, output_filepath, required_files, required_folder_li
         f.write(content)
 
 
-def generate_case(config, machine_conf):
-    output_path = validate_config_paths(config, machine_conf)
+class DalesCase:
+    def __init__(self, config, machine_conf):
+        self.config = config
+        self.machine_conf = machine_conf
 
-    os.makedirs(output_path, exist_ok=True)
-    os.makedirs(output_path / "input", exist_ok=True)
+        self.output_path = validate_config_paths(config, self.machine_conf)
 
-    # default namelist in input_template/input
-    namoptions = pathlib.Path.cwd() / "input_template" / "input" / "namoptions.001"
-    nml = f90nml.read(namoptions)
+        os.makedirs(self.output_path, exist_ok=True)
+        os.makedirs(self.output_path / "input", exist_ok=True)
 
-    # Overrides namelist parameters from YAML
-    override_namelists(config, nml)
+        # default namelist in input_template/input
+        self.nml = f90nml.read(
+            pathlib.Path.cwd() / "input_template" / "input" / "namoptions.001"
+        )
 
-    check_config_contains_origin(config)
+        # Overrides namelist parameters from YAML
+        override_namelists(self.config, self.nml)
 
-    check_required_config_fields(config)
+        check_config_contains_origin(self.config)
 
-    # exp_id is required to give a name to each input file
-    exp_id = nml["RUN"]["iexpnr"]
+        check_required_config_fields(self.config)
 
-    grid = GridDales(get_domain_info_nml(nml, config))
+        # exp_id is required to give a name to each input file
+        self.exp_id = self.nml["RUN"]["iexpnr"]
 
-    # make sure the amount of gridpoints per core is at least 3
-    check_core_amounts(machine_conf, nml)
+        self.grid = GridDales(get_domain_info_nml(self.nml, self.config))
 
-    # sets up files required to run DALES mostly radiation files
-    required_files = {}
-    required_folder_list = []
+        # make sure the amount of gridpoints per core is at least 3
+        check_core_amounts(self.machine_conf, self.nml)
 
-    check_radiation_required_files(machine_conf, nml, exp_id, required_files)
+        # sets up files required to run DALES; mostly radiation files
+        self.required_files = {}
+        self.required_folder_list = []
 
-    check_lsm_input_settings(config, machine_conf, nml, required_files)
+        check_radiation_required_files(
+            self.machine_conf, self.nml, self.exp_id, self.required_files
+        )
 
-    check_ibm_input_settings(config, machine_conf, nml)
+        check_lsm_input_settings(
+            self.config, self.machine_conf, self.nml, self.required_files
+        )
 
-    check_emission_input_settings(
-        config, machine_conf, nml, required_files, required_folder_list
-    )
+        check_ibm_input_settings(self.config, self.machine_conf, self.nml)
 
-    # create atmospheric profiles
-    do_profiles.output_profiles(
-        config["profile"],
-        exp_id,
-        grid,
-        output_path / "input",
-        bool(config["output"]["plot"]),
-    )
+        check_emission_input_settings(
+            self.config,
+            machine_conf,
+            self.nml,
+            self.required_files,
+            self.required_folder_list,
+        )
 
-    do_lsm(grid, config, output_path, nml, exp_id)
+    def setup_writers(self):
 
-    # set up IBM file and output it
-    do_ibm(grid, config, output_path, nml, exp_id)
+        # create atmospheric profiles
+        self.profilewriter = do_profiles.AtmosphereWriter(self.grid)
 
-    # set up SLB file and output it
-    do_slb(grid, config, output_path, nml, exp_id)
+        if self.config["generation_settings"]["uselsm"]:
+            lu_types = landuse_types.lu_types_depac
+            if "useslurb" in self.config["generation_settings"]:
+                if self.config["generation_settings"]["useslurb"]:
+                    lu_types["slb"] = landuse_types.slb
 
-    # set up open boundary condition input files
-    do_openbc(grid, config, output_path, nml, exp_id)
+            self.lsm_writer = LSM_output_dales.LSM_output_dales(
+                self.grid,
+                lu_types,
+            )
+        if self.config["generation_settings"]["useibm"]:
+            self.ibm_generator = geometry_modification.ibmCreatorClass(self.grid)
 
-    # set up emission data structure
-    emissions = create_emis.setup_emissions(grid, config, output_path, nml, exp_id)
+        if self.config["generation_settings"]["useslurb"]:
+            self.slb_generator = geometry_modification.slbCreatorClass(self.grid)
 
-    emissions = create_emis.write_emissions_constant(
-        emissions, grid, config, output_path, nml, exp_id
-    )
+        # set up emission data structure
+        self.emissions_creator = create_emis.setup_emissions(
+            self.grid, self.config, self.output_path, self.nml, self.exp_id
+        )
 
-    # set up job script and put it in the case directory
-    apply_job_conf(
-        machine_conf["job_conf"],
-        output_path / "job.001",
-        required_files=required_files,
-        required_folder_list=required_folder_list,
-    )
+        if self.config["generation_settings"]["useopenBC"]:
+            self.openbc_creator = openboundary.do_openboundary(self.grid)
 
-    # put the required files in the case directory
-    write_files(output_path, nml, exp_id, required_files)
-    logger.info(f"Written input files to {output_path / 'input'}")
+    def default_from_yaml(self):
+
+        self.profilewriter.apply_profiles(self.config["profile"])
+
+        if self.config["generation_settings"]["uselsm"]:
+            self.lsm_writer.standard_fill_geometry_modification(
+                modify_func=lambda lsm_input: geometry_modification.lsm_modify_func(
+                    self.config, lsm_input, self.grid
+                ),
+            )
+        if self.config["generation_settings"]["useibm"]:
+            for modification in self.config["ibm_modifications"]:
+                self.ibm_generator.parse_yaml_name(modification)
+
+        if self.config["generation_settings"]["useslurb"]:
+            if "slb_modifications" in self.config:
+                for modification in self.config["slb_modifications"]:
+                    self.slb_generator.parse_yaml_name(modification)
+
+        logger.warning("Emission is not setting up job properly!!")
+        create_emis.write_emissions_constant(
+            self.emissions_creator,
+            self.grid,
+            self.config,
+            self.output_path,
+            self.nml,
+            self.exp_id,
+        )
+        if self.config["generation_settings"]["useopenBC"]:
+            self.openbc_creator.setup(
+                self.config, self.output_path, self.nml, self.exp_id
+            )
+
+    def prepare_calculations(self):
+        if self.config["generation_settings"]["useopenBC"]:
+            self.openbc_creator.prepare_calculation(
+                self.config, self.output_path, self.nml, self.exp_id
+            )
+
+    def write_files(self):
+        self.profilewriter.write_profiles(
+            output_path=self.output_path / "input", exp_id=self.exp_id
+        )
+        if self.config["output"]["plot"]:
+            self.profilewriter.plot_profiles(
+                output_path=self.output_path / "input", exp_id=self.exp_id
+            )
+
+        if self.config["generation_settings"]["uselsm"]:
+            self.lsm_writer.save_netcdf(self.output_path / "input", self.exp_id)
+
+        if self.config["generation_settings"]["useibm"]:
+            self.ibm_generator.output_nc(
+                self.output_path / "input" / f"ibm.inp_{self.exp_id:03d}.nc"
+            )
+
+        if self.config["generation_settings"]["useslurb"]:
+            self.slb_generator.output_nc(
+                self.output_path / "input" / f"inslurb.{self.exp_id:03d}.nc"
+            )
+        if self.config["generation_settings"]["useopenBC"]:
+            self.openbc_creator.write_openbcs()
+
+        # set up job script and put it in the case directory
+        apply_job_conf(
+            self.machine_conf["job_conf"],
+            self.output_path / "job.001",
+            required_files=self.required_files,
+            required_folder_list=self.required_folder_list,
+        )
+
+        # put the required files in the case directory
+        write_files(self.output_path, self.nml, self.exp_id, self.required_files)
+        logger.info(f"Written input files to {self.output_path / 'input'}")
 
 
 def write_files(output_path, nml, exp_id, required_files):
@@ -211,10 +285,7 @@ def do_slb(grid: GridDales, config, output_path, nml, exp_id):
     slb_generator.output_nc(output_path / "input" / f"inslurb.{exp_id:03d}.nc")
 
 
-def do_openbc(grid: GridDales, config, output_path, nml, exp_id):
-    if not config["generation_settings"]["useopenBC"]:
-        return
-    openboundary.do_openboundary(grid, config, output_path, nml, exp_id)
+# def do_openbc(grid: GridDales, config, output_path, nml, exp_id):
 
 
 def do_ibm(grid: GridDales, config, output_path, nml, exp_id):
@@ -226,30 +297,11 @@ def do_ibm(grid: GridDales, config, output_path, nml, exp_id):
     ibm_generator.output_nc(output_path / "input" / f"ibm.inp_{exp_id:03d}.nc")
 
 
-def do_lsm(grid: GridDales, config, output_path, nml, exp_id):
-    if not config["generation_settings"]["uselsm"]:
-        return
-    lu_types = landuse_types.lu_types_depac
-    if "useslurb" in config["generation_settings"]:
-        if config["generation_settings"]["useslurb"]:
-            lu_types["slb"] = landuse_types.slb
-    create_lsm.process_input(
-        lu_types,
-        grid,
-        output_path / "input",
-        exp_id,
-        lplot=True,
-        modify_func=lambda lu_types, lu_dict, lsm_input: geometry_modification.lsm_modify_func(
-            config, lu_types, lu_dict, lsm_input, grid
-        ),
-    )
-
-
 def check_required_config_fields(config):
     if not ("generation_settings" in config):
         config["generation_settings"] = {}
 
-    for setting in ["uselsm", "useslurb", "useopenBC"]:
+    for setting in ["uselsm", "useslurb", "useopenBC", "useibm"]:
         if not (setting in config["generation_settings"]):
             config["generation_settings"][setting] = False
 
@@ -260,18 +312,23 @@ if __name__ == "__main__":
         "casefile",
         help="Path of yaml file (e.g. 'cases/mini.yaml')",
     )
-    client = Client()  # start distributed scheduler locally.
+    # client = Client()  # start distributed scheduler locally.
 
     setup_logging("logging.yaml")
 
-    args = parser.parse_args()
-    casefile = args.casefile
+    # args = parser.parse_args()
+    # casefile = args.casefile
 
-    # casefile = "my_own_cases/mini_open.yaml"
+    casefile = "my_own_cases/mini_open.yaml"
+    # casefile = "/Users/andrevanginkel/Documents/20_Code/28_dales_input/28.01_Dales_LSM_generator/my_own_cases/small_half_forest_half_grass.yaml"
     # casefile = "my_own_cases/mini_in_mini_open.yaml"
     logger.info("Processing casefile %s", casefile)
     with open("machine_conf.yaml", "r") as file:
         machine_conf = yaml.safe_load(file)
     with open(casefile, "r") as f:
         config = yaml.safe_load(f)
-    generate_case(config, machine_conf)
+        case = DalesCase(config, machine_conf=machine_conf)
+        case.setup_writers()
+        case.default_from_yaml()
+        case.prepare_calculations()
+        case.write_files()

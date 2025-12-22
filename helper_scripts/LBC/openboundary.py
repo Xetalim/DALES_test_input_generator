@@ -19,105 +19,128 @@ logger.debug("Entered module: %s", __name__)
 
 
 @logwrap
-def do_openboundary(grid: GridDalesOpenBC, config, output_path, nml, exp_id):
-    if not type(grid) is GridDalesOpenBC:
-        logger.warning(
-            "Passing wrong grid type to openboundary, converting to GridDalesOpenBC with as_openBC."
-        )
-        openBCgrid = grid.as_openbc()
-    else:
-        openBCgrid = grid
+class do_openboundary:
+    def __init__(self, grid: GridDalesOpenBC):
+        self.grid = grid
+        if not type(grid) is GridDalesOpenBC:
+            logger.warning(
+                "Passing wrong grid type to openboundary, converting to GridDalesOpenBC with as_openBC."
+            )
+            self.openBCgrid = grid.as_openbc()
+        else:
+            self.openBCgrid = grid
 
-    if "subnest" in config["openboundary"]:
-        # we want to nest a model in this, we can provide some convenience function for the boundary indices.
-        subgrid = GridDalesOpenBC(config["openboundary"]["subnest"])
-        supergrid = grid
+    def setup(self, config, output_path, nml, exp_id):
+        if "subnest" in config["openboundary"]:
+            # we want to nest a model in this, we can provide some convenience function for the boundary indices.
+            self.subnest_subgrid = GridDalesOpenBC(config["openboundary"]["subnest"])
+            self.subnest_supergrid = self.grid
 
-        ixwest, ixeast = list(supergrid.xm).index(np.min(subgrid.xm)), list(
-            supergrid.xm
-        ).index(np.max(subgrid.xm))
+            ixwest, ixeast = list(self.subnest_supergrid.xm).index(
+                np.min(self.subnest_subgrid.xm)
+            ), list(self.subnest_supergrid.xm).index(np.max(self.subnest_subgrid.xm))
 
-        iysouth, iynorth = list(supergrid.ym).index(np.min(subgrid.ym)), list(
-            supergrid.ym
-        ).index(np.max(subgrid.ym))
+            iysouth, iynorth = list(self.subnest_supergrid.ym).index(
+                np.min(self.subnest_subgrid.ym)
+            ), list(self.subnest_supergrid.ym).index(np.max(self.subnest_subgrid.ym))
 
-        iztop = list(supergrid.zt).index(np.max(subgrid.zt))
+            iztop = list(self.subnest_supergrid.zt).index(
+                np.max(self.subnest_subgrid.zt)
+            )
 
-        # integer :: crossplane(100) !< Location of the xz crosssection
-        # integer :: crossortho(100) !< Location of the yz crosssection
+            # integer :: crossplane(100) !< Location of the xz crosssection
+            # integer :: crossortho(100) !< Location of the yz crosssection
 
-        nml["namcrosssection"]["crossheight"].append(iztop + 1)
-        nml["namcrosssection"]["crossplane"].append(iysouth + 1)
-        nml["namcrosssection"]["crossplane"].append(iynorth + 1)
-        nml["namcrosssection"]["crossortho"].append(ixwest + 1)
-        nml["namcrosssection"]["crossortho"].append(ixeast + 1)
-    if "supernest" in config["openboundary"]:
-        subgrid = grid.as_openbc()
-        supergrid = GridDales(config["openboundary"]["supernest"])
+            nml["namcrosssection"]["crossheight"].append(iztop + 1)
+            nml["namcrosssection"]["crossplane"].append(iysouth + 1)
+            nml["namcrosssection"]["crossplane"].append(iynorth + 1)
+            nml["namcrosssection"]["crossortho"].append(ixwest + 1)
+            nml["namcrosssection"]["crossortho"].append(ixeast + 1)
+        if "supernest" in config["openboundary"]:
+            self.supernest_subgrid = self.grid.as_openbc()
+            self.supernest_supergrid = GridDales(config["openboundary"]["supernest"])
 
-        ixwest, ixeast = list(supergrid.xm).index(np.min(subgrid.xm)), list(
-            supergrid.xm
-        ).index(np.max(subgrid.xm))
+            ixwest, ixeast = list(self.supernest_supergrid.xm).index(
+                np.min(self.supernest_subgrid.xm)
+            ), list(self.supernest_supergrid.xm).index(
+                np.max(self.supernest_subgrid.xm)
+            )
 
-        iysouth, iynorth = list(supergrid.ym).index(np.min(subgrid.ym)), list(
-            supergrid.ym
-        ).index(np.max(subgrid.ym))
+            iysouth, iynorth = list(self.supernest_supergrid.ym).index(
+                np.min(self.supernest_subgrid.ym)
+            ), list(self.supernest_supergrid.ym).index(
+                np.max(self.supernest_subgrid.ym)
+            )
 
-        iztop = list(supergrid.zt).index(np.max(subgrid.zt))
+            iztop = list(self.supernest_supergrid.zt).index(
+                np.max(self.supernest_subgrid.zt)
+            )
 
-        indices = nesting_idx(
-            ix_west=ixwest,
-            ix_east=ixeast,
-            iy_south=iysouth,
-            iy_north=iynorth,
-            subgrid_x0=subgrid.x0,
-            subgrid_y0=subgrid.y0,
-            supergrid_x0=supergrid.x0,
-            supergrid_y0=supergrid.y0,
-        )
-    else:
-        indices = None
+            self.indices = nesting_idx(
+                ix_west=ixwest,
+                ix_east=ixeast,
+                iy_south=iysouth,
+                iy_north=iynorth,
+                subgrid_x0=self.supernest_subgrid.x0,
+                subgrid_y0=self.supernest_subgrid.y0,
+                supergrid_x0=self.supernest_supergrid.x0,
+                supergrid_y0=self.supernest_supergrid.y0,
+            )
+        else:
+            self.indices = None
 
-    if config["openboundary"]["source"] == "HARMONIE":
-        data, transform = prep_harmonie.prep_harmonie(
-            config["openboundary"], openBCgrid
-        )
-        # we need to use the right surface pressure as calculated from the input data
-        logger.info(
-            "Setting namelist NAMSURFACE:ps to %f", config["openboundary"]["ps"]
-        )
-        nml["NAMSURFACE"]["ps"] = config["openboundary"]["ps"]
-        # we need to use the right skin liq. pot. temperature from the input data
-        logger.info(
-            "Setting namelist NAMSURFACE:thls to %f", config["openboundary"]["thls"]
-        )
-        nml["NAMSURFACE"]["thls"] = config["openboundary"]["thls"]
-        data, = dask.optimize(data)
-        boundaries_writer = boundary.boundary_fields(
-            config["openboundary"], openBCgrid, data, output_path=output_path
-        )
-        initfields_writer = initfields.initial_fields(
-            config["openboundary"], openBCgrid, data, transform, output_path=output_path
-        )
-        logger.debug("Setup all openBC writers, optimizing writers now..")
-        boundaries_writer, initfields_writer = dask.optimize(boundaries_writer, initfields_writer)
-        logger.debug("Optimized writers")
+    def prepare_calculation(self, config, output_path, nml, exp_id):
+
+        if config["openboundary"]["source"] == "HARMONIE":
+            self.data, transform = prep_harmonie.prep_harmonie(
+                config["openboundary"], self.openBCgrid
+            )
+            # we need to use the right surface pressure as calculated from the input data
+            logger.info(
+                "Setting namelist NAMSURFACE:ps to %f", config["openboundary"]["ps"]
+            )
+            nml["NAMSURFACE"]["ps"] = config["openboundary"]["ps"]
+            # we need to use the right skin liq. pot. temperature from the input data
+            logger.info(
+                "Setting namelist NAMSURFACE:thls to %f", config["openboundary"]["thls"]
+            )
+            nml["NAMSURFACE"]["thls"] = config["openboundary"]["thls"]
+            (self.data,) = dask.optimize(self.data)
+            boundaries_writer = boundary.boundary_fields(
+                config["openboundary"],
+                self.openBCgrid,
+                self.data,
+                output_path=output_path,
+            )
+            initfields_writer = initfields.initial_fields(
+                config["openboundary"],
+                self.openBCgrid,
+                self.data,
+                transform,
+                output_path=output_path,
+            )
+            logger.debug("Setup all openBC writers, optimizing writers now..")
+            self.boundaries_writer, self.initfields_writer = dask.optimize(
+                boundaries_writer, initfields_writer
+            )
+            logger.debug("Optimized writers")
+
+        elif config["openboundary"]["source"] == "DALES":
+            self.data = initial_fields_fine.initial_fields_fine(
+                config["openboundary"], grid=self.openBCgrid, output_path=output_path
+            )
+
+            boundary_fields_fine.boundary_fields_fine(
+                config["openboundary"],
+                grid=self.openBCgrid,
+                output_path=output_path,
+                grid_indices=self.indices,
+            )
+        else:
+            raise ValueError("Unknown source for open boundary conditions")
+
+    def write_openbcs(self):
         logger.debug("Writing initial fields")
-        with ProgressBar():
-            initfields_writer.compute()
+        self.initfields_writer.compute()
         logger.debug("Writing boundaries")
-        with ProgressBar():
-            boundaries_writer.compute()
-    elif config["openboundary"]["source"] == "DALES":
-        data = initial_fields_fine.initial_fields_fine(
-            config["openboundary"], grid=openBCgrid, output_path=output_path
-        )
-
-        boundary_fields_fine.boundary_fields_fine(
-            config["openboundary"],
-            grid=openBCgrid,
-            output_path=output_path,
-            grid_indices=indices,
-        )
-    else:
-        raise ValueError("Unknown source for open boundary conditions")
+        self.boundaries_writer.compute()
