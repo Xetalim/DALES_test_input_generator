@@ -45,7 +45,7 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
         input_json, grid, variables
     )
 
-    data, = dask.optimize(data)#.chunk({"x":"auto","y":"auto","time":5,"lev":"auto"}))
+    data, = dask.optimize(data)
     # Change transform parameters to new DALES origin and update transform
     transform = update_transform(transform, x_sw, y_sw)
 
@@ -79,7 +79,7 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
 
     # Calculate 3D height levels
 
-    z = calculate_3d_height_levels(data)
+    z = calculate_3d_height_levels(input_json, data)
     data = data.assign(
         {
             "z3d": z
@@ -92,7 +92,6 @@ def prep_harmonie(input_json, grid: GridDalesOpenBC):
 
     z_int = z_int.compute()
 
-    print(z_int)
 
     
     # Interpolate data to reference height levels
@@ -307,7 +306,7 @@ def vertical_interp_all(ds, z3d, z_new):
 
     def _interp_func(var_col, z_col, z_target=z_target):
         # var_col, z_col: 1D arrays of shape (lev,)
-        return np.interp(z_target, z_col, var_col, left=np.nan, right=np.nan)
+        return np.interp(z_target, z_col, var_col)
 
     interp_vars = {}
     for var in ds.data_vars:
@@ -378,7 +377,7 @@ def interpolate_ref_height(input_json, data, z_int):
 
 
 @logwrap
-def calculate_3d_height_levels(data):
+def calculate_3d_height_levels(input_json, data):
     rho = (
         data["p"]
         / (
@@ -387,16 +386,15 @@ def calculate_3d_height_levels(data):
             * (1 + (Rv / Rd - 1) * (data["q"] + data["clwc"]) - Rv / Rd * data["clwc"])
         )
     )
-    rhoh = 0.5 * (rho.assign_coords({"lev": rho["lev"].values - 1}) + rho)
+    rhoh = 0.5 * (rho.assign_coords({"lev": rho["lev"].values + 1}) + rho)
 
-    pdiff = data["p"].diff(dim="lev", label="lower")
-    z = (
-        (-pdiff / (rhoh * grav))
-        .cumsum(dim="lev")
-    ).reindex(lev=data.lev, fill_value=0) # make sure 0 is included
-    z = z - z.isel(lev=0)
+    pdiff = data["p"].diff(dim="lev", label="upper")
+    dz = pdiff / (rhoh * grav)
 
-    # print(z.compute())
+    z = (xr.concat(
+        [dz.sum(dim="lev").assign_coords({"lev":70}), -dz], dim="lev"
+    ).cumsum(dim="lev")).chunk({"time":input_json["tchunk"],"lev":-1})
+
     return z
 
 

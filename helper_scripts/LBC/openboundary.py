@@ -10,6 +10,7 @@ import json
 import yaml
 import numpy as np
 import dask
+from dask.diagnostics import ProgressBar
 import logging
 from helper_scripts.logging_wrapper import logwrap
 
@@ -102,9 +103,11 @@ def do_openboundary(grid: GridDalesOpenBC, config, output_path, nml, exp_id):
         boundaries_writer, initfields_writer = dask.optimize(boundaries_writer, initfields_writer)
         logger.debug("Optimized writers")
         logger.debug("Writing initial fields")
-        initfields_writer.compute()
+        with ProgressBar():
+            initfields_writer.compute()
         logger.debug("Writing boundaries")
-        boundaries_writer.compute()
+        with ProgressBar():
+            boundaries_writer.compute()
     elif config["openboundary"]["source"] == "DALES":
         data = initial_fields_fine.initial_fields_fine(
             config["openboundary"], grid=openBCgrid, output_path=output_path
