@@ -57,7 +57,7 @@ class harmoniePrepper:
     def prep_harmonie(self):
 
         # Calculate pressure levels
-        self.p = calculate_pressure(self.input_json, self.data)
+        self.p = calculate_pressure(self.input_json, self.data).chunk(self.data.u.chunks)
         # print(p.mean(dim=["x", "y"]).values)
         # print(data.lev.values)
         # drop NAN if levels from harmonie is less than 90
@@ -94,6 +94,7 @@ class harmoniePrepper:
         self.z_int = get_ref_height_crop(self.input_json, self.grid, self.data)
 
         (self.data,) = dask.optimize(self.data)
+        (self.z_int,) = dask.optimize(self.z_int)
 
         self.z_int = self.z_int.compute()
 
@@ -247,6 +248,7 @@ def calculate_turbulence_vars(
 def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
     if input_json["start"] == input_json["time0"]:  # Calculate exnr function
         z_min = data.z.argmin(dim="z")
+        print(z_min)
         tas_exnr = (
             data["t"].isel({"time": 0, "z": z_min}, drop=True)
             # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
@@ -275,7 +277,7 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
                 1
                 + (Rv / Rd - 1) * data["qt"][0, 1:]
                 # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
-                .mean(dim=["x", "y"]).values
+                .mean(dim=["x", "y"])
                 - Rv / Rd * data["clwc"][0, 1:]
                 # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
                 .mean(dim=["x", "y"])
@@ -395,16 +397,18 @@ def calculate_3d_height_levels(input_json, data):
         * data["t"]
         * (1 + (Rv / Rd - 1) * (data["q"] + data["clwc"]) - Rv / Rd * data["clwc"])
     )
-    rhoh = 0.5 * (rho.assign_coords({"lev": rho["lev"].values + 1}) + rho)
-
-    pdiff = data["p"].diff(dim="lev", label="upper")
+    rhoh = 0.5 * (rho + rho.shift(lev=-1))
+    pdiff = data["p"].diff(dim="lev", label="lower")
     dz = pdiff / (rhoh * grav)
 
+    zeros = dz.isel(lev=0)*0
+
     z = (
-        xr.concat(
-            [dz.sum(dim="lev").assign_coords({"lev": 70}), -dz], dim="lev"
-        ).cumsum(dim="lev")
-    ).chunk({"time": input_json["tchunk"], "lev": -1})
+        xr.concat([zeros, dz], dim="lev")
+        .cumsum(dim="lev")
+        .assign_coords(lev=data.lev)
+        .sortby("lev", ascending=True)
+    ).transpose(*data.dims).chunk(data["u"].chunks)
 
     return z
 

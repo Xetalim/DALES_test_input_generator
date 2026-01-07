@@ -108,24 +108,24 @@ class do_openboundary:
             )
             nml["NAMSURFACE"]["thls"] = config["openboundary"]["thls"]
             (self.data,) = dask.optimize(self.data)
-            boundaries_writer = boundary.boundary_fields(
+            self.boundaries = boundary.boundary_fields(
                 config["openboundary"],
                 self.openBCgrid,
                 self.data,
                 output_path=output_path,
             )
-            initfields_writer = initfields.initial_fields(
+            self.initfields = initfields.initial_fields(
                 config["openboundary"],
                 self.openBCgrid,
                 self.data,
                 self.transform,
                 output_path=output_path,
             )
-            logger.debug("Setup all openBC writers, optimizing writers now..")
-            self.boundaries_writer, self.initfields_writer = dask.optimize(
-                boundaries_writer, initfields_writer
+            logger.debug("Setup all openBC fields, optimizing fields now..")
+            self.boundaries, self.initfields = dask.optimize(
+                self.boundaries, self.initfields
             )
-            logger.debug("Optimized writers")
+            logger.debug("Optimized fields")
 
         elif config["openboundary"]["source"] == "DALES":
             self.data = initial_fields_fine.initial_fields_fine(
@@ -141,8 +141,19 @@ class do_openboundary:
         else:
             raise ValueError("Unknown source for open boundary conditions")
 
-    def write_openbcs(self):
+    def write_openbcs(self, output_path):
+        # Save data
         logger.debug("Writing initial fields")
-        self.initfields_writer.compute()
+        self.initfields.to_netcdf(
+            path=output_path / "input" / self.initfields.attrs["title"],
+            mode="w",
+            format="NETCDF4",
+            compute=True
+        )
         logger.debug("Writing boundaries")
-        self.boundaries_writer.compute()
+        self.boundaries.to_netcdf(
+            path=output_path / "input" / self.boundaries.attrs["title"],
+            mode="w",
+            format="NETCDF4",
+            compute=True
+        )

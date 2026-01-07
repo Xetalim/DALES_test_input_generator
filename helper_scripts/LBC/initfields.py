@@ -14,7 +14,7 @@ logger.debug("Entered module: %s", __name__)
 
 @logwrap
 def initial_fields(input_json, grid: GridDalesOpenBC, data, transform, output_path):
-    data = data.isel({"time": 0}, drop=True)
+    data = data.isel({"time": 0}, drop=True).transpose('z','y','x',...,missing_dims="warn")
     # Interpolate data to DALES staggered grid
     u0 = (
         data["u"]
@@ -82,13 +82,6 @@ def initial_fields(input_json, grid: GridDalesOpenBC, data, transform, output_pa
             "author": input_json["author"],
             "time0": input_json["time0"],
         }
-    )
-    # Save data
-    initfields.to_netcdf(
-        path=output_path / "input" / initfields.attrs["title"],
-        mode="w",
-        format="NETCDF4",
-        compute=False
     )
     return initfields
 

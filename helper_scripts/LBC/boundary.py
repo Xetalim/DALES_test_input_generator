@@ -29,12 +29,7 @@ def boundary_fields(input_json, grid: GridDalesOpenBC, data, output_path):
             "time0": input_json["time0"],
         }
     )
-    openboundaries.to_netcdf(
-        path=output_path / "input" / openboundaries.attrs["title"],
-        mode="w",
-        format="NETCDF4",
-        compute=False
-    )
+
     return openboundaries
 
 
@@ -95,35 +90,35 @@ def set_time_attrs(input_json, openboundaries):
 def get_boundaries(input_json, grid: GridDalesOpenBC, data):
     uwest = (
         data["u"]
-        .interp(z=grid.zt, y=grid.yt, x=grid.xm[0], assume_sorted=False)
+        .interp(z=grid.zt, y=grid.yt, x=grid.xm[0], assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "y": "yt"})
         .rename("uwest")
         .drop(["x"])
     )
     vwest = (
         data["v"]
-        .interp(z=grid.zt, y=grid.ym, x=grid.xm[0], assume_sorted=False)
+        .interp(z=grid.zt, y=grid.ym, x=grid.xm[0], assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "y": "ym"})
         .rename("vwest")
         .drop(["x"])
     )
     wwest = (
         data["w"]
-        .interp(z=grid.zm, y=grid.yt, x=grid.xm[0], assume_sorted=False)
+        .interp(z=grid.zm, y=grid.yt, x=grid.xm[0], assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zm", "y": "yt"})
         .rename("wwest")
         .drop(["x"])
     )
     thlwest = (
         data["thl"]
-        .interp(z=grid.zt, y=grid.yt, x=grid.xm[0], assume_sorted=False)
+        .interp(z=grid.zt, y=grid.yt, x=grid.xm[0], assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "y": "yt"})
         .rename("thlwest")
         .drop(["x"])
     )
     qtwest = (
         data["qt"]
-        .interp(z=grid.zt, y=grid.yt, x=grid.xm[0], assume_sorted=False)
+        .interp(z=grid.zt, y=grid.yt, x=grid.xm[0], assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "y": "yt"})
         .rename("qtwest")
         .drop(["x"])
@@ -137,35 +132,35 @@ def get_boundaries(input_json, grid: GridDalesOpenBC, data):
     # East boundary
     ueast = (
         data["u"]
-        .interp(z=grid.zt, y=grid.yt, x=grid.xm[-1], assume_sorted=False)
+        .interp(z=grid.zt, y=grid.yt, x=grid.xm[-1], assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "y": "yt"})
         .rename("ueast")
         .drop(["x"])
     )
     veast = (
         data["v"]
-        .interp(z=grid.zt, y=grid.ym, x=grid.xm[-1], assume_sorted=False)
+        .interp(z=grid.zt, y=grid.ym, x=grid.xm[-1], assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "y": "ym"})
         .rename("veast")
         .drop(["x"])
     )
     weast = (
         data["w"]
-        .interp(z=grid.zm, y=grid.yt, x=grid.xm[-1], assume_sorted=False)
+        .interp(z=grid.zm, y=grid.yt, x=grid.xm[-1], assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zm", "y": "yt"})
         .rename("weast")
         .drop(["x"])
     )
     thleast = (
         data["thl"]
-        .interp(z=grid.zt, y=grid.yt, x=grid.xm[-1], assume_sorted=False)
+        .interp(z=grid.zt, y=grid.yt, x=grid.xm[-1], assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "y": "yt"})
         .rename("thleast")
         .drop(["x"])
     )
     qteast = (
         data["qt"]
-        .interp(z=grid.zt, y=grid.yt, x=grid.xm[-1], assume_sorted=False)
+        .interp(z=grid.zt, y=grid.yt, x=grid.xm[-1], assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "y": "yt"})
         .rename("qteast")
         .drop(["x"])
@@ -179,35 +174,35 @@ def get_boundaries(input_json, grid: GridDalesOpenBC, data):
     # South boundary
     usouth = (
         data["u"]
-        .interp(z=grid.zt, y=grid.ym[0], x=grid.xm, assume_sorted=False)
+        .interp(z=grid.zt, y=grid.ym[0], x=grid.xm, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "x": "xm"})
         .rename("usouth")
         .drop(["y"])
     )
     vsouth = (
         data["v"]
-        .interp(z=grid.zt, y=grid.ym[0], x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zt, y=grid.ym[0], x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "x": "xt"})
         .rename("vsouth")
         .drop(["y"])
     )
     wsouth = (
         data["w"]
-        .interp(z=grid.zm, y=grid.ym[0], x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zm, y=grid.ym[0], x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zm", "x": "xt"})
         .rename("wsouth")
         .drop(["y"])
     )
     thlsouth = (
         data["thl"]
-        .interp(z=grid.zt, y=grid.ym[0], x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zt, y=grid.ym[0], x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "x": "xt"})
         .rename("thlsouth")
         .drop(["y"])
     )
     qtsouth = (
         data["qt"]
-        .interp(z=grid.zt, y=grid.ym[0], x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zt, y=grid.ym[0], x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "x": "xt"})
         .rename("qtsouth")
         .drop(["y"])
@@ -221,35 +216,35 @@ def get_boundaries(input_json, grid: GridDalesOpenBC, data):
     # North boundary
     unorth = (
         data["u"]
-        .interp(z=grid.zt, y=grid.ym[-1], x=grid.xm, assume_sorted=False)
+        .interp(z=grid.zt, y=grid.ym[-1], x=grid.xm, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "x": "xm"})
         .rename("unorth")
         .drop(["y"])
     )
     vnorth = (
         data["v"]
-        .interp(z=grid.zt, y=grid.ym[-1], x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zt, y=grid.ym[-1], x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "x": "xt"})
         .rename("vnorth")
         .drop(["y"])
     )
     wnorth = (
         data["w"]
-        .interp(z=grid.zm, y=grid.ym[-1], x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zm, y=grid.ym[-1], x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zm", "x": "xt"})
         .rename("wnorth")
         .drop(["y"])
     )
     thlnorth = (
         data["thl"]
-        .interp(z=grid.zt, y=grid.ym[-1], x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zt, y=grid.ym[-1], x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "x": "xt"})
         .rename("thlnorth")
         .drop(["y"])
     )
     qtnorth = (
         data["qt"]
-        .interp(z=grid.zt, y=grid.ym[-1], x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zt, y=grid.ym[-1], x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"z": "zt", "x": "xt"})
         .rename("qtnorth")
         .drop(["y"])
@@ -263,35 +258,35 @@ def get_boundaries(input_json, grid: GridDalesOpenBC, data):
     # Top boundary
     utop = (
         data["u"]
-        .interp(z=grid.zm[-1], y=grid.yt, x=grid.xm, assume_sorted=False)
+        .interp(z=grid.zm[-1], y=grid.yt, x=grid.xm, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"y": "yt", "x": "xm"})
         .rename("utop")
         .drop(["z"])
     )
     vtop = (
         data["v"]
-        .interp(z=grid.zm[-1], y=grid.ym, x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zm[-1], y=grid.ym, x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"y": "ym", "x": "xt"})
         .rename("vtop")
         .drop(["z"])
     )
     wtop = (
         data["w"]
-        .interp(z=grid.zm[-1], y=grid.yt, x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zm[-1], y=grid.yt, x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"y": "yt", "x": "xt"})
         .rename("wtop")
         .drop(["z"])
     )
     thltop = (
         data["thl"]
-        .interp(z=grid.zm[-1], y=grid.yt, x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zm[-1], y=grid.yt, x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"y": "yt", "x": "xt"})
         .rename("thltop")
         .drop(["z"])
     )
     qttop = (
         data["qt"]
-        .interp(z=grid.zm[-1], y=grid.yt, x=grid.xt, assume_sorted=False)
+        .interp(z=grid.zm[-1], y=grid.yt, x=grid.xt, assume_sorted=False).transpose('time','z','y','x',...,missing_dims="warn")
         .rename({"y": "yt", "x": "xt"})
         .rename("qttop")
         .drop(["z"])
