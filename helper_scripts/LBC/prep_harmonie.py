@@ -15,7 +15,6 @@ from helper_scripts.LBC.helper import (
     interp_z,
     load_data,
 )
-
 import logging
 
 logger = logging.getLogger(__name__)
@@ -56,12 +55,15 @@ class harmoniePrepper:
     @logwrap
     def prep_harmonie(self):
 
+        # self.data.u.data.visualize("1.png")
         # Calculate pressure levels
         self.p = calculate_pressure(self.input_json, self.data).chunk(self.data.u.chunks)
+        # self.p.data.visualize("2.png")
         # print(p.mean(dim=["x", "y"]).values)
         # print(data.lev.values)
         # drop NAN if levels from harmonie is less than 90
         self.data = self.data.assign({"p": self.p})  # .dropna(dim="lev")
+        # self.data.p.data.visualize("3.png")
         # print(data.assign({"p": p}).p.values)
         # print(data.assign({"p": p}).p.values)
         # Add missing surface fields to 3d fields
@@ -71,7 +73,7 @@ class harmoniePrepper:
         self.data = self.data.assign(
             {var: xr.zeros_like(self.data["msl"]) for var in variables}
         )
-
+        
         if "synturb" in self.input_json:
             turbulence_data_dic = {
                 "tauu": self.data["tauu"],
@@ -85,21 +87,24 @@ class harmoniePrepper:
         if "synturb" in self.input_json:
             variables.append("tke")
         self.data = merge_steps(self.data, variables)
-
+        # self.data.u.data.visualize("4.png")
         # Calculate 3D height levels
 
-        self.z = calculate_3d_height_levels(self.input_json, self.data)
+        self.z = calculate_3d_height_levels(self.input_json, self.data).persist()
         self.data = self.data.assign({"z3d": self.z})
+        # self.data.z3d.data.visualize("1.png")
         # Get reference height levels (mean of height field first time step) and crop to grid.zsize
         self.z_int = get_ref_height_crop(self.input_json, self.grid, self.data)
 
-        (self.data,) = dask.optimize(self.data)
-        (self.z_int,) = dask.optimize(self.z_int)
+        # (self.data,) = dask.optimize(self.data)
+        # (self.z_int,) = dask.optimize(self.z_int)
 
         self.z_int = self.z_int.compute()
 
         # Interpolate data to reference height levels
         self.data = interpolate_ref_height(self.input_json, self.data, self.z_int)
+
+        # self.data.u.data.visualize("5.png")
 
         # make sure z_int is also dimension z now..
         self.z_int = self.z_int.rename({"lev": "z"})
@@ -126,10 +131,12 @@ class harmoniePrepper:
 
         self.data = self.data.assign({"exnr": self.exnr})
 
+        # self.data.exnr.data.visualize("6.png")
+
         # Calculate liquid potential temperature and total specific humidity
         self.thl = self.data["t"] / self.exnr - Lv * self.data["clwc"] / (
             cp * self.exnr
-        )
+        ).persist()
         self.data = self.data.assign({"thl": self.thl})
         # Calculate turbulence parameters
         if "synturb" in self.input_json:
@@ -156,6 +163,7 @@ class harmoniePrepper:
             )
         )
         (self.data,) = dask.optimize(self.data)
+        # self.data.exnr.data.visualize("7.png")
         return self.data, self.transform
 
 
@@ -401,15 +409,13 @@ def calculate_3d_height_levels(input_json, data):
     pdiff = data["p"].diff(dim="lev", label="lower")
     dz = pdiff / (rhoh * grav)
 
-    zeros = dz.isel(lev=0)*0
+    # zeros = dz.isel(lev=0)*0
+    zeros = xr.zeros_like(rho.isel(lev=data.lev.argmax(dim="lev")))
 
     z = (
-        xr.concat([zeros, dz], dim="lev")
-        .cumsum(dim="lev")
-        .assign_coords(lev=data.lev)
-        .sortby("lev", ascending=True)
+       xr.concat([dz,zeros], dim="lev").sortby("lev", ascending=False).cumsum(dim="lev").sortby("lev", ascending=True)
     ).transpose(*data.dims).chunk(data["u"].chunks)
-
+    print(z.isel(x=0,y=0,time=0).compute())
     return z
 
 
@@ -517,18 +523,24 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
 
         # Interpolate fluxes and surface levels to same time
         if var in ["tauu", "tauv", "hfss", "msl", "2t", "2sh"]:
-            data.append(ds_sfc[var])
-        else:
-            data.append(ds_ml[var])
-    # Merge into xarray dataset
-    logger.debug("Succesfully read in vars, merging now...")
-    data = xr.merge(data, compat="override", join="outer").sel(  # also step TODO
+            data.append(ds_sfc[var].sel(  # also step TODO
         time=time.sortby("time").sel(
             time=slice(input_json["start"], input_json["end"])
         ),
         x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
         y=slice(int(y_sw - buffer), int(y_sw + grid.ysize + buffer)),  # TODO INT
-    )
+    ))
+        else:
+            data.append(ds_ml[var].sel(  # also step TODO
+        time=time.sortby("time").sel(
+            time=slice(input_json["start"], input_json["end"])
+        ),
+        x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
+        y=slice(int(y_sw - buffer), int(y_sw + grid.ysize + buffer)),  # TODO INT
+    ))
+    # Merge into xarray dataset
+    logger.debug("Succesfully read in vars, merging now...")
+    data = xr.merge(data, compat="override", join="outer")
 
     return data, transform, x_sw, y_sw
 

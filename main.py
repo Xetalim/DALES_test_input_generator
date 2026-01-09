@@ -31,9 +31,9 @@ from dask.distributed import Client
 import dask
 
 
-dask.config.set(
-    scheduler="single-threaded"
-)  # overwrite default with single-threaded scheduler
+# dask.config.set(
+#     scheduler="single-threaded"
+# )  # overwrite default with single-threaded scheduler
 
 
 def setup_logging(config_path="logging.yaml"):
@@ -49,9 +49,13 @@ def setup_logging(config_path="logging.yaml"):
         logging.basicConfig()
 
 
-def apply_job_conf(job_conf, output_filepath, required_files, required_folder_list):
+def apply_job_conf(job_conf, input_template, output_filepath, required_files, required_folder_list):
     # sets up the jobfile to link the required files to the run directory
-    with open("input_template/job.001", "r") as f:
+    if "job_file" in input_template:
+        job_filename = pathlib.Path("input_template") / input_template["job_file"]
+    else:
+        job_filename = pathlib.Path("input_template") / "job.001"
+    with open(job_filename, "r") as f:
         content = f.read()
 
     required_transfers = ""
@@ -75,7 +79,8 @@ def apply_job_conf(job_conf, output_filepath, required_files, required_folder_li
     required_folder_rsyncs = ""
 
     for foldername in required_folder_list:
-        required_folder_rsyncs += f"for inp in input/{foldername}/*\ndo\nrsync -a $inp $RUNDIR/{foldername}/ || exit\ndone\n"
+        # required_folder_rsyncs += f"for inp in input/{foldername}/*\ndo\nrsync -a $inp $RUNDIR/{foldername}/ || exit\ndone\n"
+        required_folder_rsyncs += f"for inp in input/{foldername}/*\ndo\nln -sf $inp '$RUNDIR/{foldername}/$(basename $inp)' || exit|| exit\ndone\n"
     content = content.replace("{{required_folder_rsyncs}}", required_folder_rsyncs)
 
     for varname, replacement in job_conf.items():
@@ -227,11 +232,12 @@ class DalesCase:
                 self.output_path / "input" / f"inslurb.{self.exp_id:03d}.nc"
             )
         if self.config["generation_settings"]["useopenBC"]:
-            self.openbc_creator.write_openbcs()
+            self.openbc_creator.write_openbcs(self.output_path)
 
         # set up job script and put it in the case directory
         apply_job_conf(
             self.machine_conf["job_conf"],
+            self.config["input_template"],
             self.output_path / "job.001",
             required_files=self.required_files,
             required_folder_list=self.required_folder_list,
@@ -316,12 +322,14 @@ if __name__ == "__main__":
 
     setup_logging("logging.yaml")
 
+    #args = parser.parse_args()
+    #casefile = args.casefile
+    logging.basicConfig(level=logging.INFO)
     # args = parser.parse_args()
     # casefile = args.casefile
-
-    casefile = "my_own_cases/mini_open.yaml"
-    # casefile = "/Users/andrevanginkel/Documents/20_Code/28_dales_input/28.01_Dales_LSM_generator/my_own_cases/small_half_forest_half_grass.yaml"
+    # casefile = "my_own_cases/mini_open.yaml"
     # casefile = "my_own_cases/mini_in_mini_open.yaml"
+    casefile = "my_own_cases/in_harm.yaml"
     logger.info("Processing casefile %s", casefile)
     with open("machine_conf.yaml", "r") as file:
         machine_conf = yaml.safe_load(file)
