@@ -1,11 +1,5 @@
 from helper_scripts.LBC.dales_nest.get_timesteps0 import (
-    get_e120,
-    get_qt0,
-    get_thl0,
-    get_u0,
-    get_v0,
-    get_w0,
-    load_var,
+    load_any_boundary_var,
 )
 from helper_scripts.grids import GridDalesOpenBC, nesting_idx
 from helper_scripts.logging_wrapper import logwrap
@@ -23,7 +17,20 @@ from pathlib import Path
 
 
 @logwrap
-def timestep0(input_json, grid: GridDalesOpenBC, indices: nesting_idx):
+def boundaries_timestep0(input_json, grid: GridDalesOpenBC, indices: nesting_idx):
+    """
+    Docstring for timestep0
+
+    :param input_json: Configuration dict for LBC
+    :param grid: Grid object describing the output grid for open boundaries, which is different from the normal DALES grid.
+    :type grid: GridDalesOpenBC
+    :param indices: Indices describing where in the supergrid the edges of the current grid lie.
+    :type indices: nesting_idx
+
+    This function returns the boundary fields for the initial timestep.
+    As DALES currently doesn't output crossections at t=0, we must get the boundary information from initfields.nc if we start our
+    simulation at the same time as the host simulation.
+    """
     if input_json["time0"] == input_json["start"]:
         all_ls = []
         with xr.open_mfdataset(
@@ -32,7 +39,7 @@ def timestep0(input_json, grid: GridDalesOpenBC, indices: nesting_idx):
             for boundary in ["west", "east", "north", "south", "top"]:
                 for var in ["u", "v", "w", "thl", "qt", "e12"]:
                     all_ls.append(
-                        load_var(
+                        load_any_boundary_var(
                             ds,
                             var,
                             boundary,
@@ -94,7 +101,7 @@ def timestep0(input_json, grid: GridDalesOpenBC, indices: nesting_idx):
                     else:
                         var_postfix = ""
                     all_ls.append(
-                        load_var(
+                        load_any_boundary_var(
                             ds.sel(sel_index),
                             var,
                             boundary=boundary,

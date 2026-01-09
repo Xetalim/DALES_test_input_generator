@@ -9,7 +9,7 @@ logger.debug("Entered module: %s", __name__)
 
 
 @logwrap
-def load_var(
+def load_any_boundary_var(
     ds,
     var: str,
     boundary: str,
@@ -21,6 +21,26 @@ def load_var(
     var_postfix="",
     move_x0y0=True,
 ):
+    """
+    This function is a bit of a very generalised function to read in DALES staggered grid boundary variables.
+    Should be made more readable or separated into 2 functions later.
+
+    :param ds: The input xarray dataset containing variables on the DALES staggered grid.
+    :param var: Which variable to get from the input ds
+    :type var: str
+    :param boundary: Which boundary to process , either north,south,west,east,top
+    :type boundary: str
+    :param grid: Grid object describing the output grid for open boundaries, which is different from the normal DALES grid.
+    :type grid: GridDalesOpenBC
+    :param indices: Indices describing where in the supergrid the edges of the current grid lie.
+    :type indices: nesting_idx
+    :param isel: If True, selects variable var at the correct boundary index in the host grid. If dict, select according to the dict.
+    :type isel: Union[bool, None]
+    :param expand_dims: Bool to enable expanding the time dimension with variable expand_dims_time0.
+    :param expand_dims_time0: Variable to expand the time dimension with. Requires expand_dims=True
+    :param var_postfix: Postfix for the var to load; somtimes the input variable has an extra long name.
+    :param move_x0y0: Whether to shift the x0,y0 in the interpolating to correct for a different center between the subgrid and supergrid.
+    """
     var_dims_dic = {
         "u": {"x": "xm", "y": "yt", "z": "zt"},
         "v": {"x": "xt", "y": "ym", "z": "zt"},
@@ -164,313 +184,3 @@ def load_var(
     if interpolated_ds.isnull().sum() > 0:
         raise ValueError(f"Found NaN in dataset {boundary} {var}")
     return interpolated_ds
-
-
-def get_u0(input_json, grid: GridDalesOpenBC, indices: nesting_idx, ds):
-    uwest0 = (
-        ds["u0"]
-        .isel(xm=indices.ix_west, drop=True)
-        .interp(yt=grid.yt)
-        .rename("uwest")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(yt=grid.yt, zt=grid.zt)
-    )
-    uwest0 = load_var(
-        ds,
-        "u",
-        "west",
-        grid,
-        indices,
-        isel=True,
-        expand_dims=True,
-        expand_dims_time0=input_json["time0"],
-        var_postfix="0",
-    )
-    ueast0 = (
-        ds["u0"]
-        .isel(xm=indices.ix_east, drop=True)
-        .interp(yt=grid.yt)
-        .rename("ueast")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(yt=grid.yt, zt=grid.zt)
-    )
-    usouth0 = (
-        ds["u0"]
-        .isel(yt=indices.iy_south, drop=True)
-        .interp(xm=grid.xm)
-        .rename("usouth")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xm=grid.xm, zt=grid.zt)
-    )
-    unorth0 = (
-        ds["u0"]
-        .isel(yt=indices.iy_north, drop=True)
-        .interp(xm=grid.xm)
-        .rename("unorth")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xm=grid.xm, zt=grid.zt)
-    )
-    utop0 = (
-        ds["u0"]
-        .isel(zt=grid.kmax - 1, drop=True)
-        .interp(
-            xm=grid.xm,
-            yt=grid.yt,
-        )
-        .rename("utop")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xm=grid.xm, yt=grid.yt)
-    )
-    return ueast0, uwest0, unorth0, usouth0, utop0
-
-
-def get_v0(input_json, grid, indices: nesting_idx, ds):
-    veast0 = (
-        ds["v0"]
-        .isel(xt=indices.ix_east, drop=True)
-        .interp(ym=grid.ym)
-        .rename("veast")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(ym=grid.ym, zt=grid.zt)
-    )
-    vwest0 = (
-        ds["v0"]
-        .isel(xt=indices.ix_west, drop=True)
-        .interp(ym=grid.ym)
-        .rename("vwest")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(ym=grid.ym, zt=grid.zt)
-    )
-    vnorth0 = (
-        ds["v0"]
-        .isel(ym=indices.iy_north, drop=True)
-        .interp(xt=grid.xt)
-        .rename("vnorth")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, zt=grid.zt)
-    )
-    vsouth0 = (
-        ds["v0"]
-        .isel(ym=indices.iy_south, drop=True)
-        .interp(xt=grid.xt)
-        .rename("vsouth")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, zt=grid.zt)
-    )
-    vtop0 = (
-        ds["v0"]
-        .isel(zt=grid.kmax - 1, drop=True)
-        .interp(
-            xt=grid.xt,
-            ym=grid.ym,
-        )
-        .rename("vtop")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, ym=grid.ym)
-    )
-    return veast0, vwest0, vnorth0, vsouth0, vtop0
-
-
-def get_w0(input_json, grid: GridDalesOpenBC, indices: nesting_idx, ds):
-    weast0 = (
-        ds["w0"]
-        .isel(xt=indices.ix_east, drop=True)
-        .interp(
-            yt=grid.yt,
-            zm=grid.zm,
-            kwargs={"fill_value": "extrapolate"},
-        )
-        .rename("weast")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(yt=grid.yt, zm=grid.zm)
-    )
-    wwest0 = (
-        ds["w0"]
-        .isel(xt=indices.ix_west, drop=True)
-        .interp(
-            yt=grid.yt,
-            zm=grid.zm,
-            kwargs={"fill_value": "extrapolate"},
-        )
-        .rename("wwest")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(yt=grid.yt, zm=grid.zm)
-    )
-    wnorth0 = (
-        ds["w0"]
-        .isel(yt=indices.iy_north, drop=True)
-        .interp(
-            xt=grid.xt,
-            zm=grid.zm,
-            kwargs={"fill_value": "extrapolate"},
-        )
-        .rename("wnorth")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, zm=grid.zm)
-    )
-    wsouth0 = (
-        ds["w0"]
-        .isel(yt=indices.iy_south, drop=True)
-        .interp(
-            xt=grid.xt,
-            zm=grid.zm,
-            kwargs={"fill_value": "extrapolate"},
-        )
-        .rename("wsouth")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, zm=grid.zm)
-    )
-    wtop0 = (
-        ds["w0"]
-        .isel(zm=grid.kmax, drop=True)
-        .interp(
-            xt=grid.xt,
-            yt=grid.yt,
-        )
-        .rename("wtop")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, yt=grid.yt)
-    )
-    return weast0, wwest0, wnorth0, wsouth0, wtop0
-
-
-def get_thl0(input_json, grid, indices: nesting_idx, ds):
-    thleast0 = (
-        ds["thl0"]
-        .isel(xt=indices.ix_east, drop=True)
-        .interp(yt=grid.yt)
-        .rename("thleast")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(yt=grid.yt, zt=grid.zt)
-    )
-    thlwest0 = (
-        ds["thl0"]
-        .isel(xt=indices.ix_west, drop=True)
-        .interp(yt=grid.yt)
-        .rename("thlwest")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(yt=grid.yt, zt=grid.zt)
-    )
-    thlnorth0 = (
-        ds["thl0"]
-        .isel(yt=indices.iy_north, drop=True)
-        .interp(xt=grid.xt)
-        .rename("thlnorth")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, zt=grid.zt)
-    )
-    thlsouth0 = (
-        ds["thl0"]
-        .isel(yt=indices.iy_south, drop=True)
-        .interp(xt=grid.xt)
-        .rename("thlsouth")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, zt=grid.zt)
-    )
-    thltop0 = (
-        ds["thl0"]
-        .isel(zt=grid.kmax - 1, drop=True)
-        .interp(
-            xt=grid.xt,
-            yt=grid.yt,
-        )
-        .rename("thltop")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, yt=grid.yt)
-    )
-    return thleast0, thlwest0, thlnorth0, thlsouth0, thltop0
-
-
-def get_qt0(input_json, grid: GridDalesOpenBC, indices: nesting_idx, ds):
-    qteast0 = (
-        ds["qt0"]
-        .isel(xt=indices.ix_east, drop=True)
-        .interp(yt=grid.yt)
-        .rename("qteast")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(yt=grid.yt, zt=grid.zt)
-    )
-    qtwest0 = (
-        ds["qt0"]
-        .isel(xt=indices.ix_west, drop=True)
-        .interp(yt=grid.yt)
-        .rename("qtwest")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(yt=grid.yt, zt=grid.zt)
-    )
-    qtnorth0 = (
-        ds["qt0"]
-        .isel(yt=indices.iy_north, drop=True)
-        .interp(xt=grid.xt)
-        .rename("qtnorth")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, zt=grid.zt)
-    )
-    qtsouth0 = (
-        ds["qt0"]
-        .isel(yt=indices.iy_south, drop=True)
-        .interp(xt=grid.xt)
-        .rename("qtsouth")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, zt=grid.zt)
-    )
-    qttop0 = (
-        ds["qt0"]
-        .isel(zt=grid.kmax - 1, drop=True)
-        .interp(
-            xt=grid.xt,
-            yt=grid.yt,
-        )
-        .rename("qttop")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, yt=grid.yt)
-    )
-    return qteast0, qtwest0, qtnorth0, qtsouth0, qttop0
-
-
-def get_e120(input_json, grid: GridDalesOpenBC, indices: nesting_idx, ds):
-    e12east0 = (
-        ds["e120"]
-        .isel(xt=indices.ix_east, drop=True)
-        .interp(yt=grid.yt)
-        .rename("e12east")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(yt=grid.yt, zt=grid.zt)
-    )
-    e12west0 = (
-        ds["e120"]
-        .isel(xt=indices.ix_west, drop=True)
-        .interp(yt=grid.yt)
-        .rename("e12west")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(yt=grid.yt, zt=grid.zt)
-    )
-    e12north0 = (
-        ds["e120"]
-        .isel(yt=indices.iy_north, drop=True)
-        .interp(xt=grid.xt)
-        .rename("e12north")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, zt=grid.zt)
-    )
-    e12south0 = (
-        ds["e120"]
-        .isel(yt=indices.iy_south, drop=True)
-        .interp(xt=grid.xt)
-        .rename("e12south")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, zt=grid.zt)
-    )
-    e12top0 = (
-        ds["e120"]
-        .isel(zt=grid.kmax - 1, drop=True)
-        .interp(
-            xt=grid.xt,
-            yt=grid.yt,
-        )
-        .rename("e12top")
-        .expand_dims({"time": [pd.Timestamp(input_json["time0"])]}, axis=0)
-        .assign_coords(xt=grid.xt, yt=grid.yt)
-    )
-
-    return e12east0, e12west0, e12north0, e12south0, e12top0

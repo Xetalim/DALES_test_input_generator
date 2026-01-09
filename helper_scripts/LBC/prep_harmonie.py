@@ -55,17 +55,13 @@ class harmoniePrepper:
     @logwrap
     def prep_harmonie(self):
 
-        # self.data.u.data.visualize("1.png")
         # Calculate pressure levels
-        self.p = calculate_pressure(self.input_json, self.data).chunk(self.data.u.chunks)
-        # self.p.data.visualize("2.png")
-        # print(p.mean(dim=["x", "y"]).values)
-        # print(data.lev.values)
-        # drop NAN if levels from harmonie is less than 90
-        self.data = self.data.assign({"p": self.p})  # .dropna(dim="lev")
-        # self.data.p.data.visualize("3.png")
-        # print(data.assign({"p": p}).p.values)
-        # print(data.assign({"p": p}).p.values)
+        self.p = calculate_pressure(self.input_json, self.data).chunk(
+            self.data.u.chunks
+        )
+
+        self.data = self.data.assign({"p": self.p})
+
         # Add missing surface fields to 3d fields
         variables = ["uas", "vas", "was", "clws"]
         if "synturb" in self.input_json:
@@ -73,7 +69,7 @@ class harmoniePrepper:
         self.data = self.data.assign(
             {var: xr.zeros_like(self.data["msl"]) for var in variables}
         )
-        
+
         if "synturb" in self.input_json:
             turbulence_data_dic = {
                 "tauu": self.data["tauu"],
@@ -87,24 +83,19 @@ class harmoniePrepper:
         if "synturb" in self.input_json:
             variables.append("tke")
         self.data = merge_steps(self.data, variables)
-        # self.data.u.data.visualize("4.png")
         # Calculate 3D height levels
 
         self.z = calculate_3d_height_levels(self.input_json, self.data).persist()
         self.data = self.data.assign({"z3d": self.z})
-        # self.data.z3d.data.visualize("1.png")
         # Get reference height levels (mean of height field first time step) and crop to grid.zsize
         self.z_int = get_ref_height_crop(self.input_json, self.grid, self.data)
 
-        # (self.data,) = dask.optimize(self.data)
-        # (self.z_int,) = dask.optimize(self.z_int)
-
         self.z_int = self.z_int.compute()
+
+        print(self.z_int)
 
         # Interpolate data to reference height levels
         self.data = interpolate_ref_height(self.input_json, self.data, self.z_int)
-
-        # self.data.u.data.visualize("5.png")
 
         # make sure z_int is also dimension z now..
         self.z_int = self.z_int.rename({"lev": "z"})
@@ -131,12 +122,11 @@ class harmoniePrepper:
 
         self.data = self.data.assign({"exnr": self.exnr})
 
-        # self.data.exnr.data.visualize("6.png")
-
         # Calculate liquid potential temperature and total specific humidity
-        self.thl = self.data["t"] / self.exnr - Lv * self.data["clwc"] / (
-            cp * self.exnr
-        ).persist()
+        self.thl = (
+            self.data["t"] / self.exnr
+            - Lv * self.data["clwc"] / (cp * self.exnr).persist()
+        )
         self.data = self.data.assign({"thl": self.thl})
         # Calculate turbulence parameters
         if "synturb" in self.input_json:
@@ -163,7 +153,7 @@ class harmoniePrepper:
             )
         )
         (self.data,) = dask.optimize(self.data)
-        # self.data.exnr.data.visualize("7.png")
+
         return self.data, self.transform
 
 
@@ -190,12 +180,19 @@ def merge_steps(data, variables):
 def get_ref_height_crop(input_json, grid: GridDalesOpenBC, data):
     if input_json["start"] == input_json["time0"]:  # Define reference height levels
         z_int = (
-            data["z3d"].isel({"time": 0}, drop=True)
-            # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
-            .mean(dim=["x", "y"])  # [::-1]
+            data["z3d"]
+            .isel({"time": 0}, drop=True)
+            .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
+            .mean(dim=["x", "y"])
         )
     else:  # Take reference height levels from exnr.inp.xxx
-        exnr = np.loadtxt(input_json["exnr_file"], skiprows=1)
+        try:
+            exnr = np.loadtxt(input_json["exnr_file"], skiprows=1)
+        except FileNotFoundError as e:
+            logger.critical(
+                "No reference height levels found in exnr_file in configuration. This is required as the simulation start is not the same as the HARMONIE start."
+            )
+            raise e
         z_int = exnr[:, 0]
     return z_int
 
@@ -215,14 +212,12 @@ def calculate_turbulence_vars(
     # Calculate inversion height from maximum curvature and with cloud base as a backup
     zi_min = 200
     zi_max = 4000
-    thlmean = (
-        thl
-        #    .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
-        .mean(dim=["x", "y"])
-    )
+    thlmean = thl.sel(
+        x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1])
+    ).mean(dim=["x", "y"])
     cbmean = (
         xr.where(turbulence_data_dic["cb"] > 0.0, turbulence_data_dic["cb"], np.NaN)
-        # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
+        .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
         .mean(dim=["x", "y"])
     )
     its = 0
@@ -256,16 +251,17 @@ def calculate_turbulence_vars(
 def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
     if input_json["start"] == input_json["time0"]:  # Calculate exnr function
         z_min = data.z.argmin(dim="z")
-        print(z_min)
         tas_exnr = (
-            data["t"].isel({"time": 0, "z": z_min}, drop=True)
-            # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
+            data["t"]
+            .isel({"time": 0, "z": z_min}, drop=True)
+            .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
             .mean(dim=["x", "y"])
         )
 
         ps_exnr = (
-            data["p"].isel({"time": 0, "z": z_min}, drop=True)
-            # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
+            data["p"]
+            .isel({"time": 0, "z": z_min}, drop=True)
+            .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
             .mean(dim=["x", "y"])
         )
         exnrs = (ps_exnr / p0) ** (Rd / cp)
@@ -278,23 +274,33 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
         p_exnr = (
             rhobf[1:]
             * Rd
-            * data["t"].isel(time=0, z=slice(1, None, None))
-            # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
+            * data["t"]
+            .isel(time=0, z=slice(1, None, None))
+            .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
             .mean(dim=["x", "y"])
             * (
                 1
-                + (Rv / Rd - 1) * data["qt"][0, 1:]
-                # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
+                + (Rv / Rd - 1)
+                * data["qt"][0, 1:]
+                .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
                 .mean(dim=["x", "y"])
-                - Rv / Rd * data["clwc"][0, 1:]
-                # .sel(x=slice(0, grid.xsize), y=slice(0, grid.ysize))
+                - Rv
+                / Rd
+                * data["clwc"][0, 1:]
+                .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
                 .mean(dim=["x", "y"])
             )
         )  # Ideal gas law
         exnr = (p_exnr / p0) ** (Rd / cp)
     else:  # Read exnr.inp.xxx
-        with open(input_json["exnr_file"], "r") as file:
-            line0 = file.readline()
+        try:
+            with open(input_json["exnr_file"], "r") as file:
+                line0 = file.readline()
+        except FileNotFoundError as e:
+            logger.critical(
+                "No reference height levels found in exnr_file in configuration. This is required as the simulation start is not the same as the HARMONIE start."
+            )
+            raise e
         thls_exnr = float(line0.split(",")[1].split("thls = ")[-1])
         ps_exnr = float(line0.split(",")[2].split("ps = ")[-1])
         exnr = np.loadtxt(input_json["exnr_file"], skiprows=1)
@@ -409,13 +415,18 @@ def calculate_3d_height_levels(input_json, data):
     pdiff = data["p"].diff(dim="lev", label="lower")
     dz = pdiff / (rhoh * grav)
 
-    # zeros = dz.isel(lev=0)*0
     zeros = xr.zeros_like(rho.isel(lev=data.lev.argmax(dim="lev")))
 
     z = (
-       xr.concat([dz,zeros], dim="lev").sortby("lev", ascending=False).cumsum(dim="lev").sortby("lev", ascending=True)
-    ).transpose(*data.dims).chunk(data["u"].chunks)
-    print(z.isel(x=0,y=0,time=0).compute())
+        (
+            xr.concat([dz, zeros], dim="lev")
+            .sortby("lev", ascending=False)
+            .cumsum(dim="lev")
+            .sortby("lev", ascending=True)
+        )
+        .transpose(*data.dims)
+        .chunk(data["u"].chunks)
+    )
     return z
 
 
@@ -437,6 +448,7 @@ def calculate_pressure(input_json, data):
 
 @logwrap
 def update_transform(transform, x_sw, y_sw):
+    logger.debug("Skipping transform update, we are keeping the original transform.")
     return transform
     transform.parameters["false_easting"] = transform.parameters["false_easting"] - x_sw
     transform.parameters["false_northing"] = (
@@ -463,7 +475,6 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
     # Open data and crop data
 
     # first get the time and transform data....
-    # ["ua", "va", "wa", "ta", "hus", "clw", "ps", "tas", "huss"]
     x_sw, y_sw = grid.x0, grid.y0
     var = variables[0]
     ds_ml = xr.open_mfdataset(
@@ -475,15 +486,11 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
     ).drop_duplicates(dim="time")
     transform, _, _, time = get_transform_time(input_json, var, ds_ml)
 
-    # print(ds_ml.lev)
-    # print(time.values)
-
     ds_sfc = xr.open_mfdataset(
         input_json["HARMONIE_sfc_glob"],
         decode_coords="all",
         parallel=True,
         chunks={"time": input_json["tchunk"]},
-        # chunks={"x": "auto", "y": "auto", "time": "auto", "lev": -1},
     )
 
     logger.debug("Succesfully read in HARMONIE_ml_glob")
@@ -523,21 +530,29 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
 
         # Interpolate fluxes and surface levels to same time
         if var in ["tauu", "tauv", "hfss", "msl", "2t", "2sh"]:
-            data.append(ds_sfc[var].sel(  # also step TODO
-        time=time.sortby("time").sel(
-            time=slice(input_json["start"], input_json["end"])
-        ),
-        x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
-        y=slice(int(y_sw - buffer), int(y_sw + grid.ysize + buffer)),  # TODO INT
-    ))
+            data.append(
+                ds_sfc[var].sel(
+                    time=time.sortby("time").sel(
+                        time=slice(input_json["start"], input_json["end"])
+                    ),
+                    x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
+                    y=slice(
+                        int(y_sw - buffer), int(y_sw + grid.ysize + buffer)
+                    ),  # TODO INT
+                )
+            )
         else:
-            data.append(ds_ml[var].sel(  # also step TODO
-        time=time.sortby("time").sel(
-            time=slice(input_json["start"], input_json["end"])
-        ),
-        x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
-        y=slice(int(y_sw - buffer), int(y_sw + grid.ysize + buffer)),  # TODO INT
-    ))
+            data.append(
+                ds_ml[var].sel(
+                    time=time.sortby("time").sel(
+                        time=slice(input_json["start"], input_json["end"])
+                    ),
+                    x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
+                    y=slice(
+                        int(y_sw - buffer), int(y_sw + grid.ysize + buffer)
+                    ),  # TODO INT
+                )
+            )
     # Merge into xarray dataset
     logger.debug("Succesfully read in vars, merging now...")
     data = xr.merge(data, compat="override", join="outer")

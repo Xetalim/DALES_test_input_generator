@@ -11,6 +11,16 @@ logger.debug("Entered module: %s", __name__)
 
 @logwrap
 def initial_fields_fine(input_json, grid: GridDalesOpenBC, output_path):
+    """
+    Docstring for initial_fields_fine
+
+    :param input_json: Configuration dict for LBC
+    :param grid: Grid object describing the output grid for open boundaries, which is different from the normal DALES grid.
+    :type grid: GridDalesOpenBC
+    :param output_path: Where the data should be output.
+
+    Gets the initial fields for the current simulation from the host initfields.nc.
+    """
     # Load data
     with xr.open_mfdataset(f"{input_json['inpath']}initfields.inp.*.nc") as ds:
         initfields_fine = ds.interp(
