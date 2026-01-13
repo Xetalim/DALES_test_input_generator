@@ -88,13 +88,13 @@ def set_time_attrs(input_json, openboundaries):
 
 @logwrap
 def get_boundaries(input_json, grid: GridDalesOpenBC, data):
-    north = data.sel(y=slice(grid.yt[-1] - grid.dy * 16, grid.yt[-1] + grid.dy * 16))
-    south = data.sel(y=slice(grid.yt[0] - grid.dy * 16, grid.yt[0] + grid.dy * 16))
+    north = data.sel(y=slice(grid.yt[-1] - grid.dy * 16, grid.yt[-1] + grid.dy * 16), x=slice(grid.xt[0]-grid.dx*16,grid.xt[-1]+grid.dx*16))
+    south = data.sel(y=slice(grid.yt[0] - grid.dy * 16, grid.yt[0] + grid.dy * 16), x=slice(grid.xt[0]-grid.dx*16,grid.xt[-1]+grid.dx*16))
 
-    east = data.sel(x=slice(grid.xt[-1] - grid.dx * 16, grid.xt[-1] + grid.dx * 16))
-    west = data.sel(x=slice(grid.xt[0] - grid.dx * 16, grid.xt[0] + grid.dx * 16))
+    east = data.sel(x=slice(grid.xt[-1] - grid.dx * 16, grid.xt[-1] + grid.dx * 16), y=slice(grid.yt[0]-grid.dy*16,grid.yt[-1]+grid.dy*16))
+    west = data.sel(x=slice(grid.xt[0] - grid.dx * 16, grid.xt[0] + grid.dx * 16), y=slice(grid.yt[0]-grid.dy*16,grid.yt[-1]+grid.dy*16))
 
-    top = data
+    top = data.sel(y=slice(grid.yt[0]-grid.dy*16,grid.yt[-1]+grid.dy*16), x=slice(grid.xt[0]-grid.dx*16,grid.xt[-1]+grid.dx*16))
     
     uwest = (
         west["u"]

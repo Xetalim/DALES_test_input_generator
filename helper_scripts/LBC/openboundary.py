@@ -143,17 +143,30 @@ class do_openboundary:
 
     def write_openbcs(self, output_path):
         # Save data
-        logger.debug("Writing initial fields")
-        self.initfields.to_netcdf(
+        logger.debug("Optimizing initial fields")
+        initfields_writer = self.initfields.to_netcdf(
             path=output_path / "input" / self.initfields.attrs["title"],
             mode="w",
             format="NETCDF4",
-            compute=True
+            compute=False
         )
-        logger.debug("Writing boundaries")
-        self.boundaries.to_netcdf(
+        (initfields_writer,) = dask.optimize(initfields_writer)
+        logger.debug("Writing initial fields")
+        
+        initfields_writer.compute()
+
+        
+        logger.debug("Optimizing boundaries")
+        openboundaries_writer = self.boundaries.to_netcdf(
             path=output_path / "input" / self.boundaries.attrs["title"],
             mode="w",
             format="NETCDF4",
-            compute=True
+            compute=False
         )
+        (openboundaries_writer,) = dask.optimize(openboundaries_writer)
+        logger.debug("Writing boundaries")
+
+        openboundaries_writer.compute()
+        
+        
+        

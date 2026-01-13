@@ -251,47 +251,43 @@ def calculate_turbulence_vars(
 def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
     if input_json["start"] == input_json["time0"]:  # Calculate exnr function
         z_min = data.z.argmin(dim="z")
-        tas_exnr = (
-            data["t"]
-            .isel({"time": 0, "z": z_min}, drop=True)
-            .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
-            .mean(dim=["x", "y"])
-        )
 
-        ps_exnr = (
-            data["p"]
-            .isel({"time": 0, "z": z_min}, drop=True)
-            .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
-            .mean(dim=["x", "y"])
-        )
+        logger.debug("Calculating profile means")
+        t0_values = (data[["t","p","qt","clwc"]]
+            .isel({"time": 0}, drop=True)
+            .sel(x=slice(grid.xt[0], grid.xt[-1]), 
+                 y=slice(grid.yt[0], grid.yt[-1]))
+            .mean(dim=["x","y"])).persist()
+        
+        surface_values = t0_values.isel({"z": z_min},drop=True)
+        air_values = t0_values.isel(z=slice(1, None, None))
+        
+        logger.debug("Calculating surface temperature")
+        tas_exnr = (surface_values["t"])
+        logger.debug("Calculating surface pressure")
+        ps_exnr = (surface_values["p"])
+        
         exnrs = (ps_exnr / p0) ** (Rd / cp)
         thls_exnr = tas_exnr / exnrs
         # somehow this function doesn't like being dasked. max size of array going in is (lev,) or (1,) so shouldn't be too big of a problem?
         # if ever you have performance issues, look at among others this function..
         rhobf = calcBaseprof(
-            z_int.compute(), thls_exnr.compute(), ps_exnr.compute(), pref0=p0
+            z_int, thls_exnr, ps_exnr, pref0=p0
         )
         p_exnr = (
             rhobf[1:]
             * Rd
-            * data["t"]
-            .isel(time=0, z=slice(1, None, None))
-            .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
-            .mean(dim=["x", "y"])
+            * air_values["t"]
             * (
                 1
                 + (Rv / Rd - 1)
-                * data["qt"][0, 1:]
-                .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
-                .mean(dim=["x", "y"])
+                * air_values["qt"]
                 - Rv
                 / Rd
-                * data["clwc"][0, 1:]
-                .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
-                .mean(dim=["x", "y"])
+                * air_values["clwc"]
             )
         )  # Ideal gas law
-        exnr = (p_exnr / p0) ** (Rd / cp)
+        exnr = ((p_exnr / p0) ** (Rd / cp))
     else:  # Read exnr.inp.xxx
         try:
             with open(input_json["exnr_file"], "r") as file:
@@ -331,6 +327,7 @@ def vertical_interp_all(ds, z3d, z_new):
     """
     z_target = z_new
 
+    @np.vectorize(signature="(lev),(lev)->(z)")
     def _interp_func(var_col, z_col, z_target=z_target):
         # var_col, z_col: 1D arrays of shape (lev,)
         return np.interp(z_target, z_col, var_col)
