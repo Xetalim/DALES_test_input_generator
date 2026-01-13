@@ -73,24 +73,6 @@ class GridDales:
             self.zsize = self.kmax * self.dz0
             self.zt = np.arange(0.5 * self.dz0, self.zsize, self.dz0)
             self.zm = np.arange(0, self.zsize + self.dz0, self.dz0)
-        kmax = self.kmax
-        k1 = kmax + 1
-
-        import helper_scripts.LBC.boundary_info as bi
-
-        self.res = bi.openbc_counts_idx(self, fortran_indexing=False)
-
-        # zh = np.ones(k1)
-        # zf = np.ones(k1)
-
-        # zf[:kmax] = self.zt[:]
-        # zh[0] = 0.0
-        # for k in range(0, kmax):
-        #     zh[k + 1] = zh[k] + 2.0 * (zf[k] - zh[k])
-        # zf[k1 - 1] = zf[kmax - 1] + 2.0 * (zh[k1 - 1] - zf[kmax - 1])
-
-        # print(zf)
-        # print(zh)
 
     def as_openbc(self):
         return GridDalesOpenBC(self.input_dic)

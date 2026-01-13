@@ -253,41 +253,33 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
         z_min = data.z.argmin(dim="z")
 
         logger.debug("Calculating profile means")
-        t0_values = (data[["t","p","qt","clwc"]]
+        t0_values = (
+            data[["t", "p", "qt", "clwc"]]
             .isel({"time": 0}, drop=True)
-            .sel(x=slice(grid.xt[0], grid.xt[-1]), 
-                 y=slice(grid.yt[0], grid.yt[-1]))
-            .mean(dim=["x","y"])).persist()
-        
-        surface_values = t0_values.isel({"z": z_min},drop=True)
+            .sel(x=slice(grid.xt[0], grid.xt[-1]), y=slice(grid.yt[0], grid.yt[-1]))
+            .mean(dim=["x", "y"])
+        ).persist()
+
+        surface_values = t0_values.isel({"z": z_min}, drop=True)
         air_values = t0_values.isel(z=slice(1, None, None))
-        
+
         logger.debug("Calculating surface temperature")
-        tas_exnr = (surface_values["t"])
+        tas_exnr = surface_values["t"]
         logger.debug("Calculating surface pressure")
-        ps_exnr = (surface_values["p"])
-        
+        ps_exnr = surface_values["p"]
+
         exnrs = (ps_exnr / p0) ** (Rd / cp)
         thls_exnr = tas_exnr / exnrs
         # somehow this function doesn't like being dasked. max size of array going in is (lev,) or (1,) so shouldn't be too big of a problem?
         # if ever you have performance issues, look at among others this function..
-        rhobf = calcBaseprof(
-            z_int, thls_exnr, ps_exnr, pref0=p0
-        )
+        rhobf = calcBaseprof(z_int, thls_exnr, ps_exnr, pref0=p0)
         p_exnr = (
             rhobf[1:]
             * Rd
             * air_values["t"]
-            * (
-                1
-                + (Rv / Rd - 1)
-                * air_values["qt"]
-                - Rv
-                / Rd
-                * air_values["clwc"]
-            )
+            * (1 + (Rv / Rd - 1) * air_values["qt"] - Rv / Rd * air_values["clwc"])
         )  # Ideal gas law
-        exnr = ((p_exnr / p0) ** (Rd / cp))
+        exnr = (p_exnr / p0) ** (Rd / cp)
     else:  # Read exnr.inp.xxx
         try:
             with open(input_json["exnr_file"], "r") as file:

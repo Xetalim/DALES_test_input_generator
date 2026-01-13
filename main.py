@@ -1,12 +1,13 @@
 import os
 import f90nml
-import yaml  # install pyyaml
+import yaml  # install pyyaml to make this import work
 import subprocess
 import pathlib
 import argparse
 import logging
+from dask.distributed import Client
+import dask
 
-# Custom Python scripts/tools/...
 from helper_scripts.Atmosphere import do_profiles
 from helper_scripts.LSM import landuse_types
 from helper_scripts.LSM import LSM_output_dales
@@ -26,14 +27,6 @@ from helper_scripts.grids import GridDales, get_domain_info_nml
 
 
 logger = logging.getLogger(__name__)
-from dask.distributed import Client
-
-import dask
-
-
-# dask.config.set(
-#     scheduler="single-threaded"
-# )  # overwrite default with single-threaded scheduler
 
 
 def setup_logging(config_path="logging.yaml"):
@@ -49,7 +42,9 @@ def setup_logging(config_path="logging.yaml"):
         logging.basicConfig()
 
 
-def apply_job_conf(job_conf, input_template, output_filepath, required_files, required_folder_list):
+def apply_job_conf(
+    job_conf, input_template, output_filepath, required_files, required_folder_list
+):
     # sets up the jobfile to link the required files to the run directory
     if "job_file" in input_template:
         job_filename = pathlib.Path("input_template") / input_template["job_file"]
@@ -312,6 +307,13 @@ def check_required_config_fields(config):
             config["generation_settings"][setting] = False
 
 
+### FOR DEBUGGING, SET THE DASK SCHEDULER TO SINGLE-THREADED
+### ELSE LEAVE COMMENTED OUT
+# dask.config.set(
+#     scheduler="single-threaded"
+# )  # overwrite default with single-threaded scheduler
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create input files from yaml file")
     parser.add_argument(
@@ -322,17 +324,14 @@ if __name__ == "__main__":
 
     setup_logging("logging.yaml")
 
-    #args = parser.parse_args()
-    #casefile = args.casefile
-    logging.basicConfig(level=logging.INFO)
-    # args = parser.parse_args()
-    # casefile = args.casefile
+    args = parser.parse_args()
+    casefile = args.casefile
     # casefile = "my_own_cases/mini_open.yaml"
-    # casefile = "my_own_cases/mini_in_mini_open.yaml"
-    casefile = "my_own_cases/in_harm.yaml"
     logger.info("Processing casefile %s", casefile)
+
     with open("machine_conf.yaml", "r") as file:
         machine_conf = yaml.safe_load(file)
+
     with open(casefile, "r") as f:
         config = yaml.safe_load(f)
         case = DalesCase(config, machine_conf=machine_conf)

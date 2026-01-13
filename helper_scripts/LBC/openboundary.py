@@ -148,25 +148,21 @@ class do_openboundary:
             path=output_path / "input" / self.initfields.attrs["title"],
             mode="w",
             format="NETCDF4",
-            compute=False
+            compute=False,
         )
         (initfields_writer,) = dask.optimize(initfields_writer)
         logger.debug("Writing initial fields")
-        
+
         initfields_writer.compute()
 
-        
         logger.debug("Optimizing boundaries")
         openboundaries_writer = self.boundaries.to_netcdf(
             path=output_path / "input" / self.boundaries.attrs["title"],
             mode="w",
             format="NETCDF4",
-            compute=False
+            compute=False,
         )
         (openboundaries_writer,) = dask.optimize(openboundaries_writer)
         logger.debug("Writing boundaries")
 
         openboundaries_writer.compute()
-        
-        
-        
