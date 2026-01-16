@@ -107,11 +107,12 @@ class harmoniePrepper:
         self.ps_exnr, self.exnrs, self.thls_exnr, self.exnr = calc_base_exner(
             self.input_json, self.grid, self.data, self.z_int
         )
-
+        logger.debug("Getting surface pressure and temperature")
         self.input_json["ps"] = float(
             self.ps_exnr
         )  # save the ps value used for the profile
         self.input_json["thls"] = float(self.thls_exnr)  # and thls
+        logger.debug("Creating exnr dataarray")
         self.exnr = xr.DataArray(
             np.concatenate([[self.exnrs], self.exnr]),
             dims=["z"],
@@ -119,15 +120,18 @@ class harmoniePrepper:
             name="exnr",
             attrs={"thls": self.thls_exnr, "ps": self.ps_exnr},
         )
-
+        logger.debug("Assigning exnr dataarray")
         self.data = self.data.assign({"exnr": self.exnr})
-
+        logger.debug("Calculating liquid potential temperature")
         # Calculate liquid potential temperature and total specific humidity
         self.thl = (
             self.data["t"] / self.exnr
             - Lv * self.data["clwc"] / (cp * self.exnr).persist()
         )
+        logger.debug("Assigning liquid potential temperature")
         self.data = self.data.assign({"thl": self.thl})
+
+        logger.debug("Calculating synthetic turbulence parameters")
         # Calculate turbulence parameters
         if "synturb" in self.input_json:
             calculate_turbulence_vars(
@@ -140,6 +144,7 @@ class harmoniePrepper:
                 self.thls_exnr,
                 self.thl,
             )
+        logger.debug("Organizing data, renaming variables, dropping non-DALES variables and setting transform")
         # Organize data, rename variables and drop non DALES prognostic variables
         self.data = (
             self.data.rename({"wz": "w"})
@@ -152,6 +157,7 @@ class harmoniePrepper:
                 }
             )
         )
+        logger.debug("Optimizing data")
         (self.data,) = dask.optimize(self.data)
 
         return self.data, self.transform
@@ -264,10 +270,10 @@ def calc_base_exner(input_json, grid: GridDalesOpenBC, data, z_int):
         air_values = t0_values.isel(z=slice(1, None, None))
 
         logger.debug("Calculating surface temperature")
-        tas_exnr = surface_values["t"]
+        tas_exnr = (surface_values["t"]).compute()
         logger.debug("Calculating surface pressure")
-        ps_exnr = surface_values["p"]
-
+        ps_exnr = (surface_values["p"]).compute()
+        
         exnrs = (ps_exnr / p0) ** (Rd / cp)
         thls_exnr = tas_exnr / exnrs
         # somehow this function doesn't like being dasked. max size of array going in is (lev,) or (1,) so shouldn't be too big of a problem?
@@ -458,6 +464,8 @@ def update_transform(transform, x_sw, y_sw):
 
 @logwrap
 def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
+    preprocess=False
+    
     data = []
     # Get time epochs
 
@@ -466,86 +474,95 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
     # first get the time and transform data....
     x_sw, y_sw = grid.x0, grid.y0
     var = variables[0]
-    ds_ml = xr.open_mfdataset(
+    ds_ml = xr.open_dataset(
         input_json["HARMONIE_ml_glob"],
         decode_coords="all",
-        parallel=True,
+        engine="netcdf4",
+        # parallel=False,
         chunks={"time": input_json["tchunk"], "lev": -1},
         # chunks={"x": "auto", "y": "auto", "time": "auto", "lev": -1},
-    ).drop_duplicates(dim="time")
+    )
     transform, _, _, time = get_transform_time(input_json, var, ds_ml)
 
-    ds_sfc = xr.open_mfdataset(
+    ds_sfc = xr.open_dataset(
         input_json["HARMONIE_sfc_glob"],
         decode_coords="all",
-        parallel=True,
+        # parallel=False,
+        engine="netcdf4",
         chunks={"time": input_json["tchunk"]},
     )
 
     logger.debug("Succesfully read in HARMONIE_ml_glob")
 
-    ds_sfc = ds_sfc.drop_duplicates(dim="time")
-
-    # interpolate surface fluxes to higher time resolution, without assuming correct sorting as I've had problems with this before.
-    ds_sfc = ds_sfc.interp(
-        time=time,
-        assume_sorted=False,
-        kwargs={"fill_value": "extrapolate"},
-    )
+    logger.debug("Interpolating sfc time dimension to ml time dimension")
+    if preprocess:
+        # interpolate surface fluxes to higher time resolution, without assuming correct sorting as I've had problems with this before.
+        ds_sfc = ds_sfc.interp(
+            time=time,
+            assume_sorted=True,
+            kwargs={"fill_value": "extrapolate"},
+        )
     logger.debug("Succesfully read in and interpolated HARMONIE_sfc_glob")
-
-    for var_raw in variables:
-        var = {
-            "ua": "u",
-            "va": "v",
-            "wa": "wz",
-            "ta": "t",
-            "hus": "q",
-            "clw": "clwc",
-            "ps": "msl",
-            "tas": "2t",
-            "huss": "2sh",
-        }[var_raw]
-        logger.debug(f"Reading in variable {var}")
-
-        # Crop data to time and spatial range, using harmonie spatial resolution or filter as buffer
-        dx = ds_ml["x"][1] - ds_ml["x"][0]
-        dy = ds_ml["y"][1] - ds_ml["y"][0]
-
-        if "filter" in input_json:  # add some extra width for gaussian filtering
-            buffer = 4 * input_json["filter"]["sigma"]
-        else:
-            buffer = dx
-
-        # Interpolate fluxes and surface levels to same time
-        if var in ["tauu", "tauv", "hfss", "msl", "2t", "2sh"]:
-            data.append(
-                ds_sfc[var].sel(
-                    time=time.sortby("time").sel(
-                        time=slice(input_json["start"], input_json["end"])
-                    ),
-                    x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
-                    y=slice(
-                        int(y_sw - buffer), int(y_sw + grid.ysize + buffer)
-                    ),  # TODO INT
+    if preprocess:
+        for var_raw in variables:
+            var = {
+                "ua": "u",
+                "va": "v",
+                "wa": "wz",
+                "ta": "t",
+                "hus": "q",
+                "clw": "clwc",
+                "ps": "msl",
+                "tas": "2t",
+                "huss": "2sh",
+            }[var_raw]
+            logger.debug(f"Reading in variable {var}")
+    
+            # Crop data to time and spatial range, using harmonie spatial resolution or filter as buffer
+            dx = ds_ml["x"][1] - ds_ml["x"][0]
+            dy = ds_ml["y"][1] - ds_ml["y"][0]
+    
+            if "filter" in input_json:  # add some extra width for gaussian filtering
+                buffer = 4 * input_json["filter"]["sigma"]
+            else:
+                buffer = dx
+    
+            # Interpolate fluxes and surface levels to same time
+            if var in ["tauu", "tauv", "hfss", "msl", "2t", "2sh"]:
+                data.append(
+                    ds_sfc[var].sel(
+                        time=time.sortby("time").sel(
+                            time=slice(input_json["start"], input_json["end"])
+                        ),
+                        x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
+                        y=slice(
+                            int(y_sw - buffer), int(y_sw + grid.ysize + buffer)
+                        ),  # TODO INT
+                    )
                 )
-            )
-        else:
-            data.append(
-                ds_ml[var].sel(
-                    time=time.sortby("time").sel(
-                        time=slice(input_json["start"], input_json["end"])
-                    ),
-                    x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
-                    y=slice(
-                        int(y_sw - buffer), int(y_sw + grid.ysize + buffer)
-                    ),  # TODO INT
+            else:
+                data.append(
+                    ds_ml[var].sel(
+                        time=time.sortby("time").sel(
+                            time=slice(input_json["start"], input_json["end"])
+                        ),
+                        x=slice(int(x_sw - buffer), int(x_sw + grid.xsize + buffer)),
+                        y=slice(
+                            int(y_sw - buffer), int(y_sw + grid.ysize + buffer)
+                        ),  # TODO INT
+                    )
                 )
-            )
     # Merge into xarray dataset
-    logger.debug("Succesfully read in vars, merging now...")
-    data = xr.merge(data, compat="override", join="outer")
-
+    logger.debug("Succesfully read in vars, merging now... also saving to netcdf")
+    if preprocess:
+        data = xr.merge(data, compat="override", join="outer").to_netcdf("/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs_newnew4/data.nc",engine="netcdf4")
+        ds_ml.close()
+        ds_sfc.close()
+        del data
+    else:
+        logger.debug(f"Reading in saved dataset")
+        data = xr.open_dataset("/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs_newnew4/data.nc",engine="netcdf4",chunks={"time": input_json["tchunk"],"lev":-1})
+        logger.debug(f"Read in saved dataset")
     return data, transform, x_sw, y_sw
 
 

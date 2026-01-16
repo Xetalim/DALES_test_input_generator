@@ -108,12 +108,14 @@ class do_openboundary:
             )
             nml["NAMSURFACE"]["thls"] = config["openboundary"]["thls"]
             (self.data,) = dask.optimize(self.data)
+            logger.debug("Setting up boundary fields")
             self.boundaries = boundary.boundary_fields(
                 config["openboundary"],
                 self.openBCgrid,
                 self.data,
                 output_path=output_path,
             )
+            logger.debug("Setting up initial fields")
             self.initfields = initfields.initial_fields(
                 config["openboundary"],
                 self.openBCgrid,
@@ -147,8 +149,9 @@ class do_openboundary:
         initfields_writer = self.initfields.to_netcdf(
             path=output_path / "input" / self.initfields.attrs["title"],
             mode="w",
-            format="NETCDF4",
-            compute=False,
+            format="netcdf4",
+            compute=False
+
         )
         (initfields_writer,) = dask.optimize(initfields_writer)
         logger.debug("Writing initial fields")
@@ -159,8 +162,8 @@ class do_openboundary:
         openboundaries_writer = self.boundaries.to_netcdf(
             path=output_path / "input" / self.boundaries.attrs["title"],
             mode="w",
-            format="NETCDF4",
-            compute=False,
+            format="netcdf4",
+            compute=False
         )
         (openboundaries_writer,) = dask.optimize(openboundaries_writer)
         logger.debug("Writing boundaries")
