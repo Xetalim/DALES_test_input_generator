@@ -56,9 +56,7 @@ class harmoniePrepper:
     def prep_harmonie(self):
 
         # Calculate pressure levels
-        self.p = calculate_pressure(self.input_json, self.data).chunk(
-            self.data.u.chunks
-        )
+        self.p = calculate_pressure(self.data, self.input_json)
 
         self.data = self.data.assign({"p": self.p})
 
@@ -88,9 +86,9 @@ class harmoniePrepper:
         self.z = calculate_3d_height_levels(self.input_json, self.data).persist()
         self.data = self.data.assign({"z3d": self.z})
         # Get reference height levels (mean of height field first time step) and crop to grid.zsize
-        self.z_int = get_ref_height_crop(self.input_json, self.grid, self.data)
+        self.z_int = get_ref_height_crop(self.input_json, self.grid, self.data).compute()
 
-        self.z_int = self.z_int.compute()
+        # self.z_int = self.z_int.persist()
 
         print(self.z_int)
 
@@ -118,7 +116,7 @@ class harmoniePrepper:
             dims=["z"],
             coords={"z": self.z_int},
             name="exnr",
-            attrs={"thls": self.thls_exnr, "ps": self.ps_exnr},
+            attrs={"thls": float(self.thls_exnr), "ps": float(self.ps_exnr)},
         )
         logger.debug("Assigning exnr dataarray")
         self.data = self.data.assign({"exnr": self.exnr})
@@ -161,6 +159,20 @@ class harmoniePrepper:
         (self.data,) = dask.optimize(self.data)
 
         return self.data, self.transform
+@logwrap
+def calculate_pressure(data, input_json):
+    # right now this function uses 90 hybrid model levels.
+    # hybrid_coeff = np.loadtxt(f"{input_json['inpath']}H43_65lev.txt")
+    hybrid_A = xr.DataArray(
+        hybrid_levels.ahalf, dims=["lev"], coords={"lev": np.arange(1, 92)}
+    )
+    hybrid_B = xr.DataArray(
+        hybrid_levels.bhalfs, dims=["lev"], coords={"lev": np.arange(1, 92)}
+    )
+    ph = (hybrid_A + hybrid_B * data["msl"]).transpose(*data["u"].dims)
+    # calculate on pressure levels
+    p = 0.5 * (ph.assign_coords({"lev": ph["lev"] - 1}) + ph)
+    return p.sel(lev=data["lev"]).chunk(data["u"].chunks)
 
 
 @logwrap
@@ -325,7 +337,6 @@ def vertical_interp_all(ds, z3d, z_new):
     """
     z_target = z_new
 
-    @np.vectorize(signature="(lev),(lev)->(z)")
     def _interp_func(var_col, z_col, z_target=z_target):
         # var_col, z_col: 1D arrays of shape (lev,)
         return np.interp(z_target, z_col, var_col)
@@ -419,26 +430,26 @@ def calculate_3d_height_levels(input_json, data):
             .cumsum(dim="lev")
             .sortby("lev", ascending=True)
         )
-        .transpose(*data.dims)
+        .transpose(*data["u"].dims)
         .chunk(data["u"].chunks)
     )
     return z
 
 
-@logwrap
-def calculate_pressure(input_json, data):
-    # right now this function uses 90 hybrid model levels.
-    # hybrid_coeff = np.loadtxt(f"{input_json['inpath']}H43_65lev.txt")
-    hybrid_A = xr.DataArray(
-        hybrid_levels.ahalf, dims=["lev"], coords={"lev": np.arange(1, 92)}
-    )
-    hybrid_B = xr.DataArray(
-        hybrid_levels.bhalfs, dims=["lev"], coords={"lev": np.arange(1, 92)}
-    )
-    ph = (hybrid_A + hybrid_B * data["msl"]).transpose("time", "lev", "y", "x")
-    # calculate on pressure levels
-    p = 0.5 * (ph.assign_coords({"lev": ph["lev"] - 1}) + ph)
-    return p.sel(lev=data["lev"])
+# @logwrap
+# def calculate_pressure(input_json, data):
+#     # right now this function uses 90 hybrid model levels.
+#     # hybrid_coeff = np.loadtxt(f"{input_json['inpath']}H43_65lev.txt")
+#     hybrid_A = xr.DataArray(
+#         hybrid_levels.ahalf, dims=["lev"], coords={"lev": np.arange(1, 92)}
+#     )
+#     hybrid_B = xr.DataArray(
+#         hybrid_levels.bhalfs, dims=["lev"], coords={"lev": np.arange(1, 92)}
+#     )
+#     ph = (hybrid_A + hybrid_B * data["msl"]).transpose(*data["u"].dims)
+#     # calculate on pressure levels
+#     p = 0.5 * (ph.assign_coords({"lev": ph["lev"] - 1}) + ph)
+#     return p.sel(lev=data["lev"]).chunk(data["u"].chunks)
 
 
 @logwrap
@@ -561,7 +572,9 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
         del data
     else:
         logger.debug(f"Reading in saved dataset")
-        data = xr.open_dataset("/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs_newnew4/data.nc",engine="netcdf4",chunks={"time": input_json["tchunk"],"lev":-1})
+        data = xr.open_dataset("/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs_newnew4/data.nc",engine="netcdf4",chunks={"time":input_json["tchunk"],"lev":-1})
+        ds_ml.close()
+        ds_sfc.close()
         logger.debug(f"Read in saved dataset")
     return data, transform, x_sw, y_sw
 

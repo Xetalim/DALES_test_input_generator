@@ -108,6 +108,16 @@ class do_openboundary:
             )
             nml["NAMSURFACE"]["thls"] = config["openboundary"]["thls"]
             (self.data,) = dask.optimize(self.data)
+
+            # if True:
+            #     logger.debug(f"Saving processed dataset")
+            #     self.data = self.data.compute()
+            #     self.data.to_netcdf("/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs_newnew4/data_processed.nc",engine="netcdf4")
+            #     del self.data
+            
+            # self.data = xr.open_dataset("/ec/res4/scratch/nld4411/dales_nest_harmonie/netcdfs_newnew4/data_processed.nc",engine="netcdf4",chunks={"time":input_json["tchunk"]})
+            # logger.debug(f"Read in saved processed dataset")
+            
             logger.debug("Setting up boundary fields")
             self.boundaries = boundary.boundary_fields(
                 config["openboundary"],
