@@ -38,7 +38,7 @@ handlers:
   # ---- Console (human readable) ----
   console:
     class: logging.StreamHandler
-    level: INFO
+    level: DEBUG
     formatter: standard
     stream: ext://sys.stdout
 
@@ -71,19 +71,12 @@ handlers:
 # LOGGERS (per-module control)
 # ======================
 loggers:
-
-  # # Your application package
-  # helper_scripts.LBC:
-  #   level: DEBUG
-  #   handlers:
-  #     - file
-  #   #   - errors
-  #   propagate: true
-
-  # # Suppress noisy libraries
-  # urllib3:
-  #   level: WARNING
-
+  rasterio:
+    level: WARNING
+  rasterio.env:
+    level: WARNING
+  rasterio._env:
+    level: WARNING
   matplotlib:
     level: ERROR
 
