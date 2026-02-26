@@ -37,9 +37,6 @@ setup_logging("logging.yaml")
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-raise NotImplementedError(
-    "This is a test file for development, not meant to be run as a test or example"
-)
 
 
 # logger.info("Added TimeModule")
