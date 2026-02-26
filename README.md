@@ -1,16 +1,34 @@
 # Dales input case generator
-This repository contains a script (main.py) that generates complete DALES cases (except for the dales binary).
-Each case is configurable with a yaml config file found in the [cases](./cases) folder.
+This repository contains the `modular_dales` Python package, which generates complete DALES input cases (except for the DALES binary) using a composable Python API.
+
+Cases are defined in Python using the `dales_simulation` class and configuration modules (grid, atmosphere, surface/LSM, radiation, timing, etc.).
+For a more detailed introduction, see `docs/getting_started.rst` and the examples under `tests/sim_builders/`.
+
+This tool requires Python >3.13 and the packages listed in `requirements.txt`.
 
 ## Usage
-Edit the `machine_conf.yaml` file to point to your DALES source, to your DALES binary.
-The `BASE_OUTPUT_PATH` variable in the configuration is the base path of each case, but you can edit the specific path of each case individually in each case yaml file. Tildes (~) do not work in this path (at least on my device).
-The required packages can be found in requirements.txt.
+1. Edit `machine_conf.yaml` to point to your DALES source and DALES binary. The `case_conf.BASE_OUTPUT_PATH` entry controls where generated cases are written. Tildes (~) do not work in this path (at least on my device).
+2. In Python, load `machine_conf.yaml`, construct a `dales_simulation`, add modules, and run the preprocessing pipeline, for example:
 
-You can run the script as a CLI tool where you give the path to the case as an argument to the script.
-In each case folder will be a job.001 file which is the job that runs DALES. In the generated input folder will be all input files.
+   ```python
+   import yaml
+
+   from modular_dales.modular import dales_simulation
+   from modular_dales.Configuration.defaultnamelist import DefaultNamelistModule
+
+   with open("machine_conf.yaml") as f:
+	   machine_conf = yaml.safe_load(f)
+
+   sim = dales_simulation("basic_case", machine_conf)
+   sim += DefaultNamelistModule()
+   # ... add grid, atmosphere, surface/LSM, radiation, time modules ...
+   sim.sim_preprocessing_pipeline()
+   ```
+
+This will create an output directory (based on the case name and machine configuration) containing a DALES namelist, `job.001`, and all required input files.
 
 
+Alternatively, see example.ipynb
 ## Changelog:
  -Allowed RTE-RRTMGP runs to be done. Added machine_conf.yaml to prevent having to edit scripts to customise.
  -Added some SLURB model input files (not yet useful)
