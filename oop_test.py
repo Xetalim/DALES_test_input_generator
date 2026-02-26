@@ -15,7 +15,7 @@ The modular system uses dataclasses where:
 import logging
 import os
 import subprocess
-
+import pytest
 import yaml
 
 from modular_dales.Atmosphere import (
@@ -64,9 +64,7 @@ logger = logging.getLogger(__name__)
 
 
 if __name__ == "__main__":
-    raise NotImplementedError(
-        "This is a test file for development, not meant to be run as a test or example"
-    )
+    pytest.skip("unsupported case")
     with open("machine_conf.yaml", "r") as file:
         machine_conf = yaml.safe_load(file)
     """Create a basic DALES simulation with minimal configuration.

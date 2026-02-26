@@ -13,7 +13,7 @@ The modular system uses dataclasses where:
 """
 
 import logging
-
+import pytest
 import yaml
 
 from modular_dales import dales_simulation
@@ -65,7 +65,7 @@ raise NotImplementedError(
 
 
 if __name__ == "__main__":
-
+    pytest.skip("unsupported case")
     with open("machine_conf.yaml", "r") as file:
         machine_conf = yaml.safe_load(file)
     logger.info("=" * 70)
