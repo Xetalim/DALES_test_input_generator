@@ -29,7 +29,6 @@ xyear = 2025
 /
 
 &PHYSICS
-lmoist     = .true. 
 lcoriol    = .true. ! read in large scale speed as geostrophic velocity instead of dpdx
 iradiation = 4       ! 4 = RRTMG
 timerad    = 60

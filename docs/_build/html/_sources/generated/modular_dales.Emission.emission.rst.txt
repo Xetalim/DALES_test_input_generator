@@ -1,0 +1,14 @@
+modular\_dales.Emission.emission
+================================
+
+.. automodule:: modular_dales.Emission.emission
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      EmissionModule
+      EmissionPointSource
+      EmissionTracer
+   

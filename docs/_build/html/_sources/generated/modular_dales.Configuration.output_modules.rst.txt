@@ -1,0 +1,13 @@
+modular\_dales.Configuration.output\_modules
+============================================
+
+.. automodule:: modular_dales.Configuration.output_modules
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      CheckSimulationModule
+      EasyOutputModule
+   

@@ -1,0 +1,12 @@
+modular\_dales.LBC.nesting\_idx
+===============================
+
+.. automodule:: modular_dales.LBC.nesting_idx
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      NestingIndices
+   

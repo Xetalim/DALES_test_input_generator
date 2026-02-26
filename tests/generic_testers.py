@@ -1,0 +1,129 @@
+from __future__ import annotations
+
+import subprocess
+import logging
+
+import pytest
+
+from modular_dales.Configuration.output_modules import CheckSimulationModule
+from modular_dales.modular import dales_simulation
+from modular_dales.Configuration.run_and_time import TimeModule
+
+from .helpers import assert_dirs_equal
+from .sim_builders.test_basic import _build_basic_sim
+
+logger = logging.getLogger(__name__)
+
+
+def assert_roundtrip_simulation_outputs_identical(sim_builder, machine_conf) -> None:
+    """Run a round-trip YAML serialization test for a given simulation builder.
+
+    Builds the simulation, runs preprocessing, serializes to YAML, loads a new
+    simulation from YAML with a different BASE_OUTPUT_PATH, runs preprocessing
+    again, and asserts the two output directories are bit-for-bit identical.
+    """
+
+    machine_conf_1 = machine_conf("from_scratch")
+
+    sim1 = sim_builder(machine_conf_1)
+    sim1.sim_preprocessing_pipeline()
+    out1 = sim1.output_path
+
+    subprocess.run(
+        [
+            "cp",
+            "-r",
+            out1.as_posix(),
+            "/Users/andrevanginkel/Documents/40_Input_and_Runs/42_Dales_Cases/42.01_generated_cases/roundtrip",
+        ],
+        check=True,
+    )
+
+    yaml_text = sim1.save_sim_to_yaml()
+
+    machine_conf_2 = machine_conf("from_yaml")
+    sim2 = dales_simulation.load_sim_from_yaml(yaml_text, machine_conf=machine_conf_2)
+    sim2.sim_preprocessing_pipeline()
+    out2 = sim2.output_path
+
+    assert out1 != out2
+    assert out1.is_dir() and out2.is_dir()
+
+    assert_dirs_equal(out1, out2)
+
+
+def run_simulation_and_check_job(sim_builder, machine_conf) -> None:
+    """Run a short simulation using a builder and then execute job.001.
+
+    The simulation is configured with a small runtime and a tcheck value so
+    the external job.001 can verify the produced input.
+    """
+
+    machine_conf_1 = machine_conf("from_scratch")
+
+    sim1 = sim_builder(machine_conf_1)
+    if sim1.nml.get("RUN") is None:
+        sim1.nml["RUN"] = {}
+    if sim1.nml["RUN"].get("nprocx") is None:
+        sim1.nml["RUN"]["nprocx"] = 0
+    if sim1.nml["RUN"].get("nprocy") is None:
+        sim1.nml["RUN"]["nprocy"] = 0
+    sim1 += CheckSimulationModule(
+        check_interval=10, stop_on_invalid=False, check_tendencies=True
+    )
+    sim1.sim_preprocessing_pipeline()
+    out1 = sim1.output_path
+
+    subprocess.run(
+        [
+            "cp",
+            "-r",
+            out1.as_posix(),
+            "/Users/andrevanginkel/Documents/40_Input_and_Runs/42_Dales_Cases/42.01_generated_cases/all_tests",
+        ],
+        check=True,
+    )
+    subprocess.run(["./job.001"], check=True, cwd=out1.as_posix())
+
+
+def test_diff_works(machine_conf) -> None:
+    """Test that outputs differ if we change the time settings after reload.
+
+    This reproduces the original test that ensured _assert_dirs_equal detects
+    differences when the simulation configuration is modified after
+    serialization.
+    """
+
+    machine_conf_1 = machine_conf("from_scratch")
+    case_name = "012_TESTS_roundtrip_test_case"  # preserved for debugging parity
+
+    sim1 = _build_basic_sim(machine_conf_1)
+    sim1.sim_preprocessing_pipeline()
+    out1 = sim1.output_path
+
+    yaml_text = sim1.save_sim_to_yaml()
+
+    machine_conf_2 = machine_conf("from_yaml")
+    sim2 = dales_simulation.load_sim_from_yaml(yaml_text, machine_conf=machine_conf_2)
+    for mod in sim2.modules:
+        if isinstance(mod, TimeModule):
+            mod.xday = 2
+    logger.info("Set time to 2 for roundtrip diff test (case %s)", case_name)
+    sim2.sim_preprocessing_pipeline()
+    out2 = sim2.output_path
+
+    assert out1 != out2
+    assert out1.is_dir() and out2.is_dir()
+
+    with pytest.raises(ValueError):
+        assert_dirs_equal(out1, out2)
+
+
+def assert_files_written(sim_builder_for_write_test, machine_conf) -> None:
+    """Tests per case if the necessary files are written"""
+
+    machine_conf_1 = machine_conf("assert_files_written")
+
+    sim1, written_tester = sim_builder_for_write_test(machine_conf_1)
+    sim1.sim_preprocessing_pipeline()
+    written_tester(sim1.output_path)

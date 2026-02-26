@@ -1,0 +1,15 @@
+modular\_dales.LBC.openbc
+=========================
+
+.. automodule:: modular_dales.LBC.openbc
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Nest_in_AtmosphereProfiles
+      Nest_in_Dales
+      Nest_in_Harmonie
+      do_openboundary
+   

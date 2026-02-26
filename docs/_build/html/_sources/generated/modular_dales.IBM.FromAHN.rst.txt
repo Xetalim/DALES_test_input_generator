@@ -1,0 +1,22 @@
+﻿modular\_dales.IBM.FromAHN
+==========================
+
+.. currentmodule:: modular_dales.IBM
+
+.. autoclass:: FromAHN
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~FromAHN.__init__
+   
+   
+
+   
+   
+   

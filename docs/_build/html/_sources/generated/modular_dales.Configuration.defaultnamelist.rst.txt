@@ -1,0 +1,12 @@
+modular\_dales.Configuration.defaultnamelist
+============================================
+
+.. automodule:: modular_dales.Configuration.defaultnamelist
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      DefaultNamelistModule
+   

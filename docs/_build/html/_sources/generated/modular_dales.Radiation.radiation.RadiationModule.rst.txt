@@ -1,0 +1,62 @@
+﻿modular\_dales.Radiation.radiation.RadiationModule
+==================================================
+
+.. currentmodule:: modular_dales.Radiation.radiation
+
+.. autoclass:: RadiationModule
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~RadiationModule.__init__
+      ~RadiationModule.apply_namelist_from_fields
+      ~RadiationModule.check_settings
+      ~RadiationModule.do_config
+      ~RadiationModule.get_timedep_atmosphere_forcings
+      ~RadiationModule.module_exists
+      ~RadiationModule.prepare_calculation
+      ~RadiationModule.retrieve_module
+      ~RadiationModule.set_nml_section
+      ~RadiationModule.write_files
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~RadiationModule.doclearsky
+      ~RadiationModule.exp_id
+      ~RadiationModule.grid
+      ~RadiationModule.iceflglw
+      ~RadiationModule.iceflgsw
+      ~RadiationModule.ide
+      ~RadiationModule.inflglw
+      ~RadiationModule.inflgsw
+      ~RadiationModule.ioverlap
+      ~RadiationModule.iradiation
+      ~RadiationModule.iyear
+      ~RadiationModule.lCnstZenith
+      ~RadiationModule.laero
+      ~RadiationModule.liqflglw
+      ~RadiationModule.liqflgsw
+      ~RadiationModule.nbatch
+      ~RadiationModule.nml
+      ~RadiationModule.nml_docs
+      ~RadiationModule.ocean
+      ~RadiationModule.output_path
+      ~RadiationModule.required_folder_list
+      ~RadiationModule.sim
+      ~RadiationModule.ssa
+      ~RadiationModule.surface_module
+      ~RadiationModule.timerad
+      ~RadiationModule.usepade
+   
+   
