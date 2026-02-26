@@ -1,0 +1,22 @@
+modular\_dales.Emission.create\_emis
+====================================
+
+.. automodule:: modular_dales.Emission.create_emis
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      get_emis_sim_hours
+      parse_tracer_type
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      PointSource
+      Tracer
+      TracerInfo
+      emissions
+   

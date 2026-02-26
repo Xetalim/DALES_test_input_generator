@@ -1,0 +1,118 @@
+version: 1
+
+# IMPORTANT: keep third-party loggers alive (dask, numpy, etc.)
+disable_existing_loggers: false
+
+
+# ======================
+# FORMATTERS
+# ======================
+formatters:
+
+  simple:
+    format: "%(levelname)s | %(message)s"
+
+  standard:
+    format: "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+    datefmt: "%Y-%m-%d %H:%M:%S"
+
+  detailed:
+    format: "%(asctime)s | %(levelname)-8s | %(process)d | %(threadName)s | %(name)s:%(lineno)d | %(funcName)s | %(message)s"
+
+
+# ======================
+# FILTERS
+# ======================
+filters:
+
+  require_debug_false:
+    (): logging.Filter
+    name: ""
+
+
+# ======================
+# HANDLERS
+# ======================
+handlers:
+
+  # ---- Console (human readable) ----
+  console:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: standard
+    stream: ext://sys.stdout
+
+  # ---- Debug console (only when needed) ----
+  console_debug:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: detailed
+    stream: ext://sys.stdout
+
+  # ---- Plain file ----
+  file:
+    class: logging.FileHandler
+    level: DEBUG
+    formatter: detailed
+    filename: logs/app.log
+    mode: w
+    encoding: utf-8
+
+  # ---- Error-only file ----
+  errors:
+    class: logging.FileHandler
+    level: ERROR
+    formatter: detailed
+    filename: logs/errors.log
+    mode: w
+
+
+# ======================
+# LOGGERS (per-module control)
+# ======================
+loggers:
+
+  # # Your application package
+  # helper_scripts.LBC:
+  #   level: DEBUG
+  #   handlers:
+  #     - file
+  #   #   - errors
+  #   propagate: true
+
+  # # Suppress noisy libraries
+  # urllib3:
+  #   level: WARNING
+
+  matplotlib:
+    level: ERROR
+
+  # asyncio:
+  #   level: WARNING
+
+  # # Dask specifics
+  distributed:
+    level: WARNING
+    handlers:
+      - file
+      - errors
+
+  # dask:
+  #   level: INFO
+
+  # Example of silencing a specific module
+  # helper_scripts.healthcheck:
+  #   level: WARNING
+  #   handlers: [null]
+  #   propagate: false
+
+
+# ======================
+# ROOT LOGGER
+# ======================
+root:
+  level: DEBUG
+  handlers:
+    - console
+    - file
+    - errors

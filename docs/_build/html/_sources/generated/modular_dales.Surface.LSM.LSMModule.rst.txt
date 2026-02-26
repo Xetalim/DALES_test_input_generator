@@ -1,0 +1,64 @@
+﻿modular\_dales.Surface.LSM.LSMModule
+====================================
+
+.. currentmodule:: modular_dales.Surface.LSM
+
+.. autoclass:: LSMModule
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~LSMModule.__init__
+      ~LSMModule.apply_namelist_from_fields
+      ~LSMModule.apply_soil_temp_moisture_skin_temp
+      ~LSMModule.check_settings
+      ~LSMModule.do_config
+      ~LSMModule.exists_soil_temp_moisture_skin_temp
+      ~LSMModule.get_timedep_atmosphere_forcings
+      ~LSMModule.module_exists
+      ~LSMModule.prepare_calculation
+      ~LSMModule.prepare_calculations
+      ~LSMModule.retrieve_module
+      ~LSMModule.set_nml_section
+      ~LSMModule.write_files
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~LSMModule.albedoav
+      ~LSMModule.dz_soil
+      ~LSMModule.exp_id
+      ~LSMModule.from_lcz
+      ~LSMModule.grid
+      ~LSMModule.iinterp_t
+      ~LSMModule.iinterp_theta
+      ~LSMModule.isurf
+      ~LSMModule.kmax_soil
+      ~LSMModule.lheterogeneous
+      ~LSMModule.lsm_writer
+      ~LSMModule.nlu
+      ~LSMModule.nml
+      ~LSMModule.nml_docs
+      ~LSMModule.output_path
+      ~LSMModule.ps
+      ~LSMModule.required_folder_list
+      ~LSMModule.sim
+      ~LSMModule.skin_temperature
+      ~LSMModule.slurb_module
+      ~LSMModule.soil_moisture
+      ~LSMModule.soil_temperature
+      ~LSMModule.z0hav
+      ~LSMModule.z0mav
+      ~LSMModule.land_use_modifications
+   
+   

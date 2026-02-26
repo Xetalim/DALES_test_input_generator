@@ -1,0 +1,15 @@
+﻿modular\_dales.Configuration
+============================
+
+.. automodule:: modular_dales.Configuration
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   defaultnamelist
+   output_modules
+   run_and_time

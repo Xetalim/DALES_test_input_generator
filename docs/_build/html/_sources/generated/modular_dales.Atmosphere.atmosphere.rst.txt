@@ -1,0 +1,22 @@
+modular\_dales.Atmosphere.atmosphere
+====================================
+
+.. automodule:: modular_dales.Atmosphere.atmosphere
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      evaluate_profile_map
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      AtmosphereModule
+      AtmosphereVariable
+      AtmosphericProfile
+      InterpolatedProfile
+      TimedAtmosphereProfile
+   

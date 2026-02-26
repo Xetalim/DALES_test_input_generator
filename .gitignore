@@ -5,3 +5,8 @@ helper_scripts/__pycache__
 */__pycache__
 __pycache__
 .vscode
+.ipynb_checkpoints
+COG_CACHE/
+*.nc
+logs/*
+tmp/*
