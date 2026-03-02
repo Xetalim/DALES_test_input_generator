@@ -8,5 +8,4 @@ __pycache__
 .ipynb_checkpoints
 COG_CACHE/
 *.nc
-logs/*
 tmp/*

@@ -168,3 +168,92 @@ class CheckSimulationModule(simulation_module):
     def write_files(self):
         """No files to write."""
         return None
+
+
+@register_module
+@dataclass
+class SamplingModule(simulation_module):
+    """Output configuration module for DALES simulation.
+    Outputs samples at specified intervals.
+    When added to a simulation, automatically updates the corresponding namelist parameters in the appropriate sections.
+
+    Args:
+        sim: Parent dales_simulation instance
+        output_interval: Time interval(s) for output (can be a single value or list for different output types)
+        enable_output: Whether to enable output (controls lsampcl, lsampco, lsampup, etc. in namelist)
+
+    """
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    output_interval: Optional[Union[float, list[float]]] = field(
+        default=60,
+        metadata={
+            "nml": ["namsampling", "namsampling"],
+            "key": [
+                "dtav",
+                "timeav",
+            ],
+            "required": True,
+        },
+        init=True,
+    )
+    enable_output: bool = field(
+        default=True,
+        metadata={
+            "nml": [
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+                "namsampling",
+            ],
+            "key": [
+                "lsampcl",
+                "lsampco",
+                "lsampup",
+                "lsampbuup",
+                "lsampcldup",
+                "lsamptend",
+                "ltendleib",
+                "lsamptendu",
+                "lsamptendv",
+                "lsamptendw",
+                "lsamptendthl",
+                "lsamptendqt",
+                "lsamptendqr",
+                "lsamptendnr",
+                "lqlflux",
+            ],
+            "required": True,
+        },
+    )
+
+    def do_config(self):
+        """Configure output-related namelist parameters."""
+        return None
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "SamplingModule"
+
+    def prepare_calculation(self):
+        """No preparation needed."""
+        return None
+
+    def check_settings(self):
+        """Check output settings validity."""
+        return None
+
+    def write_files(self):
+        """Write output files if needed."""
+        return None
