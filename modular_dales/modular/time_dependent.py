@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional
 
 import numpy as np
 
+from modular_dales.Atmosphere.ls2d_atmosphere import FromLS2D, LS2DAtmosphereModule
 from modular_dales.Configuration import TimeModule
 from modular_dales.IO_helpers.atmosphere_writer import AtmosphereProfileWriter
 from modular_dales.MODULE_REGISTRY import (
@@ -50,13 +51,25 @@ class TimedependentModule(simulation_module):
     )
     ltimedep: bool = field(
         default=True,
-        init=False,
+        init=True,
         repr=False,
         metadata={
             "serialize": False,
             "nml": "PHYSICS",
             "key": "ltimedep",
         },
+    )
+    usesLS2DforTime: FromLS2D = field(
+        default=None,
+        init=True,
+        repr=False,
+        metadata={"serialize": False},
+    )
+    LS2Dmodule: Optional["LS2DAtmosphereModule"] = field(
+        default=None,
+        init=False,
+        repr=False,
+        metadata={"serialize": False},
     )
 
     def __post_init__(self):
@@ -150,7 +163,27 @@ class TimedependentModule(simulation_module):
                 )
         return np.column_stack(columns)
 
+
+    def __add__(self, obj) -> "TimedependentModule":
+        if not isinstance(obj, FromLS2D):
+            return NotImplemented
+        self.usesLS2DforTime = obj
+        return self
+    
+    def __iadd__(self, other):
+        return self.__add__(other)
+
     def check_settings(self):
+        return None
+
+    def prepare_calculation(self):
+        if self.usesLS2DforTime:
+            if self.LS2Dmodule is None:
+                self.LS2Dmodule = self.sim.retrieve_module(LS2DAtmosphereModule)
+                if not self.LS2Dmodule.prepare_calculation_done:
+                    self.LS2Dmodule.prepare_calculation()
+                    self.LS2Dmodule.prepare_calculation_done = True
+            self.timesteps = self.LS2Dmodule._times_with_zero
         timesteps = [float(t) for t in self.timesteps]
         if len(timesteps) != len(set(timesteps)):
             raise ValueError("TimedependentModule.timesteps contains duplicates")
@@ -160,9 +193,6 @@ class TimedependentModule(simulation_module):
             )
         if timesteps != sorted(timesteps):
             raise ValueError("TimedependentModule.timesteps must be in ascending order")
-        return None
-
-    def prepare_calculation(self):
         self.timedep_var_dic = {}
         if self.grid is None:
             return None

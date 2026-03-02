@@ -2,7 +2,7 @@
 This repository contains the `modular_dales` Python package, which generates complete DALES input cases (except for the DALES binary) using a composable Python API.
 
 Cases are defined in Python using the `dales_simulation` class and configuration modules (grid, atmosphere, surface/LSM, radiation, timing, etc.).
-For a more detailed introduction, see `docs/getting_started.rst` and the examples under `tests/sim_builders/`.
+For the documentation, see [this](docs/_build/index.md)
 
 This tool requires Python >3.13 and the packages listed in `requirements.txt`.
 

@@ -26,6 +26,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.intersphinx",
+    "sphinx_markdown_builder",
 ]
 
 autosummary_generate = True  # pylint: disable=C0103

@@ -3,6 +3,8 @@ import pathlib
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
+
 from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.MODULE_REGISTRY import register_module, register_singleton
 from modular_dales.Surface.LSM.LSM_output_dales import LSM_output_dales, LsmModifier
@@ -18,6 +20,7 @@ from modular_dales.Surface.LSM.modular_temps_moisture import (
 from modular_dales.Surface.LSM import plot_lsm
 from modular_dales.Surface.LSM.translation_tables import landuse_types
 from modular_dales.Surface.surface import SurfaceModule
+from modular_dales.Atmosphere.ls2d_atmosphere import LS2DAtmosphereModule, FromLS2D
 
 from .SLuRB.slurb import SLURBModule
 
@@ -68,6 +71,8 @@ class LandUseModifications:
 @dataclass
 class FromLCZ:
     """LCZ (Local Climate Zone) classification approach for LSM."""
+
+
 
 
 @register_module
@@ -183,6 +188,12 @@ class LSMModule(SurfaceModule):
         repr=False,
         metadata={"serialize": True},
     )
+    from_ls2d: Optional[FromLS2D] = field(
+        default=None,
+        init=True,
+        repr=False,
+        metadata={"serialize": True},
+    )
     skin_temperature: Optional[
         Union[UniformSkinTemperature, VaryingSkinTemperature]
     ] = field(
@@ -259,6 +270,8 @@ class LSMModule(SurfaceModule):
                 self.land_use_modifications += mod
         elif isinstance(obj, FromLCZ):
             self.from_lcz = obj
+        elif isinstance(obj, FromLS2D):
+            self.from_ls2d = obj
         elif isinstance(obj, (UniformSkinTemperature, VaryingSkinTemperature)):
             self.skin_temperature = obj
         elif isinstance(obj, (UniformSoilTemperature, VaryingSoilTemperature)):
@@ -276,7 +289,9 @@ class LSMModule(SurfaceModule):
             self.soil_temperature = obj
         else:
             raise TypeError(
-                f"Expected LandUseModification/FromLCZ/SkinTemperatures/SoilTemperatures/SoilMoistures, got {type(obj)}"
+                "Expected LandUseModification/FromLCZ/FromLS2D/" 
+                "SkinTemperatures/SoilTemperatures/SoilMoistures, got "
+                f"{type(obj)}"
             )
         return self
 
@@ -333,6 +348,11 @@ class LSMModule(SurfaceModule):
                 )
         # Apply soil temperature profiles, skin temperature, soil moisture profiles
         self.apply_soil_temp_moisture_skin_temp()
+
+        # If LS2D-derived soil information is available, override the
+        # default soil temperature / moisture / index with LS2D data.
+        self._override_soil_from_ls2d_if_available()
+
         # Finalize
         self.lsm_writer.trim_landuse()
 
@@ -357,6 +377,103 @@ class LSMModule(SurfaceModule):
                 "Skin temperature profiles must be specified for LSMModule. "
                 "Add a SkinTemperatures object to LSMModule: lsm += SkinTemperatures()"
             )
+
+    def _override_soil_from_ls2d_if_available(self) -> None:
+        """Override soil fields with LS2D data when available.
+
+        When an :class:`LS2DAtmosphereModule` is present in the same
+        simulation and has run LS2D, its ``les_input`` may contain
+        time/soil-level averaged fields ``t_soil``, ``theta_soil`` and
+        ``type_soil``. This helper broadcasts those vertically averaged
+        LS2D soil profiles over the DALES horizontal grid and stores
+        them into ``LSM_output_dales.value_dic`` so that ``t_soil``,
+        ``theta_soil`` and ``index_soil`` in ``lsm.inp_XXX.nc`` reflect
+        LS2D soil information.
+        """
+
+        if self.lsm_writer is None:
+            return
+
+        # Only apply LS2D overrides when the user has explicitly
+        # requested this via a FromLS2D marker on the LSM module.
+        if getattr(self, "from_ls2d", None) is None:
+            return
+
+        # Check whether an LS2D atmosphere module is present
+        if not self.module_exists(LS2DAtmosphereModule):
+            return
+
+        atmo_module = self.retrieve_module(LS2DAtmosphereModule)
+        les_input = getattr(atmo_module, "les_input", None)
+        if les_input is None:
+            return
+
+        nz_soil, jtot, itot = self.lsm_writer.value_dic["t_soil"].shape
+
+        def _extract_soil_profile(name: str) -> Optional[np.ndarray]:
+            if not hasattr(les_input, name):
+                return None
+            try:
+                values = np.asarray(les_input[name].values, dtype=float)
+            except Exception:
+                return None
+
+            if values.ndim == 2:
+                # Expect LS2D convention (time, z_soil)
+                nt, nlev = values.shape
+                if nlev == nz_soil:
+                    # Use the first time slice as initial soil profile
+                    return values[0, :]
+                if nt == nz_soil:
+                    return values[:, 0]
+            elif values.ndim == 1 and values.size == nz_soil:
+                return values
+
+            logger.warning(
+                "LSMModule: unexpected shape for LS2D les_input.%s: %s; expected (time,%d) or (%d,)",
+                name,
+                values.shape,
+                nz_soil,
+                nz_soil,
+            )
+            return None
+
+        # Soil temperature and moisture profiles
+        prof_tsoil = _extract_soil_profile("t_soil")
+        prof_theta = _extract_soil_profile("theta_soil")
+
+        if prof_tsoil is not None:
+            for k in range(nz_soil):
+                self.lsm_writer.value_dic["t_soil"][k, :, :] = prof_tsoil[k]
+
+        if prof_theta is not None:
+            for k in range(nz_soil):
+                self.lsm_writer.value_dic["theta_soil"][k, :, :] = prof_theta[k]
+
+        # Soil type index (Fortran-style indexing from LS2D/ERA5)
+        if hasattr(les_input, "type_soil"):
+            try:
+                soil_type_vals = np.asarray(les_input["type_soil"].values)
+                soil_index = int(np.ravel(soil_type_vals)[0])
+            except Exception:
+                soil_index = None
+            if soil_index is not None:
+                self.lsm_writer.value_dic["index_soil"][:, :, :] = soil_index
+
+        # Bulk roughness lengths: set NAMSURFACE z0mav/z0hav from LS2D
+        # time series when available.
+        for name, attr in (("z0m", "z0mav"), ("z0h", "z0hav")):
+            if hasattr(les_input, name):
+                try:
+                    arr = np.asarray(les_input[name].values, dtype=float)
+                    if arr.ndim == 1 and arr.size > 0:
+                        setattr(self, attr, float(arr[0]))
+                except Exception:
+                    continue
+
+        logger.info(
+            "LSMModule: applied LS2D-derived soil profiles and roughness where available"
+        )
 
     def apply_soil_temp_moisture_skin_temp(self):
         if self.lsm_writer is None:

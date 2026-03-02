@@ -5,6 +5,7 @@ from .LSM import (
     LandUseModification,
     LandUseModifications,
     FromLCZ,
+    FromLS2D,
 )
 from .modular_temps_moisture import (
     UniformSkinTemperature,
@@ -27,6 +28,7 @@ __all__ = [
     "LandUseModification",
     "LandUseModifications",
     "FromLCZ",
+    "FromLS2D",
     "UniformSkinTemperature",
     "UniformSoilTemperature",
     "UniformSoilMoisture",

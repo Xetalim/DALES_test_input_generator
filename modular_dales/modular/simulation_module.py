@@ -177,7 +177,6 @@ class simulation_module(ABC):
         """
 
         return self.sim.required_folder_list if self.sim is not None else None
-
     def retrieve_module(
         self, module_name: Union[str, "simulation_module", type]
     ) -> "simulation_module":
@@ -186,14 +185,12 @@ class simulation_module(ABC):
             raise RuntimeError(
                 f"Module '{self.module_name}' is not attached to a simulation!"
             )
-        for module in self.sim.modules:
-            if module.module_name == module_name:
-                return module
-            if isinstance(module, module_name):
-                return module
-        raise ValueError(
-            f"Module with name '{module_name}' not found in simulation for retrieval by module '{self.module_name}'"
-        )
+        try:
+            return self.sim.retrieve_module(module_name)
+        except KeyError:
+            raise KeyError(
+                f"Module with name '{module_name}' not found in simulation for retrieval by module '{self.module_name}'"
+            )
 
     def module_exists(self, module_name: Union[str, "simulation_module", type]) -> bool:
         """Check if a module with the given name exists in the parent simulation."""
@@ -201,10 +198,7 @@ class simulation_module(ABC):
             raise RuntimeError(
                 f"Module '{self.module_name}' is not attached to a simulation!"
             )
-        return any(
-            module.module_name == module_name or isinstance(module, module_name)
-            for module in self.sim.modules
-        )
+        return self.sim.module_exists(module_name)
 
     @logwrap
     def _initialize_from_sim(self, sim: "dales_simulation"):

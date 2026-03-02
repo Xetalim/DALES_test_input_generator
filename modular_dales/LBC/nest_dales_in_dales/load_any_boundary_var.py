@@ -23,7 +23,6 @@ def load_any_boundary_var(
     expand_dims=False,
     expand_dims_time0=None,
     var_postfix="",
-    move_x0y0=False,
 ):
     """
     This function is a bit of a very generalised function to read in DALES staggered grid boundary variables.
@@ -43,7 +42,6 @@ def load_any_boundary_var(
     :param expand_dims: Bool to enable expanding the time dimension with variable expand_dims_time0.
     :param expand_dims_time0: Variable to expand the time dimension with. Requires expand_dims=True
     :param var_postfix: Postfix for the var to load; somtimes the input variable has an extra long name.
-    :param move_x0y0: Whether to shift the x0,y0 in the interpolating to correct for a different center between the subgrid and supergrid.
     """
     var_dims_dic = {
         "u": {"x": "xm", "y": "yt", "z": "zt"},
@@ -59,17 +57,8 @@ def load_any_boundary_var(
         "zt": grid.zt,
         "zm": grid.zm,
     }
-    if move_x0y0:
-        interp_grid_dic = {
-            "xt": grid.xt - grid.x0 + (indices.subgrid_x0 - indices.supergrid_x0),
-            "xm": grid.xm - grid.x0 + (indices.subgrid_x0 - indices.supergrid_x0),
-            "yt": grid.yt - grid.y0 + (indices.subgrid_y0 - indices.supergrid_y0),
-            "ym": grid.ym - grid.y0 + (indices.subgrid_y0 - indices.supergrid_y0),
-            "zt": grid.zt,
-            "zm": grid.zm,
-        }
-    else:
-        interp_grid_dic = assign_grid_dic
+
+    interp_grid_dic = assign_grid_dic
 
     boundary_var_interp_dic = {
         "west": {"w": ["y", "z"], "default": ["y", "z"]},

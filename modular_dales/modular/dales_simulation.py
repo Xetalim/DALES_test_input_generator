@@ -5,11 +5,12 @@ import os
 import pathlib
 import subprocess
 from dataclasses import is_dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Union
 from collections import namedtuple
 
 import f90nml
 import yaml
+from pathlib import Path, PosixPath
 
 from modular_dales.modular.simulation_module import simulation_module, set_nml_section
 from modular_dales.MODULE_REGISTRY import MODULE_REGISTRY
@@ -18,7 +19,11 @@ from .serialize_deserialize import _deserialize_dataclass, asdict_user_set
 
 logger = logging.getLogger(__name__)
 logger.debug("Entered module: %s", __name__)
+def yaml_equivalent_of_path(dumper, data):
+    return dumper.represent_str(str(data))
 
+yaml.add_multi_representer(Path, yaml_equivalent_of_path)
+yaml.add_multi_representer(PosixPath, yaml_equivalent_of_path)
 
 def check_core_amounts(machine_conf, nml) -> Tuple[int, int, int]:
     """Adjust core count and MPI decomposition for DALES.
@@ -191,7 +196,6 @@ class dales_simulation:
         self.modules: List[simulation_module] = []
         self.has_surface_module = False  # set by SurfaceModule when added
         self.has_atmosphere_module = False  # set by AtmosphereModule when added
-
         # Start with empty namelist - will be populated by modules
         self.nml = f90nml.namelist.Namelist()
         self.nml_docs = (
@@ -311,7 +315,8 @@ class dales_simulation:
         Call this explicitly after check_settings().
         """
         for module in self.modules:
-            module.prepare_calculation()
+            if not module.prepare_calculation_done:
+                module.prepare_calculation()
             module.apply_namelist_from_fields()
             module.prepare_calculation_done = True
         # check core counts against namelist
@@ -331,6 +336,28 @@ class dales_simulation:
         else:
             self.exp_id = self.nml["RUN"]["iexpnr"]
 
+    def retrieve_module(
+        self, module_name: Union[str, "simulation_module", type]
+    ) -> "simulation_module":
+        """Helper to retrieve another module by name."""
+        for module in self.modules:
+            if isinstance(module_name, str):
+                if module.module_name == module_name:
+                    return module
+                else:
+                    continue
+            elif isinstance(module, module_name):
+                return module
+        raise KeyError(
+            f"Module with name '{module_name}' not found!"
+        )
+
+    def module_exists(self, module_name: Union[str, "simulation_module", type]) -> bool:
+        """Check if a module with the given name exists."""
+        return any(
+            module.module_name == module_name or isinstance(module, module_name)
+            for module in self.modules
+        )
     def write_module_files(self):
         """Call write_files on all registered modules."""
 
@@ -381,9 +408,21 @@ class dales_simulation:
     def apply_job_configuration(self):
         """Apply job configuration and set up file transfers."""
         job_conf = self.machine_conf.get("job_conf", {})
+        job_template_path = job_conf.get("job_template", None)
+        if job_template_path is None:
+            logger.warning(
+                "No job_template_path specified in machine configuration; using default template input_template/job.001"
+            )
+            job_template_path = pathlib.Path("input_template") / "job.001"
+        else:
+            job_template_path = pathlib.Path("input_template") / job_template_path
+            if not job_template_path.is_file():
+                raise ValueError(
+                    f"Specified job_template_path {job_template_path} does not exist or is not a file"
+                )
 
         # Get job filename - use default job.001
-        job_filename = pathlib.Path("input_template") / "job.001"
+        job_filename = job_template_path
 
         with open(job_filename, "r") as f:
             content = f.read()

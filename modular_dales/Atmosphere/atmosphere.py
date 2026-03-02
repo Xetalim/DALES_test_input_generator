@@ -6,11 +6,11 @@ from typing import Union, Optional, List, Mapping
 import numpy as np
 from scipy.interpolate import interp1d
 
-from modular_dales.modular import simulation_module
+from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.modular.time_dependent_scalars import TimeDependentScalar
 from modular_dales.MODULE_REGISTRY import register_module
 from modular_dales.vars import VariableDefinition, ALL_VARIABLES
-
+ 
 from modular_dales.Atmosphere.shapes import SHAPE_FUNCTIONS
 from modular_dales.IO_helpers import AtmosphereProfileWriter
 
@@ -253,6 +253,21 @@ class AtmosphereModule(simulation_module):
         metadata={"serialize": False},
     )
 
+    collected_base_profiles: dict[VariableDefinition, Union[AtmosphericProfile, InterpolatedProfile]] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+        metadata={"serialize": False},
+    )
+    collected_timed_profiles_by_time: dict[
+        float, dict[VariableDefinition, Union[AtmosphericProfile, InterpolatedProfile]]
+    ] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+        metadata={"serialize": False},
+    )
+
     def __post_init__(self):
         super().__init__(self.sim)
         self.module_name = "AtmosphereModule"
@@ -308,24 +323,19 @@ class AtmosphereModule(simulation_module):
     def _collect_base_profiles(
         self,
     ) -> dict[VariableDefinition, Union[AtmosphericProfile, InterpolatedProfile]]:
-        base_profiles = {}
         for profile in self.shaped_profiles:
             self._validate_profile_variable(profile)
-            base_profiles[profile.variable] = profile
+            self.collected_base_profiles[profile.variable] = profile
         for profile in self.interpolated_profiles:
             self._validate_profile_variable(profile)
-            base_profiles[profile.variable] = profile
-        return base_profiles
+            self.collected_base_profiles[profile.variable] = profile
+        return self.collected_base_profiles
 
     def _collect_timed_profiles(
         self,
     ) -> dict[
         float, dict[VariableDefinition, Union[AtmosphericProfile, InterpolatedProfile]]
     ]:
-        timed_profiles: dict[
-            float,
-            dict[VariableDefinition, Union[AtmosphericProfile, InterpolatedProfile]],
-        ] = {}
         for timed_profile in self.timed_profiles:
             time = float(timed_profile.time)
             profile = timed_profile.profile
@@ -335,10 +345,10 @@ class AtmosphereModule(simulation_module):
                 raise ValueError(
                     f"Variable '{var_definition.name}' cannot be time-dependent"
                 )
-            if time not in timed_profiles:
-                timed_profiles[time] = {}
-            timed_profiles[time][var_definition] = profile
-        return timed_profiles
+            if time not in self.collected_timed_profiles_by_time:
+                self.collected_timed_profiles_by_time[time] = {}
+            self.collected_timed_profiles_by_time[time][var_definition] = profile
+        return self.collected_timed_profiles_by_time
 
     def _build_timedep_profile_forcings(
         self,

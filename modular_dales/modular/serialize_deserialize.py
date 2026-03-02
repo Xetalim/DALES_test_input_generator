@@ -3,6 +3,8 @@ from dataclasses import asdict, fields, is_dataclass
 from types import UnionType
 from typing import Any, Union, get_args, get_origin
 
+from pathlib import Path
+
 from modular_dales.MODULE_REGISTRY import (
     MODULE_REGISTRY,
     SINGLETON_REGISTRY,
@@ -78,8 +80,11 @@ def asdict_user_set(obj):
                 return [switch_dataclass_or_not(v) for v in obj]
             else:
                 return obj
+        elif isinstance(obj, Path):
+            return str(obj)
         else:
             return obj  # base case for primitives, lists, dicts
+            
 
     # Dataclass objects
     # Special-case: represent the surface helper dataclasses
