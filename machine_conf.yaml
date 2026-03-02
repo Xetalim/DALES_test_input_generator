@@ -1,7 +1,8 @@
 job_conf:
-  dales_exec: '/Users/andrevanginkel/Documents/40_Input_and_Runs/41_Dales_Builds/Dales_5.0_Dev/bin/dales'
+  dales_exec: null
   debugger: lldb
-  numcores: 8
+  numcores: 4
+  job_template: job.001
 case_conf:
-  BASE_OUTPUT_PATH: /Users/andrevanginkel/Documents/40_Input_and_Runs/42_Dales_Cases/42.01_generated_cases
-  SOURCE_PATH: /Users/andrevanginkel/Documents/20_Code/24_dales_source/dales
+  BASE_OUTPUT_PATH: null
+  SOURCE_PATH: null
