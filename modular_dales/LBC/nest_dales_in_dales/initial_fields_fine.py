@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+import numpy as np
 import xarray as xr
 
 from modular_dales.Geometry import GridDalesOpenBC
@@ -20,50 +21,152 @@ def initial_fields_fine(input_json, grid: GridDalesOpenBC, output_path):
     :type grid: GridDalesOpenBC
     :param output_path: Where the data should be output.
 
-    Gets the initial fields for the current simulation from the host initfields.nc.
+    Gets the initial fields for the current simulation from the host
+    ``initfields.inp.*.nc``. If that file is not available, fall back to the
+    vertical-profile file ``init.*.nc`` (where zh == zt) and build a
+    horizontally uniform 3D initial field from those profiles.
     """
-    # Load data
-    with xr.open_mfdataset(f"{input_json['inpath']}initfields.inp.*.nc") as ds:
-        initfields_fine = ds.interp(
-            xt=grid.xt,
-            xm=grid.xm,
-            yt=grid.yt,
-            ym=grid.ym,
-            zt=grid.zt,
-            zm=grid.zm,
-            assume_sorted=False,
+    # Load data: prefer initfields.inp.*.nc, fall back to init.*.nc
+    try:
+        with xr.open_mfdataset(f"{input_json['inpath']}/initfields.inp.*.nc") as ds:
+            initfields_fine = ds.interp(
+                xt=grid.xt,
+                xm=grid.xm,
+                yt=grid.yt,
+                ym=grid.ym,
+                zt=grid.zt,
+                zm=grid.zm,
+                assume_sorted=False,
+            )
+            initfields_fine = initfields_fine.assign_coords(
+                {
+                    "xt": grid.xt,
+                    "xm": grid.xm,
+                    "yt": grid.yt,
+                    "ym": grid.ym,
+                }
+            )
+    except (OSError, FileNotFoundError, ValueError) as exc:
+        # xarray raises ValueError("no files to open") when the glob is empty.
+        logger.warning(
+            "initfields.inp.*.nc not found or not readable in '%s' (%s); "
+            "falling back to init.*.nc profile for initial 3D fields.",
+            input_json["inpath"],
+            exc,
         )
+
+        init_ds = xr.open_mfdataset(f"{input_json['inpath']}/init.*.nc")
+
+        # Map openBC / DALES variables to candidate profile names in init.*.nc
+        profile_var_candidates = {
+            "u": ["ua"],
+            "v": ["va"],
+            "w": ["wa"],
+            "thl": ["thetal"],
+            "qt": ["qt"],
+            "e12": ["tke"],
+        }
+
+        zh = init_ds["zh"].values
+
+        def _get_profile(var: str) -> np.ndarray:
+            if var in profile_var_candidates:
+                for cand in profile_var_candidates[var]:
+                    if cand in init_ds:
+                        return np.asarray(init_ds[cand].values, dtype=float)
+                raise KeyError(
+                    f"None of {profile_var_candidates[var]} found in init.*.nc for '{var}'"
+                )
+            # tracers: expect the name itself to be present
+            if var not in init_ds:
+                raise KeyError(f"Tracer '{var}' not found in init.*.nc")
+            return np.asarray(init_ds[var].values, dtype=float)
+
+        # Construct uniform 3D fields on the DALES grid (xt/xm, yt/ym, zt/zm)
+        coords = {
+            "xt": ("xt", grid.xt),
+            "xm": ("xm", grid.xm),
+            "yt": ("yt", grid.yt),
+            "ym": ("ym", grid.ym),
+            "zt": ("zt", grid.zt),
+            "zm": ("zm", grid.zm),
+        }
+        data_vars = {}
+
+        base_vars = ["u", "v", "w", "thl", "qt", "e12"]
+        tracers = list(input_json.get("tracernames", []))
+
+        def _make_uniform_field(
+            profile: np.ndarray, dims: tuple[str, ...]
+        ) -> np.ndarray:
+            """Broadcast 1D vertical profile over the given spatial dims.
+
+            dims is a tuple like ("yt", "xm", "zt") or ("yt", "xt", "zm").
+            The vertical dimension is assumed to be either "zt" or "zm".
+            """
+
+            shape = [len(coords[d][1]) for d in dims]
+            data = np.zeros(shape, dtype=float)
+
+            if "zm" in dims:
+                vertical_dim = "zm"
+            else:
+                vertical_dim = "zt"
+
+            kdim = dims.index(vertical_dim)
+            for k in range(len(profile)):
+                idx = [slice(None)] * len(shape)
+                idx[kdim] = k
+                data[tuple(idx)] = profile[k]
+
+            return data
+
+        for var in base_vars + tracers:
+            prof_zt = _get_profile(var)
+
+            if var == "w":
+                # For vertical velocity, interpolate from zh/zt -> zm
+                prof_target = np.interp(grid.zm, zh, prof_zt)
+                dims_no_time = ("zm", "yt", "xt")
+                arr = _make_uniform_field(prof_target, dims_no_time)
+                data_vars["w"] = ("time",) + dims_no_time, arr[None, ...]
+            else:
+                # Interpolate profile from zh to the current grid zt before broadcasting
+                prof_target = np.interp(grid.zt, zh, prof_zt)
+                # Use the natural stagger for core fields
+                if var == "u":
+                    dims_no_time = ("zt", "yt", "xm")
+                    arr = _make_uniform_field(prof_target, dims_no_time)
+                    data_vars["u"] = ("time",) + dims_no_time, arr[None, ...]
+                elif var == "v":
+                    dims_no_time = ("zt", "ym", "xt")
+                    arr = _make_uniform_field(prof_target, dims_no_time)
+                    data_vars["v"] = ("time",) + dims_no_time, arr[None, ...]
+                else:
+                    # Scalars (thl, qt, e12, tracers): defined on (yt, xt, zt)
+                    dims_no_time = ("zt", "yt", "xt")
+                    arr = _make_uniform_field(prof_target, dims_no_time)
+                    data_vars[var] = ("time",) + dims_no_time, arr[None, ...]
+
+        initfields_fine = xr.Dataset(data_vars=data_vars, coords=coords)
         initfields_fine = initfields_fine.assign_coords(
             {
-                "xt": grid.xt,
-                "xm": grid.xm,
-                "yt": grid.yt,
-                "ym": grid.ym,
+                "time": (
+                    "time",
+                    [
+                        np.datetime64(input_json["time0"]),
+                    ],
+                )
             }
         )
-        # Adjust transform
-        # initfields_fine["transform"].attrs["false_easting"] = initfields_fine[
-        #     "transform"
-        # ].attrs["false_easting"]
-        # initfields_fine["transform"].attrs["false_northing"] = initfields_fine[
-        #     "transform"
-        # ].attrs["false_northing"]
-        # proj4 = ""
-        # for param in initfields_fine["transform"].attrs["proj4"][1:].split("+"):
-        #     line = "+" + param
-        #     if "x_0" in param:
-        #         line = f"+x_0={initfields_fine['transform'].attrs['false_easting']} "
-        #     if "y_0" in param:
-        #         line = f"+y_0={initfields_fine['transform'].attrs['false_northing']} "
-        #     proj4 = proj4 + line
-        # initfields_fine["transform"].attrs["proj4"] = proj4.rstrip()
-        # Add global attributes
-        initfields_fine = initfields_fine.assign_attrs(
-            {
-                "history": f"Created on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC",
-                "author": input_json["author"],
-                "time0": input_json["time0"],
-            }
-        )
-    initfields_fine
+
+    # Add global attributes
+    initfields_fine = initfields_fine.assign_attrs(
+        {
+            "history": f"Created on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC",
+            "author": input_json["author"],
+            "time0": input_json["time0"],
+        }
+    )
+
     return initfields_fine

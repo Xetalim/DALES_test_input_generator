@@ -10,7 +10,7 @@ from modular_dales.MODULE_REGISTRY import (
     SINGLETON_REGISTRY,
     SPECIAL_SERIALIZING_REGISTRY,
 )
-from modular_dales.vars import ATMO_VARS_BY_NAME, VariableDefinition
+from modular_dales.vars import get_var_by_name, VariableDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,6 @@ def asdict_user_set(obj):
             return str(obj)
         else:
             return obj  # base case for primitives, lists, dicts
-            
 
     # Dataclass objects
     # Special-case: represent the surface helper dataclasses
@@ -92,15 +91,15 @@ def asdict_user_set(obj):
     # can be reconstructed generically:
     #
     #   skin_temperature:
-    #     type: UniformSkinTemperature
+    # type: UniformSkinTemperature
     #     skin_temperature: 260
     #
     #   soil_temperature:
-    #     type: UniformSoilTemperature
+    # type: UniformSoilTemperature
     #     soil_temperature: [...]
     #
     #   soil_moisture:
-    #     type: UniformSoilMoisture
+    # type: UniformSoilMoisture
     #     soil_moisture: [...]
     #
     # The dataclass field names remain the same, we only add type so
@@ -154,7 +153,7 @@ def _deserialize_value(field_type: Any, value: Any) -> Any:
         return None
 
     if field_type is VariableDefinition:
-        return ATMO_VARS_BY_NAME[value]
+        return get_var_by_name()[value]
 
     if field_type.__name__ in SINGLETON_REGISTRY:
         return SINGLETON_REGISTRY[

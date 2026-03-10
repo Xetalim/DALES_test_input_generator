@@ -9,8 +9,8 @@ from scipy.interpolate import interp1d
 from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.modular.time_dependent_scalars import TimeDependentScalar
 from modular_dales.MODULE_REGISTRY import register_module
-from modular_dales.vars import VariableDefinition, ALL_VARIABLES
- 
+from modular_dales.vars import VariableDefinition, get_all_vars
+
 from modular_dales.Atmosphere.shapes import SHAPE_FUNCTIONS
 from modular_dales.IO_helpers import AtmosphereProfileWriter
 
@@ -44,6 +44,12 @@ def _build_default_variables() -> dict[VariableDefinition, AtmosphereVariable]:
     The dict is keyed by the variable definition.
     """
 
+    return build_default_variables(get_all_vars())
+
+
+def build_default_variables(
+    ALL_VARIABLES,
+) -> dict[VariableDefinition, AtmosphereVariable]:
     return {
         var_def: AtmosphereVariable(definition=var_def)
         for var_def in ALL_VARIABLES
@@ -59,7 +65,7 @@ def evaluate_profile_map(
 ):
     var_dic = {
         var_def: None
-        for var_def in ALL_VARIABLES
+        for var_def in get_all_vars()
         if var_def.is_profile and not var_def.must_only_be_time_dependent
     }
     for var_def, profile in profiles_by_var.items():
@@ -253,7 +259,9 @@ class AtmosphereModule(simulation_module):
         metadata={"serialize": False},
     )
 
-    collected_base_profiles: dict[VariableDefinition, Union[AtmosphericProfile, InterpolatedProfile]] = field(
+    collected_base_profiles: dict[
+        VariableDefinition, Union[AtmosphericProfile, InterpolatedProfile]
+    ] = field(
         default_factory=dict,
         init=False,
         repr=False,

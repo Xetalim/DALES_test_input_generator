@@ -157,7 +157,7 @@ def load_any_boundary_var(
         if expand_dims_time0 is None:
             raise ValueError("Missing time0!")
         if not isel:
-            logger.Warning("Are you sure you want to do this?")
+            logger.warning("Are you sure you want to do this?")
         interpolated_ds = (
             ds[f"{var}{var_postfix}"]
             .isel(isel_dict, drop=True)

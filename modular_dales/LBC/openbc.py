@@ -23,7 +23,7 @@ from modular_dales.LBC.nest_dales_in_HARMONIE import (
     prep_harmonie,
 )
 
-from modular_dales.vars import ATMO_VARS_BY_NAME
+from modular_dales.vars import get_all_vars, get_var_by_name
 
 logger = logging.getLogger(__name__)
 logger.debug("Entered module: %s", __name__)
@@ -155,6 +155,12 @@ class Nest_in_AtmosphereProfiles:
         metadata={"serialize": True},
         init=True,
     )
+    add_to_top_thl: Optional[float] = field(
+        default=None,
+        repr=True,
+        metadata={"serialize": True},
+        init=True,
+    )
     noise_std: Optional[float] = field(
         default=None,
         repr=True,
@@ -174,6 +180,18 @@ class Nest_in_AtmosphereProfiles:
         init=True,
     )
     noise_variables: Optional[List[str]] = field(
+        default=None,
+        repr=True,
+        metadata={"serialize": True},
+        init=True,
+    )
+    noise_minzt: Optional[float] = field(
+        default=None,
+        repr=True,
+        metadata={"serialize": True},
+        init=True,
+    )
+    noise_maxzt: Optional[float] = field(
         default=None,
         repr=True,
         metadata={"serialize": True},
@@ -383,6 +401,17 @@ class do_openboundary(simulation_module):
         },
         init=True,
     )
+    lbaseexner: bool = field(
+        default=True,
+        repr=True,
+        metadata={
+            "nml": "thermodynamics",
+            "key": "lbaseexner",
+            "serialize": True,
+            "raise_conflict": True,
+        },
+        init=True,
+    )
 
     def __post_init__(self):
         super().__init__(self.sim)
@@ -568,7 +597,7 @@ class do_openboundary(simulation_module):
 
         profiles_1d: Dict[str, np.ndarray] = {}
         for obc_var, atmo_name in mapping.items():
-            atmo_definition = ATMO_VARS_BY_NAME[atmo_name]
+            atmo_definition = get_var_by_name()[atmo_name]
             if atmo_definition not in atmo_module.variables:
                 raise ValueError(
                     f"AtmosphereModule is missing required profile '{atmo_name}' for open boundary variable '{obc_var}'"
@@ -712,7 +741,12 @@ class do_openboundary(simulation_module):
 
         boundaries = ["west", "east", "south", "north", "top"]
         base_vars = ["u", "v", "w", "thl", "qt", "e12"]
+        for var in mapping.keys():
+            if var not in base_vars:
+                logger.info(f"Adding variable '{var}' to base_vars")
+                base_vars.append(var)
 
+        add_to_top_thl = getattr(self.nest_in_atmosphere, "add_to_top_thl", None)
         for var in base_vars:
             atmo_name = mapping[var]
             series = timed_forcings_by_name.get(atmo_name, {})
@@ -723,6 +757,9 @@ class do_openboundary(simulation_module):
                 else:
                     prof_z = profiles_1d[var]
                 for bnd in boundaries:
+                    if var == "thl" and bnd == "top" and add_to_top_thl is not None:
+                        prof_z = prof_z.copy()
+                        prof_z[-1] += add_to_top_thl
                     da2d = _build_uniform_boundary(prof_z, var, bnd)
                     da3d = da2d.expand_dims(
                         {
@@ -746,6 +783,34 @@ class do_openboundary(simulation_module):
         # in the inflow. Noise is applied independently at each (time, x, y, z)
         # point, with a Gaussian distribution.
         noise_std = getattr(self.nest_in_atmosphere, "noise_std", None)
+        noise_minzt = getattr(self.nest_in_atmosphere, "noise_minzt", None)
+        noise_maxzt = getattr(self.nest_in_atmosphere, "noise_maxzt", None)
+        if noise_std is not None and (
+            noise_minzt is not None or noise_maxzt is not None
+        ):
+            zt = self.openBCgrid.zt
+            zm = self.openBCgrid.zm
+            if noise_minzt is not None:
+                mask = zt >= noise_minzt
+                mask_zm = zm >= noise_minzt
+            else:
+                mask = np.ones_like(zt, dtype=bool)
+                mask_zm = np.ones_like(zm, dtype=bool)
+            if noise_maxzt is not None:
+                mask &= zt <= noise_maxzt
+                mask_zm &= zm <= noise_maxzt
+            if (not np.any(mask)) or (not np.any(mask_zm)):
+                logger.warning(
+                    "Noise std is set but no vertical levels are within the specified min/max zt bounds; skipping noise addition."
+                )
+                noise_std = None
+            else:
+                logger.info(
+                    "Applying noise with std=%.3f to levels where zt is between %.2f and %.2f",
+                    noise_std,
+                    zt[mask][0],
+                    zt[mask][-1],
+                )
         if noise_std is not None and noise_std > 0.0:
             rng = np.random.default_rng(
                 getattr(self.nest_in_atmosphere, "noise_seed", None)
@@ -767,32 +832,41 @@ class do_openboundary(simulation_module):
                     name = f"{var}{bnd}"
                     if name not in ds:
                         continue
-                    arr = ds[name].values
+                    arr = ds[name]
+                    mask_3d = xr.ones_like(arr, dtype=bool)
+                    # Apply vertical mask to avoid adding noise outside the specified zt bounds
+                    if "zt" in arr.dims:
+                        mask_3d = mask_3d.where(ds.zt >= noise_minzt, other=False)
+                        mask_3d = mask_3d.where(ds.zt <= noise_maxzt, other=False)
+                    if "zm" in arr.dims:
+                        mask_3d = mask_3d.where(ds.zm >= noise_minzt, other=False)
+                        mask_3d = mask_3d.where(ds.zm <= noise_maxzt, other=False)
                     noise = rng.normal(loc=0.0, scale=noise_std, size=arr.shape)
-                    ds[name] = (ds[name].dims, arr + noise)
-
+                    # Only add noise to the active region defined by the vertical mask
+                    noise *= mask_3d
+                    ds[name] = arr + noise
         # Tracers: currently default to zero fields with scalar-like layout
-        if self.tracernames:
-            zero_prof = np.zeros_like(self.openBCgrid.zt, dtype=float)
-            for tracer in self.tracernames:
-                tracer_slices = []
-                for t in all_times:
-                    for bnd in boundaries:
-                        da2d = _build_uniform_boundary(zero_prof, "qt", bnd)
-                        da3d = da2d.expand_dims(
-                            {
-                                "time": [
-                                    np.datetime64(base_time_str)
-                                    + np.timedelta64(int(round(t)), "s")
-                                ]
-                            }
-                        )
-                        tracer_slices.append((bnd, da3d))
-                by_boundary: Dict[str, List[xr.DataArray]] = {}
-                for bnd, da in tracer_slices:
-                    by_boundary.setdefault(bnd, []).append(da)
-                for bnd, da_list in by_boundary.items():
-                    ds[f"{tracer}{bnd}"] = xr.concat(da_list, dim="time")
+        # if self.tracernames:
+        #     zero_prof = np.zeros_like(self.openBCgrid.zt, dtype=float)
+        #     for tracer in self.tracernames:
+        #         tracer_slices = []
+        #         for t in all_times:
+        #             for bnd in boundaries:
+        #                 da2d = _build_uniform_boundary(zero_prof, "qt", bnd)
+        #                 da3d = da2d.expand_dims(
+        #                     {
+        #                         "time": [
+        #                             np.datetime64(base_time_str)
+        #                             + np.timedelta64(int(round(t)), "s")
+        #                         ]
+        #                     }
+        #                 )
+        #                 tracer_slices.append((bnd, da3d))
+        #         by_boundary: Dict[str, List[xr.DataArray]] = {}
+        #         for bnd, da in tracer_slices:
+        #             by_boundary.setdefault(bnd, []).append(da)
+        #         for bnd, da_list in by_boundary.items():
+        #             ds[f"{tracer}{bnd}"] = xr.concat(da_list, dim="time")
 
         config = {
             "openboundary": {

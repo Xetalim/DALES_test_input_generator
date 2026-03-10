@@ -12,7 +12,7 @@ from modular_dales.MODULE_REGISTRY import (
     register_module,
 )
 from modular_dales.modular.time_dependent_scalars import TimeDependentScalar
-from modular_dales.vars import ATMO_VARS_BY_NAME, VariableDefinition
+from modular_dales.vars import get_var_by_name, VariableDefinition
 
 from .simulation_module import simulation_module
 
@@ -116,8 +116,8 @@ class TimedependentModule(simulation_module):
                 value = getattr(module, dataclass_field.name)
                 if not isinstance(value, TimeDependentScalar):
                     continue
-                if dataclass_field.name in ATMO_VARS_BY_NAME:
-                    var_definition = ATMO_VARS_BY_NAME[dataclass_field.name]
+                if dataclass_field.name in get_var_by_name():
+                    var_definition = get_var_by_name()[dataclass_field.name]
                 else:
                     raise NotImplementedError(
                         f"TimedependentModule cannot determine variable definition for field {dataclass_field.name}"
@@ -163,13 +163,12 @@ class TimedependentModule(simulation_module):
                 )
         return np.column_stack(columns)
 
-
     def __add__(self, obj) -> "TimedependentModule":
         if not isinstance(obj, FromLS2D):
             return NotImplemented
         self.usesLS2DforTime = obj
         return self
-    
+
     def __iadd__(self, other):
         return self.__add__(other)
 

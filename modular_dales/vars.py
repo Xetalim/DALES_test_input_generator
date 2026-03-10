@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple, Dict
+from typing import List, Tuple, Dict
 
 
 @dataclass(frozen=True)
@@ -167,7 +167,7 @@ dvdt_ls = VariableDefinition(
     time_dependent_name="dvdt_ls_timedep",
 )
 
-ALL_VARIABLES: Tuple[VariableDefinition, ...] = (
+ALL_VARIABLES: List[VariableDefinition] = [
     thls,
     ua,
     va,
@@ -191,9 +191,23 @@ ALL_VARIABLES: Tuple[VariableDefinition, ...] = (
     qtsurf,
     psurf,
     qnetav,
-)
+]
 
 ATMO_VARS_BY_NAME: Dict[str, VariableDefinition] = {v.name: v for v in ALL_VARIABLES}
+
+
+def register_var(var):
+    global ALL_VARIABLES, ATMO_VARS_BY_NAME
+    ALL_VARIABLES.append(var)
+    ATMO_VARS_BY_NAME = {v.name: v for v in ALL_VARIABLES}
+
+
+def get_var_by_name() -> Dict[str, VariableDefinition]:
+    return ATMO_VARS_BY_NAME
+
+
+def get_all_vars() -> List[VariableDefinition]:
+    return ALL_VARIABLES
 
 
 __all__ = [

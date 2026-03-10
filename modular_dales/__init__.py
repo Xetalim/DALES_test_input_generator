@@ -23,7 +23,7 @@ from .logging_wrapper import logwrap, setup_logging
 from .modular.time_dependent import (
     TimedependentModule,
 )
-from .vars import VariableDefinition, ALL_VARIABLES
+from .vars import VariableDefinition, get_all_vars
 from .Atmosphere import AtmosphereModule, AtmosphericProfile, InterpolatedProfile
 
 from .LBC import (
@@ -79,7 +79,6 @@ from .IBM.IBM import (
     IBMModifications,
     FromAHN,
 )
-
 
 __all__ = [
     # Core simulation framework
@@ -140,7 +139,7 @@ __all__ = [
     "Nest_in_Dales",
     # variables
     "VariableDefinition",
-    "ALL_VARIABLES",
+    "get_all_vars",
     # Registry and logging helpers
     "MODULE_REGISTRY",
     "SINGLETON_REGISTRY",
