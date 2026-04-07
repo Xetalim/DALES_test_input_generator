@@ -35,6 +35,7 @@ class ModifierClass:
         self.idxmesh, self.idymesh = np.meshgrid(
             np.arange(len(self.x)), np.arange(len(self.y))
         )
+        self.grid = grid
 
     def allGeometry(self):
         return np.ones_like(self.meshx, dtype=bool)

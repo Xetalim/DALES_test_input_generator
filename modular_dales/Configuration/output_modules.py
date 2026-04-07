@@ -34,6 +34,8 @@ class EasyOutputModule(simulation_module):
                 "nambudget",
                 "nambudget",
                 "namgenstat",
+                "namradfield",
+                "namradfield",
             ],
             "key": [
                 "dtav",
@@ -44,6 +46,8 @@ class EasyOutputModule(simulation_module):
                 "dtav",
                 "dtav",
                 "timeav",
+                "timeav",
+                "dtav",
                 "timeav",
             ],
             "required": True,
@@ -61,6 +65,7 @@ class EasyOutputModule(simulation_module):
                 "namcrosssection",
                 "namtimestat",
                 "nambudget",
+                "namradfield",
             ],
             "key": [
                 "lfielddump",
@@ -70,6 +75,7 @@ class EasyOutputModule(simulation_module):
                 "lcross",
                 "ltimestat",
                 "lbudget",
+                "lradfield",
             ],
             "required": True,
         },

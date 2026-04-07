@@ -7,8 +7,7 @@ import netCDF4 as nc4
 import numpy as np
 import time
 import logging
-import random
-from typing import Callable, Type, Tuple
+from typing import Callable
 from modular_dales.MODULE_REGISTRY import register_module, register_singleton
 from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.modular.time_dependent_scalars import TimeDependentScalar
@@ -36,7 +35,6 @@ from modular_dales.vars import (
     psurf,
     qnetav,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +90,8 @@ def retry_exponential(
             )
 
             time.sleep(delay)
+
+
 @register_singleton
 @register_module
 @dataclass
@@ -112,33 +112,144 @@ class FromLS2D:
 class LS2DAtmosphereModule(simulation_module):
     """Atmosphere forcing module using LS2D ERA5 processing.
 
-      * Uses LS2D to download and process ERA5 data.
-      * Calls ``era.calculate_forcings`` in LS2D.
-      * Interpolates the resulting forcings onto the DALES
-        vertical grid given by :class:`GridDales` (``grid.zt``).
-            * Provides large-scale forcings and base profiles that can be
-                injected into :class:`AtmosphereModule` and surface modules.
+    * Uses LS2D to download and process ERA5 data.
+    * Calls ``era.calculate_forcings`` in LS2D.
+    * Interpolates the resulting forcings onto the DALES
+      vertical grid given by :class:`GridDales` (``grid.zt``).
+          * Provides large-scale forcings and base profiles that can be
+              injected into :class:`AtmosphereModule` and surface modules.
     """
 
     sim: Optional["simulation_module"] = field(default=None, repr=False)
 
+    do_nudging: bool = field(
+        default=True,
+        init=True,
+        repr=True,
+        metadata={"serialize": True, "nml": "NAMNUDGE", "key": "lnudge"},
+    )
+
     # LS2D configuration (similar to jupyter_tests/jupyter_test.py)
-    central_lat: Optional[float] = None
-    central_lon: Optional[float] = None
-    area_size: float = 1.0
-    case_name: str = "ls2d_case"
-    era5_path: Optional[str] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    write_log: bool = True
-    data_source: str = "CDS"
+    central_lat: Optional[float] = field(
+        default=None,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    central_lon: Optional[float] = field(
+        default=None,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    area_size: float = field(
+        default=1.0,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    case_name: str = field(
+        default="ls2d_case",
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    era5_path: Optional[str] = field(
+        default=None,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    start_date: Optional[datetime] = field(
+        default=None,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    end_date: Optional[datetime] = field(
+        default=None,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    write_log: bool = field(
+        default=True,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    data_source: str = field(
+        default="CDS",
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
 
     # LS2D forcing calculation options
-    n_av: int = 0
-    method: str = "2nd"
+    n_av: int = field(
+        default=0,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    method: str = field(
+        default="2nd",
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
 
     # Initial turbulence level (cf. jupyter_tests/jupyter_test.py)
-    init_tke: float = 0.1
+    init_tke: float = field(
+        default=0.1,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+
+    # Nudging NetCDF output options
+    write_nudging_netcdf: bool = field(
+        default=True,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    nudging_timescale_ua: Optional[float] = field(
+        default=10800.0,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    nudging_timescale_va: Optional[float] = field(
+        default=10800.0,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    nudging_timescale_wa: Optional[float] = field(
+        default=10800.0,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    nudging_timescale_thetal: Optional[float] = field(
+        default=10800.0,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    nudging_timescale_qt: Optional[float] = field(
+        default=10800.0,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    nudging_tracers: List[Dict[str, Any]] = field(
+        default_factory=list,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
 
     # Runtime-only helpers (not serialized)
     les_input: Any = field(
@@ -154,6 +265,12 @@ class LS2DAtmosphereModule(simulation_module):
         metadata={"serialize": False},
     )
     _timedep_var_dic: Dict[VariableDefinition, np.ndarray] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+        metadata={"serialize": False},
+    )
+    _nudging_var_dic: Dict[str, np.ndarray] = field(
         default_factory=dict,
         init=False,
         repr=False,
@@ -183,7 +300,13 @@ class LS2DAtmosphereModule(simulation_module):
             self.case_name = str(self.sim.case_name)
 
         missing: List[str] = []
-        for name in ("central_lat", "central_lon", "era5_path", "start_date", "end_date"):
+        for name in (
+            "central_lat",
+            "central_lon",
+            "era5_path",
+            "start_date",
+            "end_date",
+        ):
             if getattr(self, name) is None:
                 missing.append(name)
         if missing:
@@ -241,8 +364,14 @@ class LS2DAtmosphereModule(simulation_module):
         }
 
         logger.info("LS2DAtmosphereModule: downloading ERA5 via LS2D")
-        
-        retry_exponential(lambda: ls2d.download_era5(settings, exit_when_waiting=False), max_attempts=30, max_total_time=3600, base_delay=60, max_delay=180)
+
+        retry_exponential(
+            lambda: ls2d.download_era5(settings, exit_when_waiting=False),
+            max_attempts=30,
+            max_total_time=3600,
+            base_delay=60,
+            max_delay=180,
+        )
 
         logger.info("LS2DAtmosphereModule: reading ERA5 via LS2D.Read_era5")
         era = ls2d.Read_era5(settings)
@@ -424,29 +553,21 @@ class LS2DAtmosphereModule(simulation_module):
         # TimedependentModule via hooks).
         self._timedep_var_dic = timedep
 
+        # prepare the nudging which is possibly used in openbc
+        self.prepare_nudging()
+
         # Inject LS2D-derived base profiles into an AtmosphereModule
         # if one is present in the simulation. That module will then
         # write ``init.<exp_id>.nc`` using its normal machinery.
-        try:
-            self._inject_base_profiles_into_atmosphere(base_profiles, z_dales)
-        except Exception as exc:  # pragma: no cover - robustness
-            logger.warning(
-                "LS2DAtmosphereModule: failed to inject base profiles into AtmosphereModule: %s",
-                exc,
-            )
-        try:
-            self._inject_timed_profiles(timedep, z_dales)
-        except Exception as exc:  # pragma: no cover - robustness
-            logger.warning(
-                "LS2DAtmosphereModule: failed to inject timed profiles into AtmosphereModule: %s",
-                exc,
-            )
+        self._inject_base_profiles_into_atmosphere(base_profiles, z_dales)
+        self._inject_timed_profiles(timedep, z_dales)
         logger.info(
             "LS2DAtmosphereModule: prepared LS2D base profiles and forcings for %d times and %d levels",
             nt,
             nz,
         )
         return None
+
     def _inject_timed_profiles(
         self,
         timedep: Dict[VariableDefinition, np.ndarray],
@@ -466,6 +587,7 @@ class LS2DAtmosphereModule(simulation_module):
         from modular_dales.Atmosphere.atmosphere import (
             AtmosphereModule,
             InterpolatedProfile,
+            TimedAtmosphereProfile,
         )
 
         if not self.module_exists(AtmosphereModule):
@@ -474,11 +596,16 @@ class LS2DAtmosphereModule(simulation_module):
         atmo: AtmosphereModule = self.retrieve_module(AtmosphereModule)
 
         z_list = [float(z) for z in z_dales]
-        for time_idx, time in enumerate(self._times_with_zero):
-            if not float(time) in atmo.collected_timed_profiles_by_time:
-                atmo.collected_timed_profiles_by_time[float(time)] = {}
+        configured_timed_pairs = {
+            (float(timed_profile.time), timed_profile.profile.variable)
+            for timed_profile in atmo.timed_profiles
+        }
+        for time_idx, time_value in enumerate(self._times_with_zero):
             for var_def, values in timedep.items():
-                if var_def in atmo.collected_timed_profiles_by_time[float(time)]:
+                if var_def not in atmo.variables:
+                    continue
+                timed_key = (float(time_value), var_def)
+                if timed_key in configured_timed_pairs:
                     # Respect user-configured profiles; they can override LS2D.
                     continue
                 if values.ndim != 2:
@@ -491,12 +618,19 @@ class LS2DAtmosphereModule(simulation_module):
                     )
                     continue
 
-                profile_at_time = values[:,time_idx]
-                atmo.collected_timed_profiles_by_time[float(time)][var_def] = InterpolatedProfile(
-                    variable=var_def,
-                    z=z_list,
-                    points=[float(v) for v in profile_at_time],  # transpose to (time, z)
+                profile_at_time = values[:, time_idx]
+                atmo.timed_profiles.append(
+                    TimedAtmosphereProfile(
+                        time=float(time_value),
+                        profile=InterpolatedProfile(
+                            variable=var_def,
+                            z=z_list,
+                            points=[float(v) for v in profile_at_time],
+                        ),
+                    )
                 )
+                configured_timed_pairs.add(timed_key)
+
     def write_files(self):
         """Write LS2D-derived files.
 
@@ -514,15 +648,155 @@ class LS2DAtmosphereModule(simulation_module):
         # Optional LS2D radiation background for RRTMG-style schemes
         # (backrad.inp.<exp_id>.nc). Only written when LS2D has been
         # run and provided the required variables.
-        try:
-            self._write_backrad_file(output_input_path)
-        except Exception as exc:  # pragma: no cover - robustness
-            logger.warning("LS2DAtmosphereModule: skipping backrad output: %s", exc)
+        self._write_backrad_file(output_input_path)
+
+        self._inject_nudging_init_fields_into_atmosphere()
 
         return None
 
+    def _build_nudging_init_fields(self) -> Dict[str, Dict[str, Any]]:
+        times = np.asarray(self._times_with_zero, dtype=float)
+        if times.ndim != 1 or times.size == 0:
+            raise ValueError("LS2DAtmosphereModule: missing time axis for nudging data")
+
+        if self.grid is None:
+            raise ValueError(
+                "LS2DAtmosphereModule requires grid to build nudging init fields"
+            )
+
+        nz = len(self.grid.zt)
+        nt = len(times)
+        fields = {
+            "ua_nud": {
+                "values": self._nudging_var_dic["ua"],
+                "long_name": "nudging target for eastward wind",
+                "units": "m s-1",
+            },
+            "va_nud": {
+                "values": self._nudging_var_dic["va"],
+                "long_name": "nudging target for northward wind",
+                "units": "m s-1",
+            },
+            "wa_nud": {
+                "values": self._nudging_var_dic["wa"],
+                "long_name": "nudging target for vertical velocity",
+                "units": "m s-1",
+            },
+            "thetal_nud": {
+                "values": self._nudging_var_dic["thetal"],
+                "long_name": "nudging target for liquid water potential temperature",
+                "units": "K",
+            },
+            "qt_nud": {
+                "values": self._nudging_var_dic["qt"],
+                "long_name": "nudging target for total water specific humidity",
+                "units": "kg kg-1",
+            },
+            "nudging_constant_ua": {
+                "values": np.full(
+                    (nt, nz), float(self.nudging_timescale_ua), dtype=float
+                ),
+                "long_name": "nudging timescale for ua",
+                "units": "s",
+            },
+            "nudging_constant_va": {
+                "values": np.full(
+                    (nt, nz), float(self.nudging_timescale_va), dtype=float
+                ),
+                "long_name": "nudging timescale for va",
+                "units": "s",
+            },
+            "nudging_constant_wa": {
+                "values": np.full(
+                    (nt, nz), float(self.nudging_timescale_wa), dtype=float
+                ),
+                "long_name": "nudging timescale for wa",
+                "units": "s",
+            },
+            "nudging_constant_thetal": {
+                "values": np.full(
+                    (nt, nz), float(self.nudging_timescale_thetal), dtype=float
+                ),
+                "long_name": "nudging timescale for thetal",
+                "units": "s",
+            },
+            "nudging_constant_qt": {
+                "values": np.full(
+                    (nt, nz), float(self.nudging_timescale_qt), dtype=float
+                ),
+                "long_name": "nudging timescale for qt",
+                "units": "s",
+            },
+        }
+
+        for tracer_cfg in self.nudging_tracers:
+            if not isinstance(tracer_cfg, dict):
+                raise ValueError(
+                    "LS2DAtmosphereModule.nudging_tracers entries must be dicts"
+                )
+
+            enabled = tracer_cfg.get("enabled", True)
+            if not bool(enabled):
+                continue
+
+            tracer_name = str(tracer_cfg.get("name", "")).strip()
+            if not tracer_name:
+                raise ValueError(
+                    "LS2DAtmosphereModule.nudging_tracers requires a non-empty 'name'"
+                )
+
+            source_name = str(tracer_cfg.get("source", tracer_name)).strip()
+            tracer_arr = self._reshape_les_input_field(source_name, nt, nz)
+            if not isinstance(tracer_arr, np.ndarray) or tracer_arr.ndim != 2:
+                raise ValueError(
+                    f"LS2DAtmosphereModule: tracer nudging source '{source_name}' for '{tracer_name}' "
+                    "is missing or not a profile"
+                )
+
+            tracer_units = tracer_cfg.get("units")
+            if tracer_units is None:
+                tracer_units = self._get_les_input_units(source_name) or "1"
+
+            tracer_long_name = tracer_cfg.get(
+                "long_name", f"nudging target for tracer {tracer_name}"
+            )
+            tracer_tau = tracer_cfg.get("timescale", self.nudging_timescale_qt)
+            if tracer_tau is None or float(tracer_tau) <= 0:
+                raise ValueError(
+                    f"LS2DAtmosphereModule: nudging timescale for tracer '{tracer_name}' must be > 0"
+                )
+
+            fields[f"{tracer_name}_nud"] = {
+                "values": tracer_arr,
+                "long_name": str(tracer_long_name),
+                "units": str(tracer_units),
+            }
+            fields[f"nudging_constant_{tracer_name}"] = {
+                "values": np.full((nt, nz), float(tracer_tau), dtype=float),
+                "long_name": f"nudging timescale for tracer {tracer_name}",
+                "units": "s",
+            }
+
+        return fields
+
+    def _inject_nudging_init_fields_into_atmosphere(self) -> None:
+        if not self.do_nudging or not self.write_nudging_netcdf:
+            return
+        if not self._nudging_var_dic or not self._times_with_zero:
+            return
+
+        # Local import to avoid circular imports at module load time
+        from modular_dales.Atmosphere.atmosphere import AtmosphereModule
+
+        if not self.module_exists(AtmosphereModule):
+            return
+
+        atmo = self.retrieve_module(AtmosphereModule)
+        atmo.extra_init_times = list(self._times_with_zero)
+        atmo.extra_init_time_height_fields.update(self._build_nudging_init_fields())
+
     # ------------------------------------------------------------------
-    # Extra helpers: backrad
+    # Extra helpers: backrad + nudging
     # ------------------------------------------------------------------
 
     def _write_backrad_file(self, output_input_path):
@@ -580,6 +854,99 @@ class LS2DAtmosphereModule(simulation_module):
         )
         return None
 
+    def _reshape_les_input_field(
+        self, field_name: str, nt: int, nz: int
+    ) -> Optional[np.ndarray]:
+        """Return LS2D field as (nz, nt) for profiles or (nt,) for scalars."""
+
+        if self.les_input is None or not hasattr(self.les_input, field_name):
+            return None
+
+        values = np.asarray(getattr(self.les_input, field_name).values, dtype=float)
+
+        if values.ndim == 2:
+            if values.shape == (nt, nz):
+                return values.T
+            if values.shape == (nz, nt):
+                return values
+            raise ValueError(
+                f"LS2DAtmosphereModule: unexpected shape for les_input.{field_name}: {values.shape}, "
+                f"expected ({nt}, {nz}) or ({nz}, {nt})"
+            )
+
+        if values.ndim == 1:
+            if values.size != nt:
+                raise ValueError(
+                    f"LS2DAtmosphereModule: unexpected length for les_input.{field_name}: "
+                    f"{values.size}, expected {nt}"
+                )
+            return values
+
+        raise ValueError(
+            f"LS2DAtmosphereModule: unsupported dimensions for les_input.{field_name}: {values.shape}"
+        )
+
+    def _get_les_input_units(self, field_name: str) -> Optional[str]:
+        if self.les_input is None or not hasattr(self.les_input, field_name):
+            return None
+        attrs = getattr(getattr(self.les_input, field_name), "attrs", None)
+        if isinstance(attrs, dict):
+            units = attrs.get("units") or attrs.get("unit")
+            if isinstance(units, str) and units.strip():
+                return units.strip()
+        return None
+
+    def prepare_nudging(self):
+        """Write LS2D nudging targets into ``init.<id>.nc``."""
+
+        if self.les_input is None:
+            return None
+
+        if self.grid is None:
+            raise ValueError("LS2DAtmosphereModule requires grid to write nudging data")
+
+        times = np.asarray(self._times_with_zero, dtype=float)
+        if times.ndim != 1 or times.size == 0:
+            raise ValueError("LS2DAtmosphereModule: missing time axis for nudging data")
+
+        z = np.asarray(self.grid.zt, dtype=float)
+        nt = times.size
+        nz = z.size
+
+        def _require_profile(field_name: str) -> np.ndarray:
+            arr = self._reshape_les_input_field(field_name, nt, nz)
+            if not isinstance(arr, np.ndarray) or arr.ndim != 2:
+                raise ValueError(
+                    f"LS2DAtmosphereModule: required nudging field '{field_name}' is missing or not a profile"
+                )
+            return arr
+
+        ua_nud = _require_profile("u")
+        va_nud = _require_profile("v")
+        thetal_nud = _require_profile("thl")
+        qt_nud = _require_profile("qt")
+        wa_nud = np.zeros_like(ua_nud)
+
+        self._nudging_var_dic["ua"] = ua_nud
+        self._nudging_var_dic["va"] = va_nud
+        self._nudging_var_dic["wa"] = wa_nud
+        self._nudging_var_dic["thetal"] = thetal_nud
+        self._nudging_var_dic["qt"] = qt_nud
+
+        core_timescales = {
+            "ua": self.nudging_timescale_ua,
+            "va": self.nudging_timescale_va,
+            "wa": self.nudging_timescale_wa,
+            "thetal": self.nudging_timescale_thetal,
+            "qt": self.nudging_timescale_qt,
+        }
+        for var_name, timescale in core_timescales.items():
+            if timescale is None or float(timescale) <= 0:
+                raise ValueError(
+                    f"LS2DAtmosphereModule: nudging timescale for '{var_name}' must be > 0"
+                )
+        return None
+
     # ------------------------------------------------------------------
     # Internal helpers for injection into other modules
     # ------------------------------------------------------------------
@@ -611,16 +978,23 @@ class LS2DAtmosphereModule(simulation_module):
         atmo = self.retrieve_module(AtmosphereModule)
 
         z_list = [float(z) for z in z_dales]
+        configured_base_vars = {
+            profile.variable
+            for profile in atmo.shaped_profiles + atmo.interpolated_profiles
+        }
 
         for var_def, values in base_profiles.items():
-            if var_def in atmo.collected_base_profiles:
+            if var_def in configured_base_vars:
                 # Respect user-configured profiles; they can override LS2D.
                 continue
-            atmo.collected_base_profiles[var_def] = InterpolatedProfile(
-                variable=var_def,
-                z=z_list,
-                points=[float(v) for v in values],
+            atmo.interpolated_profiles.append(
+                InterpolatedProfile(
+                    variable=var_def,
+                    z=z_list,
+                    points=[float(v) for v in values],
+                )
             )
+            configured_base_vars.add(var_def)
 
     def _inject_surface_series(
         self,
@@ -642,10 +1016,7 @@ class LS2DAtmosphereModule(simulation_module):
             return
 
         # Construct TimeDependentScalar once
-        try:
-            series = TimeDependentScalar(times=list(times), values=list(values))
-        except Exception:
-            return
+        series = TimeDependentScalar(times=list(times), values=list(values))
 
         for module in self.sim.modules:
             if module is self:

@@ -25,9 +25,8 @@ def _build_openbc_atmo_sim(
 ) -> dales_simulation:
     """Internal helper to construct an open-BC AtmosphereProfiles simulation.
 
-    When ``add_timedep`` is True, a time-dependent profile is added for
-    the geostrophic wind ``ug`` so that the open boundary conditions
-    contain multiple time slices.
+    When ``add_timedep`` is True, time-dependent nudging profiles are
+    added so that open boundary conditions contain multiple time slices.
     """
 
     sim = dales_simulation(casename, machine_conf)
@@ -102,29 +101,29 @@ def _build_openbc_atmo_sim(
 
     # External atmosphere module, not registered via sim += as openbc inits it for you.
     atmo_external = AtmosphereModule()
-    # Simple linear profiles for ug, vg, w, thetal, qt, tke used by open boundaries
+    # Simple linear nudging profiles used by open boundaries.
     atmo_external += AtmosphericProfile(
-        variable=ug,
+        variable=ua_nudge,
         shape="lin",
         params=dict(surf_val=3.0, ddz=1e-3),
     )
     atmo_external += AtmosphericProfile(
-        variable=vg,
+        variable=va_nudge,
         shape="lin",
         params=dict(surf_val=0.0, ddz=0),
     )
     atmo_external += AtmosphericProfile(
-        variable=w,
+        variable=wa_nudge,
         shape="lin",
         params=dict(surf_val=0.0, ddz=0.0),
     )
     atmo_external += AtmosphericProfile(
-        variable=thetal,
+        variable=thl_nudge,
         shape="lin",
         params=dict(surf_val=293.15, ddz=1e-2),
     )
     atmo_external += AtmosphericProfile(
-        variable=qt,
+        variable=qt_nudge,
         shape="lin",
         params=dict(surf_val=0.01, ddz=0.0),
     )
@@ -135,13 +134,13 @@ def _build_openbc_atmo_sim(
     )
 
     if add_timedep:
-        # Add a time-dependent modification for ug so that open boundaries
+        # Add time-dependent nudging profiles so open boundaries
         # see two different profiles at t=0 and t=3600 seconds.
         atmo_external += [
             TimedAtmosphereProfile(
                 time=0.0,
                 profile=AtmosphericProfile(
-                    variable=ug,
+                    variable=ua_nudge,
                     shape="lin",
                     params=dict(surf_val=3.0, ddz=1e-3),
                 ),
@@ -149,7 +148,7 @@ def _build_openbc_atmo_sim(
             TimedAtmosphereProfile(
                 time=3600.0,
                 profile=AtmosphericProfile(
-                    variable=ug,
+                    variable=ua_nudge,
                     shape="lin",
                     params=dict(surf_val=0.0, ddz=0),
                 ),
@@ -157,7 +156,7 @@ def _build_openbc_atmo_sim(
             TimedAtmosphereProfile(
                 time=0.0,
                 profile=AtmosphericProfile(
-                    variable=vg,
+                    variable=va_nudge,
                     shape="lin",
                     params=dict(surf_val=0, ddz=0),
                 ),
@@ -165,7 +164,7 @@ def _build_openbc_atmo_sim(
             TimedAtmosphereProfile(
                 time=3600.0,
                 profile=AtmosphericProfile(
-                    variable=vg,
+                    variable=va_nudge,
                     shape="lin",
                     params=dict(surf_val=3.0, ddz=1e-3),
                 ),
@@ -187,7 +186,7 @@ def _build_openbc_atmo_sim(
         noise_boundaries=["south", "west"],
         noise_std=0.1,
         noise_seed=42,
-        noise_variables=["ug", "vg"],
+        noise_variables=["ua", "va"],
     )
     sim += openbc
 

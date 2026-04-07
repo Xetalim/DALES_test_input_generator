@@ -141,6 +141,7 @@ def plot_lsm_cover(lsm_netcdf_path, plot_base_path):
 
     plt.tight_layout()
 
+    os.makedirs(plot_base_path, exist_ok=True)
     fig.savefig(plot_base_path / f"cover.png", dpi=300)
     plt.close()
     return

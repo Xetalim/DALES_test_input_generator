@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple, Dict
+from typing import List, Dict
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,7 @@ class VariableDefinition:
     must_only_be_time_dependent: bool = False
     is_profile: bool = True
     time_dependent_name: str | None = None
+    can_nudge: bool = False
 
 
 thls = VariableDefinition(
@@ -69,18 +70,24 @@ qnetav = VariableDefinition(
     can_be_time_dependent=True,
     time_dependent_name="qnetavsurf_timedep",
 )
-ua = VariableDefinition("ua", "Initial eastward velocity profile", "m/s")
-va = VariableDefinition("va", "Initial northward velocity profile", "m/s")
-w = VariableDefinition("w", "Initial vertical velocity profile", "m/s")
+ua = VariableDefinition(
+    "ua", "Initial eastward velocity profile", "m/s", can_nudge=True
+)
+va = VariableDefinition(
+    "va", "Initial northward velocity profile", "m/s", can_nudge=True
+)
+w = VariableDefinition("w", "Vertical velocity profile", "m/s")
 thetal = VariableDefinition(
     "thetal",
     "Initial liquid water potential temperature profile",
     "K",
+    can_nudge=True,
 )
 qt = VariableDefinition(
     "qt",
     "Initial total water mixing ratio profile.",
     "kg/kg",
+    can_nudge=True,
 )
 tke = VariableDefinition(
     "tke",
@@ -121,6 +128,41 @@ wa = VariableDefinition(
     "m/s",
     can_be_time_dependent=True,
     time_dependent_name="wf_ls_timedep",
+)
+ua_nudge = VariableDefinition(
+    "ua_nudge",
+    "Nudging target for eastward wind",
+    "m/s",
+    can_be_time_dependent=True,
+    can_nudge=True,
+)
+va_nudge = VariableDefinition(
+    "va_nudge",
+    "Nudging target for northward wind",
+    "m/s",
+    can_be_time_dependent=True,
+    can_nudge=True,
+)
+thl_nudge = VariableDefinition(
+    "thl_nudge",
+    "Nudging target for liquid water potential temperature",
+    "K",
+    can_be_time_dependent=True,
+    can_nudge=True,
+)
+wa_nudge = VariableDefinition(
+    "wa_nudge",
+    "Nudging target for vertical velocity",
+    "m/s",
+    can_be_time_dependent=True,
+    can_nudge=True,
+)
+qt_nudge = VariableDefinition(
+    "qt_nudge",
+    "Nudging target for total water specific humidity",
+    "kg/kg",
+    can_be_time_dependent=True,
+    can_nudge=True,
 )
 dqtdxls = VariableDefinition(
     "dqtdxls",
@@ -180,6 +222,11 @@ ALL_VARIABLES: List[VariableDefinition] = [
     dpdx,
     dpdy,
     wa,
+    ua_nudge,
+    va_nudge,
+    thl_nudge,
+    wa_nudge,
+    qt_nudge,
     dqtdxls,
     dqtdyls,
     tnqt_adv,
@@ -197,9 +244,9 @@ ATMO_VARS_BY_NAME: Dict[str, VariableDefinition] = {v.name: v for v in ALL_VARIA
 
 
 def register_var(var):
-    global ALL_VARIABLES, ATMO_VARS_BY_NAME
     ALL_VARIABLES.append(var)
-    ATMO_VARS_BY_NAME = {v.name: v for v in ALL_VARIABLES}
+    ATMO_VARS_BY_NAME.clear()
+    ATMO_VARS_BY_NAME.update({v.name: v for v in ALL_VARIABLES})
 
 
 def get_var_by_name() -> Dict[str, VariableDefinition]:
@@ -224,6 +271,11 @@ __all__ = [
     "dpdx",
     "dpdy",
     "wa",
+    "ua_nudge",
+    "va_nudge",
+    "thl_nudge",
+    "wa_nudge",
+    "qt_nudge",
     "dqtdxls",
     "dqtdyls",
     "tnqt_adv",

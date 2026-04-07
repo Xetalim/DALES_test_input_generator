@@ -9,3 +9,12 @@ __pycache__
 COG_CACHE/
 *.nc
 tmp/*
+old/*
+jupyter_tests/*
+.coverage
+
+docs/generated/
+
+logs/app.log
+
+logs/errors.log

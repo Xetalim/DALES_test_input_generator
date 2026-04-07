@@ -1,7 +1,7 @@
 import logging
 
 from dataclasses import dataclass, field
-from typing import Union, Optional, List, Mapping
+from typing import Union, Optional, List, Mapping, Any
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -16,6 +16,14 @@ from modular_dales.IO_helpers import AtmosphereProfileWriter
 
 logger = logging.getLogger(__name__)
 logger.debug("Entered module: %s", __name__)
+
+NUDGING_VAR_NAMES = {
+    "ua_nudge",
+    "va_nudge",
+    "thl_nudge",
+    "wa_nudge",
+    "qt_nudge",
+}
 
 
 @dataclass
@@ -275,6 +283,18 @@ class AtmosphereModule(simulation_module):
         repr=False,
         metadata={"serialize": False},
     )
+    extra_init_time_height_fields: dict[str, dict[str, Any]] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+        metadata={"serialize": False},
+    )
+    extra_init_times: Optional[List[float]] = field(
+        default=None,
+        init=False,
+        repr=False,
+        metadata={"serialize": False},
+    )
 
     def __post_init__(self):
         super().__init__(self.sim)
@@ -331,6 +351,7 @@ class AtmosphereModule(simulation_module):
     def _collect_base_profiles(
         self,
     ) -> dict[VariableDefinition, Union[AtmosphericProfile, InterpolatedProfile]]:
+        self.collected_base_profiles = {}
         for profile in self.shaped_profiles:
             self._validate_profile_variable(profile)
             self.collected_base_profiles[profile.variable] = profile
@@ -344,6 +365,7 @@ class AtmosphereModule(simulation_module):
     ) -> dict[
         float, dict[VariableDefinition, Union[AtmosphericProfile, InterpolatedProfile]]
     ]:
+        self.collected_timed_profiles_by_time = {}
         for timed_profile in self.timed_profiles:
             time = float(timed_profile.time)
             profile = timed_profile.profile
@@ -422,11 +444,13 @@ class AtmosphereModule(simulation_module):
 
         base_profiles = self._collect_base_profiles()
         timed_profiles = self._collect_timed_profiles()
+        timedep_param_forcings = self._build_timedep_param_forcings(base_profiles)
 
         built_profiles = evaluate_profile_map(self.grid.zt, base_profiles)
         timedep_varnames = set()
-        for var_definition, timedep_var in timed_profiles.items():
+        for timedep_var in timed_profiles.values():
             timedep_varnames.update(timedep_var.keys())
+        timedep_varnames.update(timedep_param_forcings.keys())
 
         for var_definition, variable in self.variables.items():
             variable.values = built_profiles[var_definition]
@@ -443,13 +467,83 @@ class AtmosphereModule(simulation_module):
         if self.grid is None:
             return
 
+        init_times = None
+        timedep_forcings = self.get_timedep_atmosphere_forcings()
+
+        nudging_series = {
+            var_definition: series
+            for var_definition, series in timedep_forcings.items()
+            if var_definition.name in NUDGING_VAR_NAMES
+        }
+        configured_nudging_vars = {
+            var_definition
+            for var_definition in self.collected_base_profiles.keys()
+            if var_definition.name in NUDGING_VAR_NAMES
+        }
+        if nudging_series:
+            all_time_sets = {
+                tuple(sorted(float(t) for t in series.keys()))
+                for series in nudging_series.values()
+            }
+            if len(all_time_sets) != 1:
+                raise ValueError(
+                    "All nudging variables must use identical time points in AtmosphereModule"
+                )
+            init_times = list(next(iter(all_time_sets)))
+            if 0.0 not in init_times:
+                raise ValueError(
+                    "Nudging variables must include time 0.0 in AtmosphereModule"
+                )
+        elif self.collected_timed_profiles_by_time:
+            init_times = sorted(float(t) for t in self.collected_timed_profiles_by_time)
+
+        # If a nudging variable is configured only as a base profile, treat it
+        # as constant in time over the active init time axis.
+        missing_timed_nudging = [
+            var_definition
+            for var_definition in configured_nudging_vars
+            if var_definition not in nudging_series
+        ]
+        if missing_timed_nudging:
+            if init_times is None:
+                init_times = [0.0]
+            for var_definition in missing_timed_nudging:
+                base_values = self.variables[var_definition].values
+                if base_values is None:
+                    raise ValueError(
+                        f"Nudging variable '{var_definition.name}' has no evaluated base profile"
+                    )
+                nudging_series[var_definition] = {
+                    float(t): np.asarray(base_values, dtype=float) for t in init_times
+                }
+
+        if self.extra_init_time_height_fields:
+            if self.extra_init_times is None:
+                raise ValueError(
+                    "AtmosphereModule has extra init fields but no extra_init_times"
+                )
+            extra_times = [float(t) for t in self.extra_init_times]
+            if init_times is None:
+                init_times = extra_times
+            elif len(extra_times) != len(init_times) or not np.allclose(
+                np.asarray(extra_times, dtype=float),
+                np.asarray(init_times, dtype=float),
+            ):
+                raise ValueError(
+                    "AtmosphereModule extra init field times do not match init_times"
+                )
+
         output_input_path = self.output_path / "input"
         self.profile_writer.write_base_profiles(
             self.grid.zt,
             self.variables,
             output_input_path,
             self.exp_id,
+            times=init_times,
+            time_profile_series=nudging_series if nudging_series else None,
+            extra_time_height_fields=self.extra_init_time_height_fields,
         )
+
         self.profile_writer.plot_profiles(
             self.grid.zt,
             self.variables,

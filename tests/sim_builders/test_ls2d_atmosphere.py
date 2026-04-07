@@ -10,7 +10,11 @@ from modular_dales import dales_simulation
 from modular_dales.modular.time_dependent import TimedependentModule
 from modular_dales.Atmosphere import AtmosphereModule, LS2DAtmosphereModule, FromLS2D
 from modular_dales.Configuration.defaultnamelist import DefaultNamelistModule
-from modular_dales.Configuration.output_modules import CheckSimulationModule, EasyOutputModule
+from modular_dales.modular.simulation_module import set_nml_section
+from modular_dales.Configuration.output_modules import (
+    CheckSimulationModule,
+    EasyOutputModule,
+)
 from modular_dales.Configuration.run_and_time import TimeModule
 from modular_dales.Geometry.GridDales import GridDales
 from modular_dales.Radiation.radiation import RadiationModule
@@ -53,13 +57,16 @@ def test_ls2d_atmosphere_full_ls2d_pipeline(machine_conf) -> None:
     )
     sim += domain_info
 
-    time =  TimedependentModule()
+    time = TimedependentModule()
     time += FromLS2D()  # Enable LS2D-driven time series injection into atmosphere
     sim += time
     # Configure LS2D-driven atmosphere; central_lat / central_lon and
     # case_name will be taken from GridDales and dales_simulation.
     atmo_ls2d = LS2DAtmosphereModule(
-        era5_path=sim.machine_conf.get("ls2d_conf", {}).get("era5_path", "/Users/andrevanginkel/Documents/20_Code/28_dales_input/28.01_Dales_LSM_generator/jupyter_tests/era5_data"),
+        era5_path=sim.machine_conf.get("ls2d_conf", {}).get(
+            "era5_path",
+            "/Users/andrevanginkel/Documents/20_Code/28_dales_input/28.01_Dales_LSM_generator/jupyter_tests/era5_data",
+        ),
         start_date=datetime(2016, 8, 15, hour=6),
         end_date=datetime(2016, 8, 16, hour=6),
         write_log=False,
@@ -101,16 +108,26 @@ def test_ls2d_atmosphere_full_ls2d_pipeline(machine_conf) -> None:
 
     sim += EasyOutputModule(output_interval=60)
 
-    sim += CheckSimulationModule(check_interval=360,check_tendencies=False, stop_on_invalid=False)
+    sim += CheckSimulationModule(
+        check_interval=360, check_tendencies=False, stop_on_invalid=False
+    )
 
     # Run with microphysics turned on (two-moment scheme)
-    if sim.nml.get("nammicrophysics") is None:
-        sim.nml["nammicrophysics"] = {}
-    sim.nml["nammicrophysics"]["imicro"] = 2
-
+    set_nml_section(
+        sim.nml, sim.nml_docs, "user_defined", "nammicrophysics", "imicro", 2
+    )
+    set_nml_section(sim.nml, sim.nml_docs, "user_defined", "RUN", "nprocx", 0)
+    set_nml_section(sim.nml, sim.nml_docs, "user_defined", "RUN", "nprocy", 0)
+    set_nml_section(
+        sim.nml, sim.nml_docs, "user_defined", "namnetcdfstats", "lsync", True
+    )
     # Run the full preprocessing pipeline: configure, check, prepare,
     # and write all module files, including LS2D outputs.
     sim.sim_preprocessing_pipeline()
+
+    # LS2DAtmosphereModule defaults to do_nudging=True, which should
+    # propagate to the namelist and produce nudging fields in init.nc.
+    assert sim.nml.get("NAMNUDGE", {}).get("lnudge", False)
 
     print(sim.output_path)
 
@@ -138,6 +155,24 @@ def test_ls2d_atmosphere_full_ls2d_pipeline(machine_conf) -> None:
         for name in ("ua", "va", "thetal", "qt", "tke"):
             assert name in ds_init.variables, f"Variable {name} missing in init file"
             assert ds_init[name].shape == (domain_info.kmax,)
+
+        # Nudging targets and timescales should exist when lnudge is enabled.
+        for name in (
+            "ua_nud",
+            "va_nud",
+            "wa_nud",
+            "thetal_nud",
+            "qt_nud",
+            "nudging_constant_ua",
+            "nudging_constant_va",
+            "nudging_constant_wa",
+            "nudging_constant_thetal",
+            "nudging_constant_qt",
+        ):
+            assert (
+                name in ds_init.variables
+            ), f"Nudging variable {name} missing in init file"
+            assert ds_init[name].shape == (ds_init.dims["time"], domain_info.kmax)
 
     with xr.open_dataset(forcings_path) as ds_forc:
         zh = np.asarray(ds_forc["zh"].values, dtype=float)

@@ -7,10 +7,7 @@ import numpy as np
 from modular_dales.Atmosphere.ls2d_atmosphere import FromLS2D, LS2DAtmosphereModule
 from modular_dales.Configuration import TimeModule
 from modular_dales.IO_helpers.atmosphere_writer import AtmosphereProfileWriter
-from modular_dales.MODULE_REGISTRY import (
-    MODULE_REGISTRY,
-    register_module,
-)
+from modular_dales.MODULE_REGISTRY import register_module
 from modular_dales.modular.time_dependent_scalars import TimeDependentScalar
 from modular_dales.vars import get_var_by_name, VariableDefinition
 
@@ -182,7 +179,7 @@ class TimedependentModule(simulation_module):
                 if not self.LS2Dmodule.prepare_calculation_done:
                     self.LS2Dmodule.prepare_calculation()
                     self.LS2Dmodule.prepare_calculation_done = True
-            self.timesteps = self.LS2Dmodule._times_with_zero
+            self.timesteps = list(getattr(self.LS2Dmodule, "_times_with_zero", []))
         timesteps = [float(t) for t in self.timesteps]
         if len(timesteps) != len(set(timesteps)):
             raise ValueError("TimedependentModule.timesteps contains duplicates")
@@ -209,6 +206,9 @@ class TimedependentModule(simulation_module):
         z_len = len(self.grid.zt)
 
         for var_definition, series in all_forcings.items():
+            if not var_definition.time_dependent_name:
+                # Some timed series are init-only (e.g. nudging profiles in init.nc).
+                continue
             series_times = sorted(float(t) for t in series.keys())
             if len(series_times) != len(time_values) or not np.allclose(
                 np.asarray(series_times, dtype=float),

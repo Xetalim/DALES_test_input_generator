@@ -79,6 +79,8 @@ loggers:
     level: WARNING
   matplotlib:
     level: ERROR
+  gribapi.bindings:
+    level: WARNING
 
   # asyncio:
   #   level: WARNING

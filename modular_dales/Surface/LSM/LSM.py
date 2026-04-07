@@ -73,8 +73,6 @@ class FromLCZ:
     """LCZ (Local Climate Zone) classification approach for LSM."""
 
 
-
-
 @register_module
 @dataclass
 class LSMModule(SurfaceModule):
@@ -195,7 +193,11 @@ class LSMModule(SurfaceModule):
         metadata={"serialize": True},
     )
     skin_temperature: Optional[
-        Union[UniformSkinTemperature, VaryingSkinTemperature]
+        Union[
+            UniformSkinTemperature,
+            VaryingSkinTemperature,
+            SoilTemperatureMoistureFromHarmonie,
+        ]
     ] = field(
         default=None,
         init=True,
@@ -287,9 +289,11 @@ class LSMModule(SurfaceModule):
         elif isinstance(obj, SoilTemperatureMoistureFromHarmonie):
             self.soil_moisture = obj
             self.soil_temperature = obj
+            if obj.use_as_tskin:
+                self.skin_temperature = obj
         else:
             raise TypeError(
-                "Expected LandUseModification/FromLCZ/FromLS2D/" 
+                "Expected LandUseModification/FromLCZ/FromLS2D/"
                 "SkinTemperatures/SoilTemperatures/SoilMoistures, got "
                 f"{type(obj)}"
             )
@@ -525,6 +529,11 @@ class LSMModule(SurfaceModule):
         elif isinstance(self.skin_temperature, (VaryingSkinTemperature)):
             self.lsm_writer.set_skin_temperature_array(
                 self.skin_temperature.skin_temperature, lu_type="all"
+            )
+        elif isinstance(self.skin_temperature, (SoilTemperatureMoistureFromHarmonie)):
+            self.lsm_writer.set_skin_temperature_array(
+                self.skin_temperature.get_tskin_array(),
+                lu_type="all",
             )
         else:
             raise ValueError(

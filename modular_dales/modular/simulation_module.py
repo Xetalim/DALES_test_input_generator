@@ -69,10 +69,6 @@ class simulation_module(ABC):
                 continue
             key = meta.get("key", dataclass_field.name)
             required = meta.get("required", False)
-            if not required:
-                logger.info(
-                    f"Field '{dataclass_field.name}' in module '{self.module_name}' is optional; skipping if None"
-                )
             raise_conflict = meta.get("raise_conflict", False)
             value = getattr(self, dataclass_field.name)
 
@@ -177,6 +173,7 @@ class simulation_module(ABC):
         """
 
         return self.sim.required_folder_list if self.sim is not None else None
+
     def retrieve_module(
         self, module_name: Union[str, "simulation_module", type]
     ) -> "simulation_module":

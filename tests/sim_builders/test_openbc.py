@@ -78,8 +78,8 @@ def _build_nested_sim_with_easyoutput(
 
     # Subgrid fully contained inside the supergrid domain
     subgrid = GridDales(
-        itot=16,
-        jtot=16,
+        itot=64,
+        jtot=64,
         kmax=30,
         xsize=320.0,
         ysize=320.0,
@@ -125,7 +125,7 @@ def _build_nested_sim_with_easyoutput(
     sim += atmo
 
     # Short runtime so the produced files stay small
-    sim += TimeModule(xtime=0.0, xday=1, xyear=2025, runtime=600)
+    sim += TimeModule(xtime=0.0, xday=1, xyear=2025, runtime=60)
 
     # Simple surface module
     sim += ConstantSurfaceTemperatureModule(
@@ -146,7 +146,7 @@ def _build_nested_sim_with_easyoutput(
 
     # Enable fielddumps and cross-sections via EasyOutputModule
     sim += EasyOutputModule(
-        output_interval=10,
+        output_interval=1,
         enable_output=True,
     )
 
@@ -168,7 +168,7 @@ def _assert_crosssection_matches_fielddump(
     var: str = "thl",
     fd_coord_dim: str = "xt",
     cs_coord_dim: str = "xt",
-    index: int = 0,
+    cross_index: int = 0,
     time_index: int = 0,
     rtol: float = 1e-6,
     atol: float = 1e-8,
@@ -222,6 +222,9 @@ def _assert_crosssection_matches_fielddump(
             )
             return field_slice_local, cross_slice_local, other_index
 
+        coord_value = ds_other.coords[cs_coord_dim].values[cross_index]
+        index = list(ds_ref[fd_coord_dim].values).index(coord_value)
+
         # First try the requested index directly.
         base_field_slice, base_cross_slice, base_other_index = _get_slices(index)
 
@@ -233,7 +236,7 @@ def _assert_crosssection_matches_fielddump(
         else:
             # If that fails, try small shifts in the reference index to detect
             # a possible off-by-N error between fielddump and cross-section.
-            max_shift = 4
+            max_shift = 50
             for shift in range(-max_shift, max_shift + 1):
                 if shift == 0:
                     continue
@@ -250,7 +253,7 @@ def _assert_crosssection_matches_fielddump(
                 ):
                     # Slices only match with a shifted index: report and fail
                     raise AssertionError(
-                        "Fielddump/crosssection slices do not match at index "
+                        f"{fielddump_path.name}/{crosssection_path.name} slices do not match at index "
                         f"{index} along '{fd_coord_dim}', but do match when the "
                         f"fielddump index is shifted by {shift} (to {idx_shift}) "
                         f"and crosssection index {other_idx_s} is used along "
@@ -258,6 +261,12 @@ def _assert_crosssection_matches_fielddump(
                         f"{shift} between fielddump and crosssection coordinates."
                     )
                 else:
+                    print(
+                        shift,
+                        np.mean(
+                            np.abs(field_slice_s.values - cross_slice_s.values) ** 2
+                        ),
+                    )
                     # This shift did not help; try the next one.
                     continue
 
@@ -270,7 +279,21 @@ def _assert_crosssection_matches_fielddump(
             )
 
 
-def test_crosssection_matches_fielddump_at_grid_index(machine_conf) -> None:
+@pytest.fixture(
+    params=[
+        pytest.param(1, id="1_cores"),
+        pytest.param(2, id="2_cores"),
+        pytest.param(4, id="4_cores"),
+        pytest.param(8, id="8_cores"),
+    ]
+)
+def core_changer(request):
+    return request.param
+
+
+def test_crosssection_matches_fielddump_at_grid_index(
+    machine_conf, core_changer
+) -> None:
     """Ensure cross-section values equal fielddump values at same grid index.
 
     This is an end-to-end test: it builds a small nested simulation with
@@ -279,9 +302,10 @@ def test_crosssection_matches_fielddump_at_grid_index(machine_conf) -> None:
     taken from the cross-section grid.
     """
 
-    mc = machine_conf("openbc_crosssection_fielddump")
+    conf = machine_conf("openbc_crosssection_fielddump")
+    conf["job_conf"]["numcores"] = core_changer
     sim = _build_nested_sim_with_easyoutput(
-        mc, casename="openbc_crosssection_fielddump"
+        conf, casename="openbc_crosssection_fielddump"
     )
     sim.sim_preprocessing_pipeline()
 
@@ -301,36 +325,34 @@ def test_crosssection_matches_fielddump_at_grid_index(machine_conf) -> None:
         outdir / "crossxz.nc",
         outdir / "crossxy.nc",
     ]
-    crosssection_file = next((p for p in candidates if p.is_file()), None)
-    if crosssection_file is None:
-        pytest.skip("No cross-section file (crossyz/xz/xy.nc) found for comparison")
-    var = "v"
-    # Choose which coordinate dimension is held constant in the cross-section.
-    if crosssection_file.name == "crossyz.nc":
-        if var == "u":
-            fd_coord_dim = "xm"
-            cs_coord_dim = "xm"
-        else:
-            fd_coord_dim = "xt"
-            cs_coord_dim = "xt"
-    elif crosssection_file.name == "crossxz.nc":
-        if var == "v":
-            fd_coord_dim = "ym"
-            cs_coord_dim = "ym"
-        else:
-            fd_coord_dim = "yt"
-            cs_coord_dim = "yt"
-    else:  # crossxy.nc
-        fd_coord_dim = "zt"
-        cs_coord_dim = "zt"
+    var = "thl"
+    for crosssection_file in candidates:
+        # Choose which coordinate dimension is held constant in the cross-section.
+        if crosssection_file.name == "crossyz.nc":
+            if var == "u":
+                fd_coord_dim = "xm"
+                cs_coord_dim = "xm"
+            else:
+                fd_coord_dim = "xt"
+                cs_coord_dim = "xt"
+        elif crosssection_file.name == "crossxz.nc":
+            if var == "v":
+                fd_coord_dim = "ym"
+                cs_coord_dim = "ym"
+            else:
+                fd_coord_dim = "yt"
+                cs_coord_dim = "yt"
+        else:  # crossxy.nc
+            fd_coord_dim = "zt"
+            cs_coord_dim = "zt"
 
-    # Use the cross-section grid as reference and compare against fielddump.
-    _assert_crosssection_matches_fielddump(
-        crosssection_file,
-        fielddump_file,
-        var=var,
-        fd_coord_dim=fd_coord_dim,
-        cs_coord_dim=cs_coord_dim,
-        index=0,
-        time_index=0,
-    )
+        # Use the cross-section grid as reference and compare against fielddump.
+        _assert_crosssection_matches_fielddump(
+            fielddump_file,
+            crosssection_file,
+            var=var,
+            fd_coord_dim=fd_coord_dim,
+            cs_coord_dim=cs_coord_dim,
+            cross_index=0,
+            time_index=5,
+        )

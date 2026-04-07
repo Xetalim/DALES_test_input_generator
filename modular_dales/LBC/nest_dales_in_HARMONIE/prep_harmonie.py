@@ -16,6 +16,7 @@ from modular_dales.LBC.nest_dales_in_HARMONIE.helper import (
     calcBaseprof,
     differentiate,
 )
+from modular_dales.IO_helpers.raster import fix_lambert_offsets
 
 logger = logging.getLogger(__name__)
 logger.debug("Entered module: %s", __name__)
@@ -527,22 +528,26 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
     # first get the time and transform data....
     x_sw, y_sw = grid.x0, grid.y0
     var = variables[0]
-    ds_ml = xr.open_dataset(
-        input_json["HARMONIE_ml_glob"],
-        decode_coords="all",
-        engine="netcdf4",
-        # parallel=False,
-        chunks={"time": input_json["tchunk"], "lev": -1},
-        # chunks={"x": "auto", "y": "auto", "time": "auto", "lev": -1},
+    ds_ml = fix_lambert_offsets(
+        xr.open_mfdataset(
+            input_json["HARMONIE_ml_glob"],
+            decode_coords="all",
+            engine="netcdf4",
+            # parallel=False,
+            chunks={"time": input_json["tchunk"], "lev": -1},
+            # chunks={"x": "auto", "y": "auto", "time": "auto", "lev": -1},
+        )
     )
     transform, _, _, time = get_transform_time(input_json, var, ds_ml)
 
-    ds_sfc = xr.open_dataset(
-        input_json["HARMONIE_sfc_glob"],
-        decode_coords="all",
-        # parallel=False,
-        engine="netcdf4",
-        chunks={"time": input_json["tchunk"]},
+    ds_sfc = fix_lambert_offsets(
+        xr.open_mfdataset(
+            input_json["HARMONIE_sfc_glob"],
+            decode_coords="all",
+            # parallel=False,
+            engine="netcdf4",
+            chunks={"time": input_json["tchunk"]},
+        )
     )
 
     logger.debug("Succesfully read in HARMONIE_ml_glob")

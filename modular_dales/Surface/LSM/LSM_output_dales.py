@@ -28,7 +28,7 @@ class LSM_output_dales:
     @logwrap
     def __init__(
         self,
-        grid,
+        grid: GridDales,
         lu_types,
         soil_levels=4,
         debug=False,
@@ -56,7 +56,7 @@ class LSM_output_dales:
         self.nlu = len(lu_types)
         self.lu_types = None
         self.soil_levels = soil_levels
-        self.grid = grid
+        self.grid: GridDales = grid
 
         self.value_dic = {
             "t_soil": np.zeros((soil_levels, grid.jtot, grid.itot), dtype=dtype_float),
@@ -111,11 +111,11 @@ class LSM_output_dales:
         self.setup_lu_types(lu_types)
 
     def from_lcz(self):
-        if self.grid.proj4 is None:
+        if self.grid.crs is None:
             raise ValueError(
                 "Need a valid projection to get LSM data from a real world map!"
             )
-        print(self.grid.proj4)
+        print(self.grid.crs)
         print("Hello world")
 
         # cog = get_from_LCZ.get_cog(self.grid)
@@ -288,6 +288,7 @@ class LSM_output_dales:
             dims = ["y", "x"] if data.ndim == 2 else ["z", "y", "x"]
             var = nc.createVariable(field, float, dims)
             var[:] = data[:]
+        self.grid.set_cf_grid_mapping(nc, "Lambert_Conformal", self.fields)
 
         luname = nc4.stringtochar(np.array(self.luname, "S32"))
         var_lun = nc.createVariable(

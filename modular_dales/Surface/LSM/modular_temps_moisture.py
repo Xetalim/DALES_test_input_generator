@@ -5,6 +5,7 @@ import numpy as np
 import xarray as xr
 
 from modular_dales.Geometry import GridDales
+from modular_dales.IO_helpers.raster import fix_lambert_offsets
 from modular_dales.MODULE_REGISTRY import register_module, register_special_serializing
 
 
@@ -83,6 +84,9 @@ class SoilTemperatureMoistureFromHarmonie:
     harmonie_soil_valid_time: str = field(
         default=None, init=True, repr=True, metadata={"serialize": True}
     )
+    use_as_tskin: bool = field(
+        default=False, init=True, repr=True, metadata={"serialize": True}
+    )
     data: Optional[xr.Dataset] = field(
         default=None, init=False, repr=False, metadata={"serialize": False}
     )
@@ -109,10 +113,12 @@ class SoilTemperatureMoistureFromHarmonie:
         self, grid: GridDales, dz_soil: Union[np.ndarray, List]
     ):
         # Placeholder for any processing needed to read the HARMONIE soil file and extract soil moisture profiles
-        ds_soil = xr.open_dataset(
-            self.harmonie_soil_file,
-            decode_coords="all",
-            engine="netcdf4",
+        ds_soil = fix_lambert_offsets(
+            xr.open_dataset(
+                self.harmonie_soil_file,
+                decode_coords="all",
+                engine="netcdf4",
+            )
         )
         if isinstance(dz_soil, list):
             dz_soil = np.array(dz_soil)
@@ -142,12 +148,16 @@ class SoilTemperatureMoistureFromHarmonie:
             )
             .rename({"lev": "k_soil", "sot": "t_soil", "liqvsm": "theta_soil"})
         )
+        if self.use_as_tskin:
+            tskin = self.data.t_soil.isel(k_soil=0)
         self.data = (
             self.data.assign_coords(k_soil=self.harmonie_soil_height_levels)
             .rename({"k_soil": "z_soil"})
             .interp(z_soil=dz_soil[::-1].cumsum()[::-1], assume_sorted=False)
             .drop_dims("bnds")
         )
+        if self.use_as_tskin:
+            self.data["tskin"] = tskin
 
     def get_soil_moisture_array(
         self, grid: GridDales, dz_soil: Union[np.ndarray, List]
@@ -155,6 +165,13 @@ class SoilTemperatureMoistureFromHarmonie:
         if self.data is None:
             self.get_soil_temp_moisture_arrays(grid, dz_soil)
         return self.data.theta_soil.values
+
+    def get_tskin_array(self) -> np.ndarray:
+        if self.data is None:
+            raise ValueError(
+                "Data not loaded. Call get_soil_temp_moisture_arrays first to load the data from the HARMONIE soil file."
+            )
+        return self.data.tskin.values
 
     def get_soil_temperature_array(
         self, grid: GridDales, dz_soil: Union[np.ndarray, List]

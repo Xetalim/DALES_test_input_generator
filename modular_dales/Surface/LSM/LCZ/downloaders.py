@@ -32,7 +32,7 @@ def cached_cog_subset_from_url(
     # ---- deterministic cache key ----
     key_str = (
         f"{cog_url}|"
-        f"{grid.proj4}|"
+        f"{grid.crs}|"
         f"{grid.xt[0]:.4f}|{grid.xt[-1]:.4f}|"
         f"{grid.yt[0]:.4f}|{grid.yt[-1]:.4f}|"
         f"{pad}"
@@ -50,7 +50,7 @@ def cached_cog_subset_from_url(
 
     # ---- open COG and compute window ----
     with rasterio.open(cog_url) as ds:
-        transformer = Transformer.from_crs(grid.proj4, ds.crs, always_xy=True)
+        transformer = Transformer.from_crs(grid.crs, ds.crs, always_xy=True)
 
         xmin, ymin = transformer.transform(grid.xt[0], grid.yt[0])
         xmax, ymax = transformer.transform(grid.xt[-1], grid.yt[-1])
@@ -123,7 +123,7 @@ def get_cached_esa(cache_dir, grid: GridDales):
 
     # ---- deterministic cache key ----
     key_str = (
-        f"{grid.proj4}|"
+        f"{grid.crs}|"
         f"{grid.xt[0]:.4f}|{grid.xt[-1]:.4f}|"
         f"{grid.yt[0]:.4f}|{grid.yt[-1]:.4f}|"
     )
@@ -146,7 +146,7 @@ def get_cached_esa(cache_dir, grid: GridDales):
     # Transform AOI bbox to tile CRS (EPSG:4326)
     # -------------------------------
 
-    transformer = Transformer.from_crs(grid.proj4, dst_crs, always_xy=True)
+    transformer = Transformer.from_crs(grid.crs, dst_crs, always_xy=True)
     xmin, ymin = transformer.transform(grid.xt[0], grid.yt[0])
     xmax, ymax = transformer.transform(grid.xt[-1], grid.yt[-1])
 
@@ -237,7 +237,7 @@ def query_zip_virtual_mosaic(zip_file_path, grid, pad=0):
     datasets = [WarpedVRT(rasterio.open(p)) for p in vsizip_paths]
 
     # Transform grid coordinates to CRS of the first dataset
-    transformer = Transformer.from_crs(grid.proj4, datasets[0].crs, always_xy=True)
+    transformer = Transformer.from_crs(grid.crs, datasets[0].crs, always_xy=True)
     xmin, ymin = transformer.transform(grid.xt[0], grid.yt[0])
     xmax, ymax = transformer.transform(grid.xt[-1], grid.yt[-1])
 

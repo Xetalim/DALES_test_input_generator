@@ -123,13 +123,16 @@ class slbCreatorClass(ModifierClass):
                     nc.createVariable(f"z_{var}", float, f"z_{var}")[:] = np.arange(
                         var_dic["n_layers"]
                     )
-                    nc.createVariable(var, dtype, [f"z_{var}", "y", "x"])[:, :, :] = (
-                        getattr(self, var)[:, :, :]
+                    nc.createVariable(var, dtype, ["y", "x", f"z_{var}"])[:, :, :] = (
+                        np.transpose(getattr(self, var)[:, :, :], [1, 2, 0])
                     )
                 else:
                     nc.createVariable(var, dtype, ["y", "x"])[:, :] = getattr(
                         self, var
                     )[:, :]
+            self.grid.set_cf_grid_mapping(
+                nc, "Lambert_Conformal", list(self.vars.keys())
+            )
 
 
 @register_module

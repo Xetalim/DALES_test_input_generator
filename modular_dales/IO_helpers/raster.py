@@ -5,6 +5,7 @@ import rasterio
 from pyproj import CRS
 from rasterio.transform import from_origin
 from rasterio.warp import Resampling, reproject
+import rasterio.fill
 import xarray as xr
 
 if TYPE_CHECKING:
@@ -93,7 +94,7 @@ def get_reproject(
         fillnodata (bool, optional): Whether to fill no-data values in the
             reprojected raster. Defaults to True.
     """
-    dst_crs = CRS.from_proj4(grid.proj4)
+    dst_crs = CRS(grid.crs)
 
     dx = grid.xt[1] - grid.xt[0]
     dy = grid.yt[1] - grid.yt[0]
@@ -129,9 +130,75 @@ def get_reproject(
 
     if fillnodata and np.any(np.isclose(dst, profile["nodata"])):
         logger.warning("NANs found in raster. Filling in with rasterio.fill!!")
-        dst = fillnodata(dst, mask=np.logical_not(np.isclose(dst, profile["nodata"])))
+        dst = rasterio.fill.fillnodata(
+            dst, mask=np.logical_not(np.isclose(dst, profile["nodata"]))
+        )
 
     with rasterio.open(out_file, "w", **out_profile) as ds:
         ds.write(dst)
 
     return
+
+
+def fix_lambert_offsets(ds):
+    """Fix Lambert false_easting/false_northing by shifting x/y coordinates.
+
+    With ``decode_coords='all'`` xarray may change how CF grid mapping
+    information is represented, so this helper tries multiple strategies
+    to locate the grid-mapping variable:
+
+    1. Look for a ``grid_mapping`` attribute on data variables.
+    2. Fallback: search all variables for typical grid-mapping attributes
+       (``grid_mapping_name``, ``false_easting``, ``false_northing``).
+
+    If no suitable variable is found or no offsets are present, the input
+    dataset is returned unchanged.
+    """
+
+    # 1) Try the classic CF pattern: data_var.attrs['grid_mapping']
+    gridmap_name = None
+    for v in ds.data_vars:
+        gm_name = ds[v].attrs.get("grid_mapping")
+        if gm_name:
+            gridmap_name = gm_name
+            break
+
+    # 2) Fallback for decode_coords='all' or slightly non-standard files:
+    if gridmap_name is None:
+        for v in ds.variables:
+            attrs = ds[v].attrs
+            if (
+                "grid_mapping_name" in attrs
+                or "false_easting" in attrs
+                or "false_northing" in attrs
+            ):
+                gridmap_name = v
+                break
+
+    if gridmap_name is None:
+        logger.warning(
+            "fix_lambert_offsets: no grid mapping variable found; skipping offset fix"
+        )
+        return ds
+
+    gm = ds[gridmap_name]
+
+    fe = float(gm.attrs.get("false_easting", 0.0) or 0.0)
+    fn = float(gm.attrs.get("false_northing", 0.0) or 0.0)
+
+    # Nothing to do if there are no offsets
+    if fe == 0.0 and fn == 0.0:
+        return ds
+
+    # create absolute projected coordinates (try coords first, then variables)
+    x = ds.coords["x"] if "x" in ds.coords else ds["x"]
+    y = ds.coords["y"] if "y" in ds.coords else ds["y"]
+
+    ds = ds.assign_coords(x=ds["x"] - fe, y=ds["y"] - fn)
+    ds["x"].attrs = x.attrs
+    ds["y"].attrs = y.attrs
+    # remove offsets to avoid double-counting later
+    ds[gridmap_name].attrs["false_easting"] = 0.0
+    ds[gridmap_name].attrs["false_northing"] = 0.0
+
+    return ds
