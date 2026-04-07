@@ -27,6 +27,7 @@ from modular_dales.Configuration import (
     DefaultNamelistModule,
     EasyOutputModule,
     TimeModule,
+    SamplingModule,
 )
 from modular_dales.Geometry import GridDales
 from modular_dales.LBC import Nest_in_Dales, NestingTopology, do_openboundary
@@ -64,7 +65,7 @@ logger = logging.getLogger(__name__)
 
 
 if __name__ == "__main__":
-    pytest.skip("unsupported case")
+    # pytest.skip("unsupported case")
     with open("machine_conf.yaml", "r") as file:
         machine_conf = yaml.safe_load(file)
     """Create a basic DALES simulation with minimal configuration.
@@ -100,8 +101,8 @@ if __name__ == "__main__":
 
     # this is the grid that is inside us
     subgrid = GridDales(
-        itot=64,
-        jtot=64,
+        itot=32,
+        jtot=32,
         kmax=70,
         xsize=320.0,
         ysize=320.0,
@@ -135,16 +136,25 @@ if __name__ == "__main__":
     logger.info("Added GridModule")
 
     atmo = AtmosphereModule()
-    atmo += AtmosphericProfile(
-        variable=ua, shape="lin", params=dict(surf_val=0.5, ddz=0)
-    )
+    atmo += AtmosphericProfile(variable=ua, shape="lin", params=dict(surf_val=0, ddz=0))
+    atmo += AtmosphericProfile(variable=ug, shape="lin", params=dict(surf_val=0, ddz=0))
     atmo += AtmosphericProfile(
         variable=va, shape="lin", params=dict(surf_val=3, ddz=1e-3)
     )
     atmo += AtmosphericProfile(
-        variable=thetal, shape="lin", params=dict(surf_val=293.15, ddz=1e-2)
+        variable=vg, shape="lin", params=dict(surf_val=3, ddz=1e-3)
     )
-    atmo += AtmosphericProfile(variable=qt, shape="lin", params=dict(surf_val=0, ddz=0))
+    # atmo += AtmosphericProfile(
+    #     variable=thetal, shape="lin", params=dict(surf_val=293.15, ddz=1e-2)
+    # )
+    atmo += InterpolatedProfile(
+        variable=thetal,
+        z=[0, 200, 210, 500],
+        points=[293.15, 293.15, 298.15, 301.15],
+    )
+    atmo += AtmosphericProfile(
+        variable=qt, shape="lin", params=dict(surf_val=0.0018, ddz=0)
+    )
     atmo += AtmosphericProfile(variable=wa, shape="lin", params=dict(surf_val=0, ddz=0))
     atmo += InterpolatedProfile(
         variable=tke,
@@ -157,7 +167,7 @@ if __name__ == "__main__":
         xday=1,
         xtime=12.0,
         xyear=2023,
-        runtime=600,
+        runtime=1300,
         startyear=2023,
         startmonth=1,
         startday=1,
@@ -196,28 +206,27 @@ if __name__ == "__main__":
     sim += nesting
 
     sim += EasyOutputModule(
-        output_interval=30,
+        output_interval=2,
+        enable_output=True,
+    )
+    sim += SamplingModule(
+        output_interval=2,
         enable_output=True,
     )
 
     if sim.nml.get("namchecksim") is None:
         sim.nml["namchecksim"] = {}
     sim.nml["namchecksim"]["tcheck"] = 60
-
-    if sim.nml.get("thermodynamics") is None:
-        sim.nml["thermodynamics"] = {}
-    sim.nml["thermodynamics"]["lconstexner"] = True
-
     sim.sim_preprocessing_pipeline()
-    exit()
 
+    exit()
     wd = os.getcwd()
     os.chdir(sim.output_path.as_posix())
     subprocess.run("./job.001", check=False)
     run_result = subprocess.run(
         ["/Users/andrevanginkel/bin/combine.sh", "run_001"], check=False
     )
-    # print(run_result.stderr)
+    print(run_result.stderr)
     os.chdir(wd)
 
     # Machine configuration (would normally come from machine_conf.yaml)
@@ -234,16 +243,25 @@ if __name__ == "__main__":
     logger.info("Added GridModule")
 
     atmo = AtmosphereModule()
-    atmo += AtmosphericProfile(
-        variable=ua, shape="lin", params=dict(surf_val=0.5, ddz=0)
-    )
+    atmo += AtmosphericProfile(variable=ua, shape="lin", params=dict(surf_val=0, ddz=0))
+    atmo += AtmosphericProfile(variable=ug, shape="lin", params=dict(surf_val=0, ddz=0))
     atmo += AtmosphericProfile(
         variable=va, shape="lin", params=dict(surf_val=3, ddz=1e-3)
     )
     atmo += AtmosphericProfile(
-        variable=thetal, shape="lin", params=dict(surf_val=293.15, ddz=1e-2)
+        variable=vg, shape="lin", params=dict(surf_val=3, ddz=1e-3)
     )
-    atmo += AtmosphericProfile(variable=qt, shape="lin", params=dict(surf_val=0, ddz=0))
+    # atmo += AtmosphericProfile(
+    #     variable=thetal, shape="lin", params=dict(surf_val=293.15, ddz=1e-2)
+    # )
+    atmo += InterpolatedProfile(
+        variable=thetal,
+        z=[0, 200, 210, 500],
+        points=[293.15, 293.15, 298.15, 301.15],
+    )
+    atmo += AtmosphericProfile(
+        variable=qt, shape="lin", params=dict(surf_val=0.0018, ddz=0)
+    )
     atmo += AtmosphericProfile(variable=wa, shape="lin", params=dict(surf_val=0, ddz=0))
     atmo += InterpolatedProfile(
         variable=tke,
@@ -256,7 +274,7 @@ if __name__ == "__main__":
         xday=1,
         xtime=12.0,
         xyear=2023,
-        runtime=600,
+        runtime=1200,
         startyear=2023,
         startmonth=1,
         startday=1,
@@ -283,34 +301,46 @@ if __name__ == "__main__":
 
     openbc = do_openboundary(
         # tracernames=["tracer1", "tracer2"],
-        time0="2023-01-01T12:00:10",
+        time0="2023-01-01T12:00:00",
         start="2023-01-01T12:00:00",
         end="2023-01-02T12:00:00",
         e12=0.01,
         dxint=subgrid.xsize / subgrid.itot,
         dyint=subgrid.ysize / subgrid.jtot,
-        tauh=20,
-        taum=0,
-        # linithetero=False,
+        tauh=600,
+        taum=600,
+        dxturb=subgrid.xsize / subgrid.itot,
+        dyturb=subgrid.ysize / subgrid.jtot,
+        linithetero=True,
     )
     openbc += Nest_in_Dales(
-        # inpath=sim.output_path / "input/",
+        inpath=sim.output_path / "input/",
         inpath_coarse=sim.output_path / "input/",
         outpath_coarse=sim.output_path / "run_001/",
         outpath_coarse_old=sim.output_path / "run_001/",
     )
     sim2 += openbc
     sim2 += EasyOutputModule(
-        output_interval=5,
+        output_interval=2,
         enable_output=True,
     )
-
+    sim2 += SamplingModule(
+        output_interval=2,
+        enable_output=True,
+    )
+    if sim2.nml.get("RUN") is None:
+        sim2.nml["RUN"] = {}
+    if sim2.nml["RUN"].get("nprocx") is None:
+        sim2.nml["RUN"]["nprocx"] = 0
+    if sim2.nml["RUN"].get("nprocy") is None:
+        sim2.nml["RUN"]["nprocy"] = 0
     if sim2.nml.get("namchecksim") is None:
         sim2.nml["namchecksim"] = {}
     sim2.nml["namchecksim"]["tcheck"] = 60
-    if sim2.nml.get("thermodynamics") is None:
-        sim2.nml["thermodynamics"] = {}
-    sim2.nml["thermodynamics"]["lconstexner"] = True
+    if sim2.nml.get("solver") is None:
+        sim2.nml["solver"] = {}
+    sim2.nml["solver"]["solver_id"] = 100
+    sim2.nml["solver"]["tolerance"] = 1e-4
 
     sim2.sim_preprocessing_pipeline()
 

@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 
 if __name__ == "__main__":
-    pytest.skip("unsupported case")
+    # pytest.skip("unsupported case")
     with open("machine_conf.yaml", "r") as file:
         machine_conf = yaml.safe_load(file)
     logger.info("=" * 70)

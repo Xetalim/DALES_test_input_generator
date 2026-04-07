@@ -94,15 +94,15 @@ if __name__ == "__main__":
     logger.info("=" * 70)
 
     # Create minimal configuration with just case name and output directory
-    case_name = "017_test"
+    case_name = "028_netcdf_test"
     output_directory = None
 
     supergrid = GridDales(
-        itot=64,
-        jtot=64,
+        itot=32,
+        jtot=32,
         kmax=80,
-        xsize=640.0,
-        ysize=640.0,
+        xsize=320.0,
+        ysize=320.0,
         kmax_soil=4,
         xlat=52.25,
         xlon=5.45,
@@ -118,13 +118,13 @@ if __name__ == "__main__":
         itot=64,
         jtot=64,
         kmax=70,
-        xsize=320.0,
-        ysize=320.0,
+        xsize=160.0,
+        ysize=160.0,
         kmax_soil=4,
         xlat=52.25,
         xlon=5.45,
-        x0=160.0,
-        y0=160.0,
+        x0=80.0,
+        y0=80.0,
         alpha=1.0,
         dz0=20,
         # "proj4": "+proj=..."  # optional
@@ -242,56 +242,63 @@ if __name__ == "__main__":
     )
 
     # External atmosphere module, not registered via sim += as openbc inits it for you.
-    # atmo_external = AtmosphereModule()
-    # atmo_external.variables = build_default_variables(get_all_vars())
-    # for prof in atmo.shaped_profiles:
-    #     if prof.variable != co2:
-    #         atmo_external.shaped_profiles.append(prof)
-    # for prof in atmo.interpolated_profiles:
-    #     if prof.variable != co2:
-    #         atmo_external.interpolated_profiles.append(prof)
-    # atmo_external += InterpolatedProfile(
-    #     variable=co2,
-    #     z=[0, 400, 410, 1600],
-    #     points=[
-    #         0,
-    #         0,
-    #         TimeDependentScalar(times=np.linspace(0, 9600, 960), values=np.zeros(960)),
-    #         0,
-    #     ],
-    # )
+    atmo_external = AtmosphereModule()
+    atmo_external.variables = build_default_variables(get_all_vars())
+    for prof in atmo.shaped_profiles:
+        if prof.variable != co2:
+            atmo_external.shaped_profiles.append(prof)
+    for prof in atmo.interpolated_profiles:
+        if prof.variable != co2:
+            atmo_external.interpolated_profiles.append(prof)
+    atmo_external += InterpolatedProfile(
+        variable=co2,
+        z=[0, 400, 410, 1600],
+        points=[
+            0,
+            0,
+            TimeDependentScalar(times=np.linspace(0, 9600, 960), values=np.zeros(960)),
+            0,
+        ],
+    )
 
     # Basic openboundary configuration using the external atmosphere
-    # openbc = do_openboundary(
-    #     time0="2023-01-01T12:00:00",
-    #     start="2023-01-01T12:00:00",
-    #     end="2023-01-02T12:00:00",
-    #     e12=1,
-    #     tauh=0,
-    #     taum=100,
-    #     dxint=supergrid.xsize,  # / supergrid.itot,
-    #     dyint=supergrid.ysize,  # / supergrid.jtot,
-    #     tracernames=["other"],
-    # )
+    openbc = do_openboundary(
+        time0="2023-01-01T12:00:00",
+        start="2023-01-01T12:00:00",
+        end="2023-01-02T12:00:00",
+        e12=1,
+        tauh=0,
+        taum=100,
+        dxint=supergrid.xsize,  # / supergrid.itot,
+        dyint=supergrid.ysize,  # / supergrid.jtot,
+        tracernames=["other"],
+    )
 
-    # openbc += Nest_in_AtmosphereProfiles(
-    #     atmosphere_module=atmo_external,
-    #     variable_mapping={"other": "other"},
-    #     noise_boundaries=["south", "west", "east", "north"],
-    #     noise_variables=["thl"],
-    #     noise_std=1,
-    #     noise_seed=0,
-    #     noise_minzt=0,
-    #     noise_maxzt=400,
-    #     add_to_top_thl=0.5,  # add 0.5 K to the top boundary thl to make sure we don't get a downdraft along the top everywhere
-    # )
-    # sim += openbc
+    openbc += Nest_in_AtmosphereProfiles(
+        atmosphere_module=atmo_external,
+        variable_mapping={"other": "other"},
+        noise_boundaries=["south", "west", "east", "north"],
+        noise_variables=["thl"],
+        noise_std=1,
+        noise_seed=0,
+        noise_minzt=0,
+        noise_maxzt=400,
+        add_to_top_thl=0.5,  # add 0.5 K to the top boundary thl to make sure we don't get a downdraft along the top everywhere
+    )
+    sim += openbc
 
     set_nml_section(
         sim.nml, sim.nml_docs, "user_defined", "namnetcdfstats", "lsync", True
     )
     set_nml_section(sim.nml, sim.nml_docs, "user_defined", "physics", "lcoriol", False)
-
+    set_nml_section(
+        sim.nml, sim.nml_docs, "user_defined", "namsubgrid", "ldelta", False
+    )
+    set_nml_section(
+        sim.nml, sim.nml_docs, "user_defined", "namsubgrid", "lanisotrop", True
+    )
+    set_nml_section(sim.nml, sim.nml_docs, "user_defined", "RUN", "nprocx", 0)
+    set_nml_section(sim.nml, sim.nml_docs, "user_defined", "RUN", "nprocy", 0)
     # if sim.nml.get("namchecksim") is None:
     #     sim.nml["namchecksim"] = {}
     # sim.nml["namchecksim"]["tcheck"] = 60
@@ -302,23 +309,23 @@ if __name__ == "__main__":
     sim.check_settings()
     sim.prepare_all_calculations()
 
-    # ref = sim.retrieve_module(do_openboundary)
-    # time, zt, xt = xr.broadcast(
-    #     ref.boundaries.time, ref.boundaries.zt, ref.boundaries.xt
-    # )
+    ref = sim.retrieve_module(do_openboundary)
+    time, zt, xt = xr.broadcast(
+        ref.boundaries.time, ref.boundaries.zt, ref.boundaries.xt
+    )
 
-    # def triangle_function(x, x0, width):
+    def triangle_function(x, x0, width):
 
-    #     return np.maximum(0, 1 - np.abs(x - x0) / width)
+        return np.maximum(0, 1 - np.abs(x - x0) / width)
 
-    # time_prof = triangle_function(np.mod(time, 410), 300, 100)
-    # zt_prof = triangle_function(zt, 90, 30)
-    # xt_prof = triangle_function(xt, 320, 50)
-    # ref.boundaries.othersouth[:, :, :] = time_prof * zt_prof * xt_prof
+    time_prof = triangle_function(np.mod(time, 410), 300, 100)
+    zt_prof = triangle_function(zt, 90, 30)
+    xt_prof = triangle_function(xt, 320, 50)
+    ref.boundaries.othersouth[:, :, :] = time_prof * zt_prof * xt_prof
     sim.write_module_files()
     sim.apply_job_configuration()
     sim.write_simulation_files()
-
+    exit()
     wd = os.getcwd()
     os.chdir(sim.output_path.as_posix())
     subprocess.run("./job.001", check=True)
@@ -327,7 +334,7 @@ if __name__ == "__main__":
     )
     print(run_result.stderr)
     os.chdir(wd)
-    # exit()
+    exit()
     # Machine configuration (would normally come from machine_conf.yaml)
     # Create simulation instance
     case_name = "018_test"
