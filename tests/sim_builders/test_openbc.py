@@ -279,6 +279,95 @@ def _assert_crosssection_matches_fielddump(
             )
 
 
+def _assert_crosssection_matches_fielddump_scalar_slice_coord(
+    fielddump_path: Path,
+    crosssection_path: Path,
+    var: str = "thl",
+    fd_coord_dim: str = "xt",
+    cs_slice_coord: str = "xt",
+    time_index: int = 0,
+    rtol: float = 1e-6,
+    atol: float = 1e-8,
+) -> None:
+    """Compare a 2D cross-section slice against a fielddump slice at matching grid index.
+
+    For the no-combine file format where the slice coordinate (e.g. ``xt`` in
+    a ``crossyz`` file) is a scalar coordinate *variable* on the cross-section
+    dataset rather than a dimension of the data variable.  The scalar
+    coordinate value is used to locate the nearest matching index in the
+    fielddump, and the full 2D cross-section array is compared directly
+    (no ``isel`` on the slice coord is needed).
+    """
+
+    with xr.open_dataset(fielddump_path) as ds_ref, xr.open_dataset(
+        crosssection_path
+    ) as ds_other:
+        if var not in ds_ref or var not in ds_other:
+            raise AssertionError(f"Variable '{var}' not found in both datasets")
+
+        if fd_coord_dim not in ds_ref.coords:
+            raise AssertionError(
+                f"Coordinate '{fd_coord_dim}' not found in fielddump coords"
+            )
+        if cs_slice_coord not in ds_other.coords:
+            raise AssertionError(
+                f"Coordinate '{cs_slice_coord}' not found in crosssection coords"
+            )
+
+        # Scalar coordinate value encodes the fixed position of this cross-section.
+        cs_coord_val = float(ds_other[cs_slice_coord].values)
+
+        # The cross-section data variable has no slice-coord dimension.
+        cross_slice = ds_other[var].isel(time=time_index)
+
+        coord_vals_ref = ds_ref[fd_coord_dim].values
+        n_ref = len(coord_vals_ref)
+
+        # Find the nearest index in the fielddump.
+        index = int(np.abs(coord_vals_ref - cs_coord_val).argmin())
+        base_field_slice = ds_ref[var].isel({"time": time_index, fd_coord_dim: index})
+
+        if np.allclose(
+            base_field_slice.values, cross_slice.values, rtol=rtol, atol=atol
+        ):
+            return
+        else:
+            # Try small shifts to detect an off-by-N error.
+            max_shift = 50
+            for shift in range(-max_shift, max_shift + 1):
+                if shift == 0:
+                    continue
+                idx_shift = index + shift
+                if idx_shift < 0 or idx_shift >= n_ref:
+                    continue
+
+                field_slice_s = ds_ref[var].isel(
+                    {"time": time_index, fd_coord_dim: idx_shift}
+                )
+                if np.allclose(
+                    field_slice_s.values, cross_slice.values, rtol=rtol, atol=atol
+                ):
+                    raise AssertionError(
+                        f"{fielddump_path.name}/{crosssection_path.name} slices do not match at index "
+                        f"{index} (coord={cs_coord_val}) along '{fd_coord_dim}', but do match when the "
+                        f"fielddump index is shifted by {shift} (to {idx_shift}). "
+                        f"This suggests an index offset of {shift} between fielddump and crosssection coordinates."
+                    )
+                else:
+                    print(
+                        shift,
+                        np.mean(np.abs(field_slice_s.values - cross_slice.values) ** 2),
+                    )
+                    continue
+
+            np.testing.assert_allclose(
+                base_field_slice.values,
+                cross_slice.values,
+                rtol=rtol,
+                atol=atol,
+            )
+
+
 @pytest.fixture(
     params=[
         pytest.param(1, id="1_cores"),
@@ -354,5 +443,75 @@ def test_crosssection_matches_fielddump_at_grid_index(
             fd_coord_dim=fd_coord_dim,
             cs_coord_dim=cs_coord_dim,
             cross_index=0,
+            time_index=5,
+        )
+
+
+def test_crosssection_matches_fielddump_at_grid_index_no_combine(
+    machine_conf, core_changer
+) -> None:
+    """Ensure cross-section values equal fielddump values at same grid index.
+
+    Variant without combine.sh: assumes files are in outdir/run_001/ with
+    naming convention fielddump.001.nc and cross*.crossidx.001.nc etc.
+
+    This is an end-to-end test: it builds a small nested simulation with
+    EasyOutputModule, runs ``job.001``, then compares a cross-section NetCDF
+    file against ``fielddump.001.nc`` at a coordinate index taken from the
+    cross-section grid.
+    """
+
+    conf = machine_conf("openbc_crosssection_fielddump_no_combine")
+    conf["job_conf"]["numcores"] = core_changer
+    sim = _build_nested_sim_with_easyoutput(
+        conf, casename="openbc_crosssection_fielddump_no_combine"
+    )
+    sim.sim_preprocessing_pipeline()
+
+    outdir = sim.output_path
+    run_dir = outdir / "run_001"
+
+    # Run the DALES job only; no combine.sh step.
+    subprocess.run(["./job.001"], check=True, cwd=outdir.as_posix())
+
+    fielddump_file = run_dir / "fielddump.001.nc"
+    if not fielddump_file.is_file():
+        pytest.skip(
+            "fielddump.001.nc not found in run_001/; DALES run did not produce fielddump"
+        )
+
+    # Prefer a yz cross-section at fixed x if available, fall back to others.
+    # Files are named with pattern: cross{yz|xz|xy}.<index>.001.nc where <index> is from namelist
+    cross_patterns = [
+        ("crossyz.*.001.nc", "crossyz.nc"),
+        ("crossxz.*.001.nc", "crossxz.nc"),
+        ("crossxy.*.001.nc", "crossxy.nc"),
+    ]
+
+    var = "thl"
+    for pattern, canonical_name in cross_patterns:
+        matching_files = list(run_dir.glob(pattern))
+        if not matching_files:
+            continue
+        crosssection_file = matching_files[0]
+
+        # Choose which coordinate is the fixed scalar slice coord in the cross-section.
+        if canonical_name == "crossyz.nc":
+            cs_slice_coord = "xm" if var == "u" else "xt"
+            fd_coord_dim = cs_slice_coord
+        elif canonical_name == "crossxz.nc":
+            cs_slice_coord = "ym" if var == "v" else "yt"
+            fd_coord_dim = cs_slice_coord
+        else:  # crossxy.nc
+            cs_slice_coord = "zt"
+            fd_coord_dim = "zt"
+
+        # The slice coord is a scalar variable in the cross-section file, not a dim.
+        _assert_crosssection_matches_fielddump_scalar_slice_coord(
+            fielddump_file,
+            crosssection_file,
+            var=var,
+            fd_coord_dim=fd_coord_dim,
+            cs_slice_coord=cs_slice_coord,
             time_index=5,
         )

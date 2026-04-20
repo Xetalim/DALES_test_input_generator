@@ -6,7 +6,7 @@ import numpy as np
 
 from modular_dales.Geometry import GridDales, GridDalesOpenBC
 from modular_dales.LBC.nesting_idx import NestingIndices
-from modular_dales.modular import simulation_module
+from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.MODULE_REGISTRY import register_module
 
 from modular_dales.LBC.openbc import do_openboundary

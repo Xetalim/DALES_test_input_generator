@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import List, Optional, Union
 from dataclasses import dataclass, field
 
 from modular_dales.MODULE_REGISTRY import register_module
@@ -90,6 +90,199 @@ class EasyOutputModule(simulation_module):
         self.module_name = "EasyOutputModule"
 
     def prepare_calculation(self):
+        """No preparation needed."""
+        return None
+
+    def check_settings(self):
+        """Check output settings validity."""
+        return None
+
+    def write_files(self):
+        """Write output files if needed."""
+        return None
+
+
+@register_module
+@dataclass
+class IndependentOutputModule(simulation_module):
+    """Output configuration module with independent settings per output type.
+
+    This module is similar to EasyOutputModule, but every output type can be
+    configured independently for both enable/disable flags and output timing.
+    """
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+
+    fielddump_enabled: bool = field(
+        default=False,
+        metadata={"nml": "namfielddump", "key": "lfielddump", "required": True},
+    )
+    fielddump_dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "namfielddump", "key": "dtav", "required": True},
+    )
+
+    cape_enabled: bool = field(
+        default=False,
+        metadata={"nml": "namcape", "key": "lcape", "required": True},
+    )
+    cape_dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "namcape", "key": "dtav", "required": True},
+    )
+
+    lsm_cross_enabled: bool = field(
+        default=False,
+        metadata={"nml": "namlsmcrosssection", "key": "lcross", "required": True},
+    )
+    lsm_cross_dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "namlsmcrosssection", "key": "dtav", "required": True},
+    )
+
+    cross_enabled: bool = field(
+        default=False,
+        metadata={"nml": "namcrosssection", "key": "lcross", "required": True},
+    )
+    cross_dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "namcrosssection", "key": "dtav", "required": True},
+    )
+
+    stats_enabled: bool = field(
+        default=False,
+        metadata={"nml": "namgenstat", "key": "lstat", "required": True},
+    )
+    stats_dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "namgenstat", "key": "dtav", "required": True},
+    )
+    stats_timeav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "namgenstat", "key": "timeav", "required": True},
+    )
+
+    timestat_enabled: bool = field(
+        default=False,
+        metadata={"nml": "namtimestat", "key": "ltimestat", "required": True},
+    )
+    timestat_dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "namtimestat", "key": "dtav", "required": True},
+    )
+
+    budget_enabled: bool = field(
+        default=False,
+        metadata={"nml": "nambudget", "key": "lbudget", "required": True},
+    )
+    budget_dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "nambudget", "key": "dtav", "required": True},
+    )
+    budget_timeav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "nambudget", "key": "timeav", "required": True},
+    )
+
+    radfield_enabled: bool = field(
+        default=False,
+        metadata={"nml": "namradfield", "key": "lradfield", "required": True},
+    )
+    radfield_dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "namradfield", "key": "dtav", "required": True},
+    )
+    radfield_timeav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "namradfield", "key": "timeav", "required": True},
+    )
+
+    def do_config(self):
+        """Configure output-related namelist parameters."""
+        return None
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "IndependentOutputModule"
+
+    def prepare_calculation(self):
+        """No preparation needed."""
+        return None
+
+    def check_settings(self):
+        """Check output settings validity."""
+        return None
+
+    def write_files(self):
+        """Write output files if needed."""
+        return None
+
+
+@register_module
+@dataclass
+class CrossSectionOutputModule(simulation_module):
+    """Output configuration module for cross-sections only.
+
+    This module controls atmospheric cross-section output interval, selected
+    planes, and their corresponding indices.
+    """
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+
+    cross_enabled: bool = field(
+        default=True,
+        metadata={"nml": "namcrosssection", "key": "lcross", "required": True},
+    )
+    cross_dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "namcrosssection", "key": "dtav", "required": True},
+    )
+    xy: List[int] = field(
+        default_factory=list,
+        metadata={"nml": "namcrosssection", "key": "crossheight", "required": True},
+    )
+    xz: List[int] = field(
+        default_factory=list,
+        metadata={"nml": "namcrosssection", "key": "crossplane", "required": True},
+    )
+    yz: List[int] = field(
+        default_factory=list,
+        metadata={"nml": "namcrosssection", "key": "crossortho", "required": True},
+    )
+    xy_enabled: bool = field(
+        default=False,
+        metadata={"nml": "namcrosssection", "key": "lxy", "required": True},
+    )
+    xz_enabled: bool = field(
+        default=False,
+        metadata={"nml": "namcrosssection", "key": "lxz", "required": True},
+    )
+    yz_enabled: bool = field(
+        default=False,
+        metadata={"nml": "namcrosssection", "key": "lyz", "required": True},
+    )
+
+    def do_config(self):
+        """Configure output-related namelist parameters."""
+        return None
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "CrossSectionOutputModule"
+
+    def prepare_calculation(self):
+        if len(self.xy) > 0:
+            self.xy_enabled = True
+        else:
+            self.xy_enabled = False
+        if len(self.xz) > 0:
+            self.xz_enabled = True
+        else:
+            self.xz_enabled = False
+        if len(self.yz) > 0:
+            self.yz_enabled = True
+        else:
+            self.yz_enabled = False
         """No preparation needed."""
         return None
 

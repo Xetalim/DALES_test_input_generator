@@ -8,7 +8,7 @@ import xarray as xr
 import dask
 
 from modular_dales.Geometry import GridDalesOpenBC
-from modular_dales.modular import simulation_module
+from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.MODULE_REGISTRY import register_module
 from modular_dales.Atmosphere import AtmosphereModule
 from modular_dales.LBC.openbc_atmosphere_worker import OpenBCAtmosphereWorker

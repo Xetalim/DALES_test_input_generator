@@ -1,0 +1,147 @@
+!&namlsm
+!    lags = .true.
+!    iinterp_t = 1
+!    iinterp_theta = 1
+!    dz_soil = 1.89, 0.72, 0.21, 0.07
+!    lheterogeneous = .true.
+!    nlu = 2
+!/
+
+&run
+    iexpnr = 1
+    iinput = 2
+    ladaptive = .true.
+    runtime = 600
+    nprocx = 2
+    nprocy = 4
+/
+
+&domain
+    itot = 16
+    jtot = 16
+    kmax = 20
+    xsize = 160.0
+    ysize = 160.0
+    kmax_soil = 4
+    xlat = 52.25
+    xlon = 5.45
+    x0 = 0
+    y0 = 0
+    xtime = 0.0
+    xday = 1
+    xyear = 2025
+/
+!&RUN
+!  nsv        = 1         ! at least 1 scalar (CO2 for AGS)
+!  ...
+!/
+
+&NAMSURFACE
+  thls         = 293
+  ps           = 100000
+  isurf        = 1       ! interactive land surface (required for lrsAgs)
+  z0mav        = 0.1
+  z0hav        = 0.1
+  albedoav     = 0.15
+  cvegav       = 0.9
+  LAIav        = 5.0
+  Cskinav      = 0.0
+  lambdaskinav = 40.0
+  rsminav      = 150.0
+  rssoilminav  = 50.0
+  gDav         = 0.03
+  qnetav       = 100
+  Wlav         = 0.0
+  tsoilav(1)   = 295.0
+  tsoilav(2)   = 295.0
+  tsoilav(3)   = 295.0
+  tsoilav(4)   = 296.0
+  tsoildeepav  = 297.0
+  phiwav(1)    = 0.3
+  phiwav(2)    = 0.3
+  phiwav(3)    = 0.3
+  phiwav(4)    = 0.3
+  rootfav(1)   = 0.35
+  rootfav(2)   = 0.38
+  rootfav(3)   = 0.23
+  rootfav(4)   = 0.04
+  lrsAgs       = .true.  ! enable AGS stomatal resistance
+  lCO2Ags      = .true.  ! optional: enable AGS CO2 flux
+/
+
+&NAMAGScross
+  lAGScross    = .true.  ! enable AGScross output
+  dtav         = 60.0
+/
+!&namsurface
+!    isurf = 2
+!    ps = 100000
+!    z0mav = 0.0001
+!    z0hav = 0.0001
+!    albedoav = 0.22
+!    thls = 293.15
+!/
+
+&namemission
+    l_emission = .true.
+    l_points = .false.
+    explicit_plume_rise = .false.
+    emisnames = 'co2'
+    nemis = 1
+/
+
+&namdatetime
+    l_datetime = .true.
+    timezone = 0
+    startyear = 2025
+    startmonth = 1
+    startday = 1
+/
+
+&physics
+    iradiation = 4
+    timerad = 60
+/
+
+&namfielddump
+    dtav = 60
+    lfielddump = .true.
+/
+
+&namcape
+    dtav = 60
+    lcape = .true.
+/
+
+!&namlsmcrosssection
+!    dtav = 60
+!    lcross = .true.
+!/
+
+&namgenstat
+    dtav = 60
+    timeav = 60
+    lstat = .true.
+/
+
+&namcrosssection
+    dtav = 60
+    lcross = .true.
+/
+
+&namtimestat
+    dtav = 60
+    ltimestat = .true.
+/
+
+&nambudget
+    dtav = 60
+    timeav = 60
+    lbudget = .true.
+/
+
+&namradfield
+    dtav = 60
+    timeav = 60
+    lradfield = .true.
+/

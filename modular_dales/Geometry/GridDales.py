@@ -5,7 +5,7 @@ from typing import Optional, Sequence
 import numpy as np
 from pyproj import CRS
 
-from modular_dales.modular import simulation_module
+from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.MODULE_REGISTRY import register_module
 
 logger = logging.getLogger(__name__)

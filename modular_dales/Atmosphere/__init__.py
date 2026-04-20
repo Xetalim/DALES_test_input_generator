@@ -6,6 +6,7 @@ from .atmosphere import (
     TimedAtmosphereProfile,
 )
 from .ls2d_atmosphere import LS2DAtmosphereModule, FromLS2D
+from .harmonie_atmosphere import HarmonieAtmosphereModule
 from .shapes import (
     SHAPE_FUNCTIONS,
     exp,
@@ -14,7 +15,6 @@ from .shapes import (
     linmlsurf,
 )
 
-
 __all__ = [
     "AtmosphereModule",
     "AtmosphereVariable",
@@ -22,6 +22,7 @@ __all__ = [
     "InterpolatedProfile",
     "TimedAtmosphereProfile",
     "LS2DAtmosphereModule",
+    "HarmonieAtmosphereModule",
     "FromLS2D",
     "SHAPE_FUNCTIONS",
     "lin",
@@ -29,4 +30,3 @@ __all__ = [
     "linmlsurf",
     "expsinw",
 ]
-
