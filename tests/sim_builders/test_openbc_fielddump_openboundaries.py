@@ -17,10 +17,15 @@ from modular_dales import (
     dales_simulation,
     do_openboundary,
 )
+from modular_dales.modular.simulation_module import set_nml_section
 from modular_dales.Configuration.output_modules import EasyOutputModule
 from modular_dales.vars import *  # noqa: F401,F403
 
-from tests.sim_builders.test_openbc import _assert_crosssection_matches_fielddump
+from tests.sim_builders.test_openbc import (
+    _assert_crosssection_matches_fielddump,
+    _assert_crosssection_matches_fielddump_scalar_slice_coord,
+)
+
 
 @pytest.fixture
 def supergrid():
@@ -41,6 +46,8 @@ def supergrid():
     )
 
     return supergrid
+
+
 @pytest.fixture
 def subgrid():
     # this is the grid that is inside us
@@ -62,7 +69,10 @@ def subgrid():
 
     return subgrid
 
-def _build_coarse_sim_with_easyoutput(machine_conf: dict, casename: str, supergrid, subgrid) -> dales_simulation:
+
+def _build_coarse_sim_with_easyoutput(
+    machine_conf: dict, casename: str, supergrid, subgrid
+) -> dales_simulation:
     """Small coarse simulation that writes fielddump + cross-sections.
 
     This mirrors the first case in oop_test.py but with a reduced grid so
@@ -71,9 +81,6 @@ def _build_coarse_sim_with_easyoutput(machine_conf: dict, casename: str, supergr
 
     sim = dales_simulation(casename, machine_conf)
     sim += DefaultNamelistModule()
-
-
-
 
     sim += supergrid
 
@@ -84,14 +91,32 @@ def _build_coarse_sim_with_easyoutput(machine_conf: dict, casename: str, supergr
     sim += nesting
 
     atmo = AtmosphereModule()
-    atmo += AtmosphericProfile(variable=ua, shape="lin", params=dict(surf_val=0.5, ddz=0))
-    atmo += AtmosphericProfile(variable=va, shape="lin", params=dict(surf_val=3.0, ddz=1e-3))
-    atmo += AtmosphericProfile(variable=thetal, shape="lin", params=dict(surf_val=293.15, ddz=1e-2))
-    atmo += AtmosphericProfile(variable=qt, shape="lin", params=dict(surf_val=0.0, ddz=0.0))
-    atmo += AtmosphericProfile(variable=wa, shape="lin", params=dict(surf_val=0.0, ddz=0.0))
+    atmo += AtmosphericProfile(
+        variable=ua, shape="lin", params=dict(surf_val=0.5, ddz=0)
+    )
+    atmo += AtmosphericProfile(
+        variable=va, shape="lin", params=dict(surf_val=3.0, ddz=1e-3)
+    )
+    atmo += AtmosphericProfile(
+        variable=thetal, shape="lin", params=dict(surf_val=293.15, ddz=1e-2)
+    )
+    atmo += AtmosphericProfile(
+        variable=qt, shape="lin", params=dict(surf_val=0.0, ddz=0.0)
+    )
+    atmo += AtmosphericProfile(
+        variable=wa, shape="lin", params=dict(surf_val=0.0, ddz=0.0)
+    )
     sim += atmo
 
-    sim += TimeModule(xday=1, xtime=12.0, xyear=2023, runtime=60, startyear=2023, startmonth=1, startday=1)
+    sim += TimeModule(
+        xday=1,
+        xtime=12.0,
+        xyear=2023,
+        runtime=60,
+        startyear=2023,
+        startmonth=1,
+        startday=1,
+    )
 
     sim += ConstantSurfaceTemperatureModule(
         thls=293.15,
@@ -113,7 +138,9 @@ def _build_coarse_sim_with_easyoutput(machine_conf: dict, casename: str, supergr
     return sim
 
 
-def _build_nested_openbc_sim_from_coarse(machine_conf: dict, coarse_sim: dales_simulation, supergrid, subgrid) -> dales_simulation:
+def _build_nested_openbc_sim_from_coarse(
+    machine_conf: dict, coarse_sim: dales_simulation, supergrid, subgrid
+) -> dales_simulation:
     """Second small case: subgrid nested in coarse sim via Nest_in_Dales.
 
     This mirrors the second case in oop_test.py where ``openboundaries``
@@ -125,11 +152,21 @@ def _build_nested_openbc_sim_from_coarse(machine_conf: dict, coarse_sim: dales_s
     sim2 += subgrid
 
     atmo = AtmosphereModule()
-    atmo += AtmosphericProfile(variable=ua, shape="lin", params=dict(surf_val=0.5, ddz=0))
-    atmo += AtmosphericProfile(variable=va, shape="lin", params=dict(surf_val=3.0, ddz=1e-3))
-    atmo += AtmosphericProfile(variable=thetal, shape="lin", params=dict(surf_val=293.15, ddz=1e-2))
-    atmo += AtmosphericProfile(variable=qt, shape="lin", params=dict(surf_val=0.0, ddz=0.0))
-    atmo += AtmosphericProfile(variable=wa, shape="lin", params=dict(surf_val=0.0, ddz=0.0))
+    atmo += AtmosphericProfile(
+        variable=ua, shape="lin", params=dict(surf_val=0.5, ddz=0)
+    )
+    atmo += AtmosphericProfile(
+        variable=va, shape="lin", params=dict(surf_val=3.0, ddz=1e-3)
+    )
+    atmo += AtmosphericProfile(
+        variable=thetal, shape="lin", params=dict(surf_val=293.15, ddz=1e-2)
+    )
+    atmo += AtmosphericProfile(
+        variable=qt, shape="lin", params=dict(surf_val=0.0, ddz=0.0)
+    )
+    atmo += AtmosphericProfile(
+        variable=wa, shape="lin", params=dict(surf_val=0.0, ddz=0.0)
+    )
     sim2 += atmo
 
     sim2 += TimeModule(
@@ -190,7 +227,9 @@ def _build_nested_openbc_sim_from_coarse(machine_conf: dict, coarse_sim: dales_s
 
 @pytest.mark.slow
 @pytest.mark.parametrize("core_changer", [1])
-def test_openboundaries_match_fielddump_and_crosssection(machine_conf, core_changer, supergrid, subgrid) -> None:
+def test_openboundaries_match_fielddump_and_crosssection(
+    machine_conf, core_changer, supergrid, subgrid
+) -> None:
     """Small Nest_in_Dales open-BC run checking consistency of outputs.
 
     1. Build a coarse simulation that writes ``fielddump.nc`` and cross-section
@@ -206,7 +245,17 @@ def test_openboundaries_match_fielddump_and_crosssection(machine_conf, core_chan
     conf["job_conf"]["numcores"] = core_changer
 
     # 1) Coarse simulation with EasyOutput
-    coarse_sim = _build_coarse_sim_with_easyoutput(conf, "openbc_coarse_for_nested", supergrid, subgrid)
+    coarse_sim = _build_coarse_sim_with_easyoutput(
+        conf, "openbc_coarse_for_nested", supergrid, subgrid
+    )
+    set_nml_section(
+        coarse_sim.nml,
+        coarse_sim.nml_docs,
+        "user_defined",
+        "NAMNETCDFSTATS",
+        "lparallel",
+        False,
+    )
     coarse_sim.sim_preprocessing_pipeline()
 
     coarse_outdir = coarse_sim.output_path
@@ -215,7 +264,9 @@ def test_openboundaries_match_fielddump_and_crosssection(machine_conf, core_chan
 
     fielddump_file = coarse_outdir / "fielddump.nc"
     if not fielddump_file.is_file():
-        pytest.skip("fielddump.nc not found for coarse run; DALES did not produce fielddump")
+        pytest.skip(
+            "fielddump.nc not found for coarse run; DALES did not produce fielddump"
+        )
 
     # Prefer crossyz, then crossxz, then crossxy
     cross_candidates = [
@@ -248,13 +299,17 @@ def test_openboundaries_match_fielddump_and_crosssection(machine_conf, core_chan
         )
 
     # 2) Nested openboundary simulation that reads from the coarse run
-    nested_sim = _build_nested_openbc_sim_from_coarse(conf, coarse_sim, supergrid, subgrid)
+    nested_sim = _build_nested_openbc_sim_from_coarse(
+        conf, coarse_sim, supergrid, subgrid
+    )
     nested_sim.sim_preprocessing_pipeline()
 
     nested_input_dir = nested_sim.output_path / "input"
     ob_files = list(nested_input_dir.glob("openboundaries.inp.*.nc"))
     if not ob_files:
-        pytest.skip("openboundaries.inp.*.nc not found; openBC preprocessor did not run")
+        pytest.skip(
+            "openboundaries.inp.*.nc not found; openBC preprocessor did not run"
+        )
     openboundaries_file = ob_files[0]
 
     # 3) Compare openboundary variables against coarse fielddump slices and
@@ -274,13 +329,18 @@ def test_openboundaries_match_fielddump_and_crosssection(machine_conf, core_chan
             # ("thlwest", "thl", "xt", "yt", "west"),
         ]
 
-        for ob_name, fd_name, slice_dim,other_dim, side in pairs:
+        for ob_name, fd_name, slice_dim, other_dim, side in pairs:
             if ob_name not in ds_ob or fd_name not in ds_fd:
                 continue
 
             index = 0 if side in {"west", "south"} else -1
-            fd_da = ds_fd[fd_name].sel({slice_dim: getattr(nested_sim.grid.as_openbc(),slice_dim)[index]},drop=True)
-            fd_da = fd_da.sel({other_dim: getattr(nested_sim.grid.as_openbc(),other_dim)})
+            fd_da = ds_fd[fd_name].sel(
+                {slice_dim: getattr(nested_sim.grid.as_openbc(), slice_dim)[index]},
+                drop=True,
+            )
+            fd_da = fd_da.sel(
+                {other_dim: getattr(nested_sim.grid.as_openbc(), other_dim)}
+            )
             ob_da = ds_ob[ob_name].squeeze()
 
             fd_slice_t = fd_da.isel(time=0)

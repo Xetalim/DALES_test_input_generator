@@ -386,6 +386,17 @@ class LS2DAtmosphereModule(simulation_module):
         les_input = era.get_les_input(z_dales)
         self.les_input = les_input
 
+        self._prepare_from_les_input(les_input, z_dales)
+        return None
+
+    def _prepare_from_les_input(self, les_input: Any, z_dales: np.ndarray) -> None:
+        """Build base profiles and forcings from an LS2D-like ``les_input`` object.
+
+        The input must expose ``time_sec`` and variables as attributes with
+        ``.values`` arrays. Profile fields can be either ``(time, z)`` or
+        ``(z, time)`` and are normalized internally.
+        """
+
         times_sec = np.asarray(les_input.time_sec.values, dtype=float)
         if times_sec.ndim != 1 or times_sec.size < 2:
             raise ValueError(

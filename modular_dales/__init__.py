@@ -24,7 +24,12 @@ from .modular.time_dependent import (
     TimedependentModule,
 )
 from .vars import VariableDefinition, get_all_vars
-from .Atmosphere import AtmosphereModule, AtmosphericProfile, InterpolatedProfile
+from .Atmosphere import (
+    AtmosphereModule,
+    AtmosphericProfile,
+    InterpolatedProfile,
+    HarmonieAtmosphereModule,
+)
 
 from .LBC import (
     do_openboundary,
@@ -35,7 +40,11 @@ from .LBC import (
 
 from .Configuration.defaultnamelist import DefaultNamelistModule
 from .Configuration.run_and_time import RunModule, TimeModule
-from .Configuration.output_modules import EasyOutputModule
+from .Configuration.output_modules import (
+    CrossSectionOutputModule,
+    EasyOutputModule,
+    IndependentOutputModule,
+)
 
 from .Geometry.geometry_modification import ModifierClass
 
@@ -91,6 +100,8 @@ __all__ = [
     "RunModule",
     "TimeModule",
     "EasyOutputModule",
+    "IndependentOutputModule",
+    "CrossSectionOutputModule",
     # Geometry
     "GridDales",
     "GridDalesOpenBC",
@@ -99,6 +110,7 @@ __all__ = [
     "AtmosphereModule",
     "AtmosphericProfile",
     "InterpolatedProfile",
+    "HarmonieAtmosphereModule",
     # Surface and LSM
     "SurfaceModule",
     "ConstantFluxesModule",

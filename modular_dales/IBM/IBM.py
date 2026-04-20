@@ -10,7 +10,7 @@ from modular_dales.Geometry import (
     ModifierClass,
     GridDales,
 )
-from modular_dales.modular import simulation_module
+from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.MODULE_REGISTRY import register_module, register_singleton
 from .download_AHN import get_process_ahn
 
@@ -138,7 +138,7 @@ class IBMModule(simulation_module):
     apply_ibm: bool = field(
         default=True,
         metadata={
-            "nml": "NAMIBM",
+            "nml": "IBM",
             "key": "lapply_ibm",
             "serialize": True,
             "required": True,

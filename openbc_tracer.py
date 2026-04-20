@@ -186,8 +186,12 @@ if __name__ == "__main__":
     atmo.variables = build_default_variables(get_all_vars())
     atmo += AtmosphericProfile(variable=ua, shape="lin", params=dict(surf_val=3, ddz=0))
     atmo += AtmosphericProfile(variable=ug, shape="lin", params=dict(surf_val=3, ddz=0))
-    atmo += AtmosphericProfile(variable=vg, shape="lin", params=dict(surf_val=3, ddz=0))
-    atmo += AtmosphericProfile(variable=va, shape="lin", params=dict(surf_val=3, ddz=0))
+    atmo += AtmosphericProfile(
+        variable=ua_nudge, shape="lin", params=dict(surf_val=3, ddz=0)
+    )
+    atmo += AtmosphericProfile(
+        variable=va_nudge, shape="lin", params=dict(surf_val=3, ddz=0)
+    )
     # atmo += AtmosphericProfile(
     #     variable=thetal, shape="lin", params=dict(surf_val=293.15, ddz=1e-2)
     # )
@@ -196,10 +200,21 @@ if __name__ == "__main__":
         z=[0, 400, 410, 1600],
         points=[293.15, 293.15, 298.15, 301.15],
     )
+    atmo += InterpolatedProfile(
+        variable=thl_nudge,
+        z=[0, 400, 410, 1600],
+        points=[293.15, 293.15, 298.15, 301.15],
+    )
     atmo += AtmosphericProfile(
         variable=qt, shape="lin", params=dict(surf_val=0.0018, ddz=0)
     )
+    atmo += AtmosphericProfile(
+        variable=qt_nudge, shape="lin", params=dict(surf_val=0.0018, ddz=0)
+    )
     atmo += AtmosphericProfile(variable=wa, shape="lin", params=dict(surf_val=0, ddz=0))
+    atmo += AtmosphericProfile(
+        variable=wa_nudge, shape="lin", params=dict(surf_val=0, ddz=0)
+    )
     atmo += InterpolatedProfile(
         variable=tke,
         z=[0, 4000, 5000],
@@ -291,7 +306,20 @@ if __name__ == "__main__":
         sim.nml, sim.nml_docs, "user_defined", "namnetcdfstats", "lsync", True
     )
     set_nml_section(sim.nml, sim.nml_docs, "user_defined", "physics", "lcoriol", False)
-
+    set_nml_section(
+        sim.nml, sim.nml_docs, "user_defined", "namsubgrid", "ldelta", False
+    )
+    set_nml_section(
+        sim.nml, sim.nml_docs, "user_defined", "namsubgrid", "lanisotrop", True
+    )
+    set_nml_section(sim.nml, sim.nml_docs, "user_defined", "RUN", "nprocx", 0)
+    set_nml_section(sim.nml, sim.nml_docs, "user_defined", "RUN", "nprocy", 0)
+    set_nml_section(
+        sim.nml, sim.nml_docs, "user_defined", "PHYSICS", "ltimedep", False
+    )  # we don't want to have time dependent forcing somehow due to LS2D, as we will inject time series via the openboundary module, so we set ltimedep to False to be sure that we don't get any unexpected time dependence from the physics module.
+    set_nml_section(
+        sim.nml, sim.nml_docs, "user_defined", "NAMNUDGE", "lnudge", False
+    )  # we don't want to have nudging, so we explicitly disable
     # if sim.nml.get("namchecksim") is None:
     #     sim.nml["namchecksim"] = {}
     # sim.nml["namchecksim"]["tcheck"] = 60
@@ -354,10 +382,10 @@ if __name__ == "__main__":
     atmo2 = AtmosphereModule()
     atmo2.variables = build_default_variables(get_all_vars())
     for prof in atmo.shaped_profiles:
-        if prof.variable != co2:
+        if prof.variable not in [co2, ua_nudge, va_nudge]:
             atmo2.shaped_profiles.append(prof)
     for prof in atmo.interpolated_profiles:
-        if prof.variable != co2:
+        if prof.variable not in [co2, ua_nudge, va_nudge]:
             atmo2.interpolated_profiles.append(prof)
     sim2 += atmo2
     # atmo = AtmosphereModule()
