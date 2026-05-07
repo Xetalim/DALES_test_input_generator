@@ -250,6 +250,7 @@ def build_land_surface_dataset(
     ds = xr.Dataset(
         {
             "ifs_land_cover": ifs,
+            "lcz": lcz,
             "index_soil": soil,
             **lcz_fields,
         }

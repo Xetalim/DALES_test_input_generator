@@ -316,6 +316,11 @@ class LSM_output_dales:
 
         nc.close()
 
+        if getattr(self, "LCZ_ds", None) is not None:
+            lcz_out_path = f"{output_path}/lcz_ds_{exp_id:03d}.nc"
+            self.LCZ_ds.to_netcdf(lcz_out_path)
+            logger.info(f"Saved LCZ dataset to {lcz_out_path}")
+
         return
 
     @logwrap
