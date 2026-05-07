@@ -88,6 +88,7 @@ def plot_lsm_cover(lsm_netcdf_path, plot_base_path):
             "ice_caps_glaciers": "#ffffff",
             "urban": "#666666",
             "road": "#000000",
+            "water": "#3c78d8",
         }
 
         # cover_vars = list of variables actually used (order matters!)
