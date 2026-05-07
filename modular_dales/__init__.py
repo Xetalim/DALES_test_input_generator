@@ -41,9 +41,12 @@ from .LBC import (
 from .Configuration.defaultnamelist import DefaultNamelistModule
 from .Configuration.run_and_time import RunModule, TimeModule
 from .Configuration.output_modules import (
+    ColumnStatisticsOutputModule,
     CrossSectionOutputModule,
     EasyOutputModule,
     IndependentOutputModule,
+    SamplingModule,
+    VirtualMeasurementOutputModule,
 )
 
 from .Geometry.geometry_modification import ModifierClass
@@ -102,6 +105,9 @@ __all__ = [
     "EasyOutputModule",
     "IndependentOutputModule",
     "CrossSectionOutputModule",
+    "SamplingModule",
+    "VirtualMeasurementOutputModule",
+    "ColumnStatisticsOutputModule",
     # Geometry
     "GridDales",
     "GridDalesOpenBC",
