@@ -120,7 +120,7 @@ def plot_lsm_cover(lsm_netcdf_path, plot_base_path):
     # ------------------------------------------------------------------
     # PLOT
     # ------------------------------------------------------------------
-
+    plt.ioff()
     fig, ax = plt.subplots(figsize=(8, 6))
 
     mesh = ax.pcolormesh(
@@ -145,6 +145,7 @@ def plot_lsm_cover(lsm_netcdf_path, plot_base_path):
     os.makedirs(plot_base_path, exist_ok=True)
     fig.savefig(plot_base_path / f"cover.png", dpi=300)
     plt.close()
+    plt.ion()
     return
 
 

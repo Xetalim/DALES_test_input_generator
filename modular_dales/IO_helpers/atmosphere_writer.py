@@ -237,6 +237,7 @@ class AtmosphereProfileWriter:
         for var_definition, var_container in var_dic.items():
             if getattr(var_container, "values", None) is None:
                 continue
+            plt.ioff()
             fig, ax = plt.subplots()
             ax.plot(var_container.values, z)
             label = var_definition.long_name
@@ -248,3 +249,4 @@ class AtmosphereProfileWriter:
                 dpi=300,
             )
             plt.close(fig)
+            plt.ion()
