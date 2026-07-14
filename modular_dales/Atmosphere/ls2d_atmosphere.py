@@ -1035,9 +1035,9 @@ class LS2DAtmosphereModule(simulation_module):
             if not hasattr(module, field_name):
                 continue
             current = getattr(module, field_name)
-            if current is not None:
-                # Respect explicit user configuration
-                continue
+            # if current is not None:
+            #     # Respect explicit user configuration
+            #     continue
             setattr(module, field_name, series)
             # Only set on the first suitable module
             break
