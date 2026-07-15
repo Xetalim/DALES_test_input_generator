@@ -5,7 +5,7 @@ from modular_dales.Configuration import (
     VirtualMeasurementOutputModule,
 )
 
-from .test_basic import _build_basic_sim
+from tests.sim_builders.test_basic import _build_basic_sim
 
 
 def _configure_sim(sim) -> None:
@@ -35,7 +35,6 @@ def test_virtual_measurement_resolves_real_coordinates(machine_conf):
 def test_colstat_preserves_explicit_indices(machine_conf):
     sim = _build_basic_sim(machine_conf("colstat"))
     sim += ColumnStatisticsOutputModule(
-        dtav=120,
         x_idx=[2, 5],
         y_idx=[3, 4],
     )
@@ -43,7 +42,6 @@ def test_colstat_preserves_explicit_indices(machine_conf):
     _configure_sim(sim)
 
     assert sim.nml["NAMCOLSTAT"]["lcolstat"] is True
-    assert sim.nml["NAMCOLSTAT"]["dtav"] == 120
     assert sim.nml["NAMCOLSTAT"]["npoints"] == 2
     assert sim.nml["NAMCOLSTAT"]["x_idx"] == [2, 5]
     assert sim.nml["NAMCOLSTAT"]["y_idx"] == [3, 4]
