@@ -342,7 +342,6 @@ class CrossSectionOutputModule(simulation_module):
             self.yz_enabled = True
         else:
             self.yz_enabled = False
-        """No preparation needed."""
         return None
 
     def check_settings(self):
@@ -635,3 +634,286 @@ class ColumnStatisticsOutputModule(_HorizontalPointOutputMixin, simulation_modul
 
     def write_files(self):
         return None
+
+
+@register_module
+@dataclass
+class VariableBudgetOutputModule(simulation_module):
+    """Configure NAMVARBUDGET output."""
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    enabled: bool = field(
+        default=True,
+        metadata={"nml": "NAMVARBUDGET", "key": "lvarbudget", "required": True},
+    )
+    dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "NAMVARBUDGET", "key": "dtav", "required": True},
+    )
+    timeav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "NAMVARBUDGET", "key": "timeav", "required": True},
+    )
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "VariableBudgetOutputModule"
+
+    def do_config(self):
+        return None
+
+    def prepare_calculation(self):
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+
+@register_module
+@dataclass
+class QuadrantStatisticsOutputModule(simulation_module):
+    """Configure NAMQUADRANT output."""
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    enabled: bool = field(
+        default=True,
+        metadata={"nml": "NAMQUADRANT", "key": "lquadrant", "required": True},
+    )
+    dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "NAMQUADRANT", "key": "dtav", "required": True},
+    )
+    timeav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "NAMQUADRANT", "key": "timeav", "required": True},
+    )
+    hole: Optional[float] = field(default=0.0, metadata={"nml": "NAMQUADRANT", "key": "hole"})
+    iwind: Optional[int] = field(default=1, metadata={"nml": "NAMQUADRANT", "key": "iwind"})
+    klow: Optional[int] = field(default=2, metadata={"nml": "NAMQUADRANT", "key": "klow"})
+    khigh: Optional[int] = field(default=None, metadata={"nml": "NAMQUADRANT", "key": "khigh"})
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "QuadrantStatisticsOutputModule"
+
+    def do_config(self):
+        return None
+
+    def prepare_calculation(self):
+        if self.khigh is None and self.grid is not None:
+            self.khigh = int(self.grid.kmax)
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+
+@register_module
+@dataclass
+class SamplingTendencyOutputModule(simulation_module):
+    """Configure NAMSAMPLING tendency diagnostics."""
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    dtav: Optional[float] = field(default=60, metadata={"nml": "NAMSAMPLING", "key": "dtav", "required": True})
+    timeav: Optional[float] = field(default=60, metadata={"nml": "NAMSAMPLING", "key": "timeav", "required": True})
+    lsampcl: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsampcl", "required": True})
+    lsampco: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsampco", "required": True})
+    lsampup: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsampup", "required": True})
+    lsampbuup: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsampbuup", "required": True})
+    lsampcldup: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsampcldup", "required": True})
+    lsamptend: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsamptend", "required": True})
+    ltendleib: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "ltendleib", "required": True})
+    lsamptendu: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsamptendu", "required": True})
+    lsamptendv: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsamptendv", "required": True})
+    lsamptendw: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsamptendw", "required": True})
+    lsamptendthl: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsamptendthl", "required": True})
+    lsamptendqt: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsamptendqt", "required": True})
+    lsamptendqr: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsamptendqr", "required": True})
+    lsamptendnr: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lsamptendnr", "required": True})
+    lprocblock: bool = field(default=False, metadata={"nml": "NAMSAMPLING", "key": "lprocblock", "required": True})
+    ltenddec: bool = field(default=False, metadata={"nml": "NAMSAMPLING", "key": "ltenddec", "required": True})
+    lqlflux: bool = field(default=True, metadata={"nml": "NAMSAMPLING", "key": "lqlflux", "required": True})
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "SamplingTendencyOutputModule"
+
+    def do_config(self):
+        return None
+
+    def prepare_calculation(self):
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+
+@register_module
+@dataclass
+class StatTendencyOutputModule(simulation_module):
+    """Configure NAMSTATTEND output."""
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    enabled: bool = field(default=True, metadata={"nml": "NAMSTATTEND", "key": "ltend", "required": True})
+    dtav: Optional[float] = field(default=60, metadata={"nml": "NAMSTATTEND", "key": "dtav", "required": True})
+    timeav: Optional[float] = field(default=60, metadata={"nml": "NAMSTATTEND", "key": "timeav", "required": True})
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "StatTendencyOutputModule"
+
+    def do_config(self):
+        return None
+
+    def prepare_calculation(self):
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+
+@register_module
+@dataclass
+class BulkMicrophysicsStatisticsOutputModule(simulation_module):
+    """Configure NAMBULKMICROSTAT output."""
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    enabled: bool = field(default=True, metadata={"nml": "NAMBULKMICROSTAT", "key": "lmicrostat", "required": True})
+    dtav: Optional[float] = field(default=60, metadata={"nml": "NAMBULKMICROSTAT", "key": "dtav", "required": True})
+    timeav: Optional[float] = field(default=60, metadata={"nml": "NAMBULKMICROSTAT", "key": "timeav", "required": True})
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "BulkMicrophysicsStatisticsOutputModule"
+
+    def do_config(self):
+        return None
+
+    def prepare_calculation(self):
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+
+@register_module
+@dataclass
+class TiltStatisticsOutputModule(simulation_module):
+    """Configure NAMTILT output."""
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    enabled: bool = field(default=True, metadata={"nml": "NAMTILT", "key": "ltilt", "required": True})
+    dtav: Optional[float] = field(default=60, metadata={"nml": "NAMTILT", "key": "dtav", "required": True})
+    timeav: Optional[float] = field(default=60, metadata={"nml": "NAMTILT", "key": "timeav", "required": True})
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "TiltStatisticsOutputModule"
+
+    def do_config(self):
+        return None
+
+    def prepare_calculation(self):
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+
+@register_module
+@dataclass
+class StressStatisticsOutputModule(simulation_module):
+    """Configure NAMSTRESS output."""
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    enabled: bool = field(default=True, metadata={"nml": "NAMSTRESS", "key": "lstress", "required": True})
+    dtav: Optional[float] = field(default=60, metadata={"nml": "NAMSTRESS", "key": "dtav", "required": True})
+    timeav: Optional[float] = field(default=60, metadata={"nml": "NAMSTRESS", "key": "timeav", "required": True})
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "StressStatisticsOutputModule"
+
+    def do_config(self):
+        return None
+
+    def prepare_calculation(self):
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+
+@register_module
+@dataclass
+class ParticlesOutputModule(simulation_module):
+    """Configure NAMPARTICLES output."""
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    enabled: bool = field(default=True, metadata={"nml": "NAMPARTICLES", "key": "lparticles", "required": True})
+    dtav: Optional[float] = field(default=60, metadata={"nml": "NAMPARTICLES", "key": "dtav", "required": True})
+    timeav: Optional[float] = field(default=60, metadata={"nml": "NAMPARTICLES", "key": "timeav", "required": True})
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "ParticlesOutputModule"
+
+    def do_config(self):
+        return None
+
+    def prepare_calculation(self):
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+
+@register_module
+@dataclass
+class NetCDFStatisticsSyncModule(simulation_module):
+    """Configure NAMNETCDFSTATS synchronization settings."""
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    lsync: bool = field(default=True, metadata={"nml": "NAMNETCDFSTATS", "key": "lsync", "required": True})
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "NetCDFStatisticsSyncModule"
+
+    def do_config(self):
+        return None
+
+    def prepare_calculation(self):
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+

@@ -149,7 +149,28 @@ class LSM_output_dales:
             }
 
             slb_generator.parse_yaml_name(modification)
-            getattr(slb_generator, slurb_field)[:, :] = LCZ_ds[LCZ_field].values
+            values = LCZ_ds[LCZ_field].values
+            if slurb_field == "f_bld":
+                urban_cover_key = next(
+                    (
+                        f"cover_{lu_key}"
+                        for lu_key, lu_dic in self.lu_types.items()
+                        if lu_dic.get("ifs_id") == 20
+                    ),
+                    None,
+                )
+                if urban_cover_key is None:
+                    logger.warning(
+                        "Could not find urban land-use type (IFS id 20) to scale f_bld; using unscaled values"
+                    )
+                else:
+                    urban_cover = np.clip(self.value_dic[urban_cover_key], 0.001, 1.0)
+                    values = (
+                        np.clip(np.nan_to_num(values, nan=0.01), 0.001, 1.0)
+                        * urban_cover
+                    )
+
+            getattr(slb_generator, slurb_field)[:, :] = values
 
     def set_uniform_soil_temperature(self, temperature):
         for i in range(self.soil_levels):

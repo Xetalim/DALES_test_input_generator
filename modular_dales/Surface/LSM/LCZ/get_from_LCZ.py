@@ -176,11 +176,9 @@ def map_esa_to_ifs(esa_da):
 def map_lcz_to_fields(lcz_da, ifs_da, lcz_dict):
     """
     Create LCZ-derived fields as xarray DataArrays.
-    Values are NaN outside built-up (IFS = 20).
+    Values are mapped from LCZ wherever LCZ is valid.
     """
     out = {}
-
-    built_mask = ifs_da.values == 20
 
     for field in LCZ_fields:
         lut = np.full(18, np.nan, dtype=float)
@@ -188,7 +186,6 @@ def map_lcz_to_fields(lcz_da, ifs_da, lcz_dict):
             lut[k] = getattr(v, field)
 
         mapped = np.full_like(lcz_da.values, np.nan, dtype=float)
-        valid = (lcz_da.values > 0) & built_mask
         valid = lcz_da.values > 0
         for num in np.arange(start=1, stop=18):
             mapped[valid & (lcz_da.values == num)] = lut[num]

@@ -12,6 +12,107 @@ if TYPE_CHECKING:
 class AtmosphereProfileWriter:
     """Helper class for writing atmosphere profiles and time-dependent forcings."""
 
+    def _plot_time_series(
+        self,
+        time_values: np.ndarray,
+        series: np.ndarray,
+        label: str,
+        out_path,
+        exp_id: int,
+    ) -> None:
+        plt.ioff()
+        fig, ax = plt.subplots()
+        ax.plot(time_values, series)
+        ax.set_xlabel("time (s)")
+        ax.set_ylabel(label)
+        ax.set_title(f"exp {exp_id:03d} forcing {label}")
+        fig.savefig(out_path, dpi=300)
+        plt.close(fig)
+        plt.ion()
+
+    def _plot_time_height_heatmap(
+        self,
+        time_values: np.ndarray,
+        z_values: np.ndarray,
+        data_2d: np.ndarray,
+        label: str,
+        out_path,
+        exp_id: int,
+    ) -> None:
+        plt.ioff()
+        fig, ax = plt.subplots()
+        mesh = ax.pcolormesh(
+            time_values,
+            z_values,
+            data_2d,
+            shading="nearest",
+            cmap="viridis",
+        )
+        cbar = fig.colorbar(mesh, ax=ax)
+        cbar.set_label(label)
+        ax.set_xlabel("time (s)")
+        ax.set_ylabel("z (m)")
+        ax.set_title(f"exp {exp_id:03d} heatmap {label}")
+        fig.savefig(out_path, dpi=300)
+        plt.close(fig)
+        plt.ion()
+
+    def _plot_forcing_file_variables(
+        self,
+        file_path,
+        profiles_path,
+        exp_id: int,
+        prefix: str,
+    ) -> None:
+        if not os.path.exists(file_path):
+            return
+
+        with netCDF4.Dataset(file_path, "r") as nc:
+            time_values = None
+            z_values = None
+            if "time" in nc.variables:
+                time_values = np.asarray(nc.variables["time"][:], dtype=float)
+            if "zh" in nc.variables:
+                z_values = np.asarray(nc.variables["zh"][:], dtype=float)
+
+            for var_name, nc_var in nc.variables.items():
+                if var_name in {"time", "zh"}:
+                    continue
+                arr = np.asarray(nc_var[:], dtype=float)
+
+                # Time series forcings: (time,)
+                if arr.ndim == 1 and time_values is not None and arr.size == time_values.size:
+                    self._plot_time_series(
+                        time_values,
+                        arr,
+                        var_name,
+                        profiles_path / f"{prefix}_timeseries_{var_name}.png",
+                        exp_id,
+                    )
+                    continue
+
+                # Time-height forcings (incl. nudging): (time, zh) or (zh, time)
+                if (
+                    arr.ndim == 2
+                    and time_values is not None
+                    and z_values is not None
+                ):
+                    if arr.shape == (time_values.size, z_values.size):
+                        arr_zh_time = arr.T
+                    elif arr.shape == (z_values.size, time_values.size):
+                        arr_zh_time = arr
+                    else:
+                        continue
+
+                    self._plot_time_height_heatmap(
+                        time_values,
+                        z_values,
+                        arr_zh_time,
+                        var_name,
+                        profiles_path / f"{prefix}_heatmap_{var_name}.png",
+                        exp_id,
+                    )
+
     def _ensure_init_axes(
         self,
         ncout,
@@ -250,3 +351,21 @@ class AtmosphereProfileWriter:
             )
             plt.close(fig)
             plt.ion()
+
+        profiles_path = output_path / ".." / "profiles"
+
+        # Plot forcings.<exp_id>.nc: time series and time-height forcings.
+        self._plot_forcing_file_variables(
+            output_path / f"forcings.{exp_id:03d}.nc",
+            profiles_path,
+            exp_id,
+            prefix="forcings",
+        )
+
+        # Plot init.<exp_id>.nc time-height fields as nudging-style heatmaps.
+        self._plot_forcing_file_variables(
+            output_path / f"init.{exp_id:03d}.nc",
+            profiles_path,
+            exp_id,
+            prefix="init",
+        )
