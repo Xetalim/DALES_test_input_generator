@@ -125,7 +125,7 @@ def _build_coarse_sim_with_easyoutput(
         ps=100000,
     )
 
-    sim += EasyOutputModule(output_interval=30, enable_output=True)
+    sim += EasyOutputModule(output_interval=10, enable_output=True)
 
     if sim.nml.get("namchecksim") is None:
         sim.nml["namchecksim"] = {}
@@ -254,47 +254,80 @@ def test_openboundaries_match_fielddump_and_crosssection(
         "user_defined",
         "NAMNETCDFSTATS",
         "lparallel",
-        False,
+        True,
     )
     coarse_sim.sim_preprocessing_pipeline()
 
     coarse_outdir = coarse_sim.output_path
     subprocess.run(["./job.001"], check=True, cwd=coarse_outdir.as_posix())
-    subprocess.run(["combine.sh", "run_001"], check=True, cwd=coarse_outdir.as_posix())
+    # subprocess.run(["combine.sh", "run_001"], check=True, cwd=coarse_outdir.as_posix())
 
-    fielddump_file = coarse_outdir / "fielddump.nc"
+    fielddump_file = coarse_outdir / "run_001" / "fielddump.001.nc"
     if not fielddump_file.is_file():
         pytest.skip(
             "fielddump.nc not found for coarse run; DALES did not produce fielddump"
         )
 
-    # Prefer crossyz, then crossxz, then crossxy
-    cross_candidates = [
-        coarse_outdir / "crossyz.nc",
-        coarse_outdir / "crossxz.nc",
-        coarse_outdir / "crossxy.nc",
+    # # Prefer crossyz, then crossxz, then crossxy
+    # cross_candidates = [
+    #     coarse_outdir / "crossyz.nc",
+    #     coarse_outdir / "crossxz.nc",
+    #     coarse_outdir / "crossxy.nc",
+    # ]
+    # crosssection_file = next((p for p in cross_candidates if p.is_file()), None)
+
+    # if crosssection_file is not None:
+    #     var = "thl"
+    #     if crosssection_file.name == "crossyz.nc":
+    #         fd_coord_dim = "xt"
+    #         cs_coord_dim = "xt"
+    #     elif crosssection_file.name == "crossxz.nc":
+    #         fd_coord_dim = "yt"
+    #         cs_coord_dim = "yt"
+    #     else:  # crossxy.nc
+    #         fd_coord_dim = "zt"
+    #         cs_coord_dim = "zt"
+
+    #     _assert_crosssection_matches_fielddump(
+    #         fielddump_file,
+    #         crosssection_file,
+    #         var=var,
+    #         fd_coord_dim=fd_coord_dim,
+    #         cs_coord_dim=cs_coord_dim,
+    #         cross_index=0,
+    #         time_index=0,
+    #     )
+    cross_patterns = [
+        ("run_001/crossyz.*.001.nc", "crossyz.nc"),
+        ("run_001/crossxz.*.001.nc", "crossxz.nc"),
+        ("run_001/crossxy.*.001.nc", "crossxy.nc"),
     ]
-    crosssection_file = next((p for p in cross_candidates if p.is_file()), None)
 
-    if crosssection_file is not None:
-        var = "thl"
-        if crosssection_file.name == "crossyz.nc":
-            fd_coord_dim = "xt"
-            cs_coord_dim = "xt"
-        elif crosssection_file.name == "crossxz.nc":
-            fd_coord_dim = "yt"
-            cs_coord_dim = "yt"
+    var = "thl"
+    for pattern, canonical_name in cross_patterns:
+        matching_files = list(coarse_outdir.glob(pattern))
+        if not matching_files:
+            continue
+        crosssection_file = matching_files[0]
+
+        # Choose which coordinate is the fixed scalar slice coord in the cross-section.
+        if canonical_name == "crossyz.nc":
+            cs_slice_coord = "xm" if var == "u" else "xt"
+            fd_coord_dim = cs_slice_coord
+        elif canonical_name == "crossxz.nc":
+            cs_slice_coord = "ym" if var == "v" else "yt"
+            fd_coord_dim = cs_slice_coord
         else:  # crossxy.nc
+            cs_slice_coord = "zt"
             fd_coord_dim = "zt"
-            cs_coord_dim = "zt"
 
-        _assert_crosssection_matches_fielddump(
+        # The slice coord is a scalar variable in the cross-section file, not a dim.
+        _assert_crosssection_matches_fielddump_scalar_slice_coord(
             fielddump_file,
             crosssection_file,
             var=var,
             fd_coord_dim=fd_coord_dim,
-            cs_coord_dim=cs_coord_dim,
-            cross_index=0,
+            cs_slice_coord=cs_slice_coord,
             time_index=0,
         )
 
@@ -329,34 +362,77 @@ def test_openboundaries_match_fielddump_and_crosssection(
             # ("thlwest", "thl", "xt", "yt", "west"),
         ]
 
-        for ob_name, fd_name, slice_dim, other_dim, side in pairs:
-            if ob_name not in ds_ob or fd_name not in ds_fd:
+        # Define the shifts to test; run all combinations in a single test.
+        index_shifts = [0, 1, 2, 3, -1, -2, -3]
+        time_shifts = [0, 1, 2, -1, -2]
+
+        unexpected_matches = []
+
+        for index_shift in index_shifts:
+            for time_shift in time_shifts:
+                for ob_name, fd_name, slice_dim, other_dim, side in pairs:
+                    if ob_name not in ds_ob or fd_name not in ds_fd:
+                        continue
+
+                    index = 0 if side in {"west", "south"} else -1
+                    fd_da = ds_fd[fd_name].sel(
+                        {
+                            slice_dim: getattr(nested_sim.grid.as_openbc(), slice_dim)[
+                                index
+                            ]
+                        },
+                        drop=True,
+                    )
+                    fd_da = fd_da.sel(
+                        {other_dim: getattr(nested_sim.grid.as_openbc(), other_dim)}
+                    )
+                    ob_da = ds_ob[ob_name].squeeze()
+
+            # Select time slices; apply time shift to fielddump selection.
+            try:
+                fd_slice_t = fd_da.isel(time=0 + time_shift)
+            except IndexError:
+                # time shift out of range for this dataset; skip this combination
+                continue
+            try:
+                ob_slice_t = ob_da.isel(time=1)
+            except IndexError:
                 continue
 
-            index = 0 if side in {"west", "south"} else -1
-            fd_da = ds_fd[fd_name].sel(
-                {slice_dim: getattr(nested_sim.grid.as_openbc(), slice_dim)[index]},
-                drop=True,
-            )
-            fd_da = fd_da.sel(
-                {other_dim: getattr(nested_sim.grid.as_openbc(), other_dim)}
-            )
-            ob_da = ds_ob[ob_name].squeeze()
-
-            fd_slice_t = fd_da.isel(time=0)
-            ob_slice_t = ob_da.isel(time=1)
-            print(fd_slice_t.dims, ob_slice_t.dims, slice_dim, other_dim)
+            # Align dims
             fd_slice_t = fd_slice_t.transpose(*ob_slice_t.dims)
 
-            diff = fd_slice_t.values - ob_slice_t.values
-            total_divergence += float(np.abs(diff).sum())
+            # Apply spatial index shift to fielddump values along the slice_dim axis
+            fd_vals = fd_slice_t.values
+            if index_shift != 0:
+                if slice_dim not in ob_slice_t.dims:
+                    # can't shift along a non-existing dim; skip
+                    continue
+                axis = ob_slice_t.dims.index(slice_dim)
+                fd_vals = np.roll(fd_vals, shift=index_shift, axis=axis)
+            if index_shift == 0 and time_shift == 0:
+                diff = fd_vals - ob_slice_t.values
+                total_divergence += float(np.abs(diff).sum())
 
-            np.testing.assert_allclose(
-                fd_slice_t.values,
-                ob_slice_t.values,
-                rtol=1e-6,
-                atol=1e-8,
+            # If both shifts are zero, values should match exactly.
+            if index_shift == 0 and time_shift == 0:
+                np.testing.assert_allclose(
+                    fd_vals,
+                    ob_slice_t.values,
+                    rtol=1e-6,
+                    atol=1e-8,
+                )
+            else:
+                # For nonzero shifts: detect if values unexpectedly match.
+                if np.allclose(fd_vals, ob_slice_t.values, rtol=1e-6, atol=1e-8):
+                    unexpected_matches.append((ob_name, index_shift, time_shift))
+
+        # If any unexpected matches were found for nonzero shifts, fail with a summary.
+        if unexpected_matches:
+            details = ", ".join(
+                f"{name}@idx={i},t={t}" for name, i, t in unexpected_matches
             )
+            pytest.fail(f"Unexpected matches for nonzero shifts: {details}")
 
     assert total_divergence >= 0.0
     assert total_divergence < 1e-3

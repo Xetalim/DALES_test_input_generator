@@ -39,7 +39,8 @@ from modular_dales.Configuration import (
 from modular_dales.Configuration.output_modules import CheckSimulationModule
 from modular_dales.Emission.emission import EmissionModule, EmissionTracer
 import modular_dales.Emission.emission as emission
-from modular_dales.Geometry import GridDales, AllGeometry
+from modular_dales.Geometry import GridDales
+from modular_dales.IBM.IBM import FromAHN, IBMModule
 from modular_dales.LBC import Nest_in_Dales, NestingTopology, do_openboundary
 from modular_dales.LBC.openbc import Nest_in_AtmosphereProfiles
 from modular_dales.Radiation.radiation import RadiationModule
@@ -102,7 +103,7 @@ if __name__ == "__main__":
     logger.info("=" * 70)
 
     # Create minimal configuration with just case name and output directory
-    case_name = "029_utrecht"
+    case_name = "003_testbed"
     output_directory = None
     x0, y0 = 133303, 453047  # knooppunt oudenrijn
     x1, y1 = 140146, 459189  # de bilt
@@ -113,23 +114,43 @@ if __name__ == "__main__":
         print(f"Warning: domain is not square, got {(x1-x0)} x {(y1-y0)}")
         print("Adjusting y1 to make it square")
         y1 = y0 + (x1 - x0)
+    dz0 = 3.0
 
-    domain_info = GridDales(
-        itot=64,
-        jtot=64,
-        kmax=96,
-        xsize=x1 - x0,
-        ysize=y1 - y0,
+    def dz(n):
+        if n < 33:
+            return dz0
+        else:
+            return dz0 * 1.029 ** (n - 33)
+
+    grid = GridDales(
+        itot=128,
+        jtot=128,
+        kmax=128,
+        xsize=256,
+        ysize=256,
         kmax_soil=4,
-        xlat=52.09135,
-        xlon=5.12258,
-        x0=133251.0,  # knooppunt oudenrijn
-        y0=453085.0,  # knooppunt oudenrijn
-        alpha=1.015,
-        dz0=20,
+        xlat=51.99999945,
+        xlon=4.37429683,
+        x0=85258,
+        y0=445966,
+        alpha=1,
+        dz0=3,
         proj4="epsg:28992",
     )
+    grid.dz = np.zeros(grid.kmax)
+    grid.zt = np.zeros(grid.kmax)
+    grid.zm = np.zeros(grid.kmax + 1)
+    grid.dz[:] = np.vectorize(dz)(np.arange(grid.kmax, dtype=float) + 1)
+    grid.zm[1:] = np.cumsum(grid.dz)
+    grid.zt[:] = 0.5 * (grid.zm[1:] + grid.zm[:-1])
+    grid.zsize = grid.zm[-1]
+    print(f"{grid.zt=}")
+    print(f"{grid.zm=}")
+    print(f"{grid.zsize=}")
+    import inspect
 
+    print(f"{inspect.getsource(dz)=}")
+    exit()
     # Machine configuration (would normally come from machine_conf.yaml)
     # Create simulation instance
     sim = dales_simulation(case_name, machine_conf)
@@ -139,81 +160,42 @@ if __name__ == "__main__":
     sim += DefaultNamelistModule()
     logger.info("Added DefaultNamelistModule")
 
-    sim += domain_info
+    sim += grid
     logger.info("Added GridModule")
 
     sim += TimeModule(
-        xday=223,
-        xtime=0.0,
-        xyear=2025,
-        runtime=3600 * 24 * 1,  # 4 days in seconds
-        startyear=2025,
-        startmonth=8,
-        startday=11,
+        xday=103,
+        xtime=4.0,
+        xyear=2013,
+        runtime=3600 * 4 * 1,  # 4 hours in seconds
+        startyear=2013,
+        startmonth=4,
+        startday=13,
     )
 
-    lsm = LSM.LSMModule(
-        ps=100000,
-        z0mav=0.0001,
-        z0hav=0.0001,
-        albedoav=0.2,
-        iinterp_t=1,
-        iinterp_theta=1,
-        dz_soil=[1.89, 0.72, 0.21, 0.07],
-    )
-    lsm += LSM.UniformSkinTemperature(
-        293.15
-    )  # this will be overriden by LS2D-driven skin temperature
-    lsm += LSM.UniformSoilMoisture(
-        [0.2, 0.2, 0.2, 0.2]
-    )  # this will be overriden by LS2D-driven soil moisture
-    lsm += LSM.UniformSoilTemperature(
-        [293.15, 293.15, 293.15, 293.15]
-    )  # this will be overriden by LS2D-driven soil temperature
-    lsm += LSM.LandUseModification(geometry=AllGeometry(), type="grs")
-    lsm += LSM.FromLCZ()
-    # lsm += LSM.LandUseModification("all", type="slb", params={})
-    sim += lsm
-    slurb = LSM.SLURBModule(
-        deep_soil_temperature=293.15, building_indoor_temperature=273.15 + 30
-    )
-    # slurb += SLURBModification(
-    #     geometry=AllGeometry(),
-    #     vars=[{"varname": "lambda_roof", "value": 3, "n_layers": 4}],
-    # )
-    # slurb += SLURBModification(
-    #     geometry="all", vars=[{"varname": "h_bld", "value": 10}], params={}
-    # )
-    # slurb += SLURBModification(
-    #     geometry="all", vars=[{"varname": "hw_can", "value": 0.5}], params={}
-    # )
-    # slurb += SLURBModification(
-    #     geometry="all", vars=[{"varname": "f_frn_bld", "value": 0.5}], params={}
-    # )
-    # slurb += SLURBModification(
-    #     geometry="all", vars=[{"varname": "z0_urb", "value": 0.5}], params={}
-    # )
-    # # slurb += SLURBModification(
-    # #     geometry="all",
-    # #     vars=[{"varname": "lambda_roof", "value": 3, "n_layers": 4}],
-    # #     params={},
-    # # )
-    sim += slurb
-
-    sim += RadiationModule(
-        iradiation=5,  # 0=off, 1=simple, 4=RRTMGP
-    )
+    sim += ConstantSurfaceTemperatureModule(
+        thls=293.15, z0hav=0.001, z0mav=0.01, ps=100000
+    )  # this will be overriden by LS2D-driven surface temperature
 
     # sim += nesting
 
     sim += EasyOutputModule(
-        output_interval=120,
+        output_interval=1,
         enable_output=True,
     )
-    sim += SamplingModule(
-        output_interval=120,
-        enable_output=True,
-    )
+    # sim += SamplingModule(
+    #     output_interval=120,
+    #     enable_output=True,
+    # )
+    IBM = IBMModule()
+    IBM += FromAHN()
+    # IBM += IBMModification("all", height=0, params={})
+    # IBM += IBMModification(
+    #     "rectangle_idx",
+    #     height=20,
+    #     params={"minx": 10, "maxx": 20, "miny": 10, "maxy": 20},
+    # )
+    sim += IBM
 
     set_nml_section(sim.nml, sim.nml_docs, "user_defined", "RUN", "nprocx", 0)
     set_nml_section(sim.nml, sim.nml_docs, "user_defined", "RUN", "nprocy", 0)
@@ -233,8 +215,8 @@ if __name__ == "__main__":
             "era5_path",
             "/Users/andrevanginkel/Documents/20_Code/28_dales_input/28.01_Dales_LSM_generator/jupyter_tests/era5_data",
         ),
-        start_date=datetime.datetime(2025, 8, 11, hour=0),
-        end_date=datetime.datetime(2025, 8, 16, hour=0),
+        start_date=datetime.datetime(2013, 4, 18, hour=4),
+        end_date=datetime.datetime(2013, 4, 18, hour=8),
         write_log=False,
         data_source=sim.machine_conf.get("ls2d_conf", {}).get("data_source", "CDS"),
         n_av=0,
@@ -242,51 +224,19 @@ if __name__ == "__main__":
         do_nudging=True,
     )
     sim += atmo_ls2d
-    lsm += FromLS2D()
+    # lsm += FromLS2D()
 
     # Base AtmosphereModule; LS2DAtmosphereModule will inject LS2D-based
     # initial profiles here so that ``init.<exp_id>.nc`` is written via
     # the standard AtmosphereModule machinery.
     atmo = AtmosphereModule()
-    # atmo += InterpolatedProfile(variable=ua, z=[0, 4000, 5000], points=[5, 1e-8, 1e-8])
-    # atmo += InterpolatedProfile(variable=va, z=[0, 4000, 5000], points=[0, 1e-8, 1e-8])
-    # atmo += InterpolatedProfile(
-    #     variable=ua_nudge, z=[0, 4000, 5000], points=[5, 1e-8, 1e-8]
-    # )
-    # atmo += InterpolatedProfile(
-    #     variable=va_nudge, z=[0, 4000, 5000], points=[0, 1e-8, 1e-8]
-    # )
-    # atmo += InterpolatedProfile(variable=ug, z=[0, 4000, 5000], points=[5, 1e-8, 1e-8])
-    # atmo += InterpolatedProfile(variable=vg, z=[0, 4000, 5000], points=[0, 1e-8, 1e-8])
 
     sim += atmo
 
-    # Basic openboundary configuration using the external atmosphere
-    # openbc = do_openboundary(
-    #     time0="2025-08-13T00:00:00",
-    #     start="2025-08-13T00:00:00",
-    #     end="2025-08-15T00:00:00",
-    #     e12=0.1,
-    #     dxint=domain_info.xsize,  # / supergrid.itot,
-    #     dyint=domain_info.ysize,  # / supergrid.jtot,
-    #     tracernames=[],
-    # )
-
-    # openbc += Nest_in_AtmosphereProfiles(
-    #     atmosphere_module=atmo,  # use the base AtmosphereModule as source for openboundary profiles, which will be injected with LS2D data via the FromLS2D module
-    #     noise_boundaries=["south", "west", "east", "north"],
-    #     noise_variables=["thl"],
-    #     noise_std=0.1,
-    #     noise_seed=0,
-    #     noise_minzt=0,
-    #     noise_maxzt=400,
-    #     add_to_top_thl=0.5,  # add 0.5 K to the top boundary thl to make sure we don't get a downdraft along the top everywhere
-    # )
-    # sim += openbc
     set_nml_section(
         sim.nml, sim.nml_docs, "user_defined", "namnetcdfstats", "lsync", True
     )
-    set_nml_section(sim.nml, sim.nml_docs, "user_defined", "physics", "lcoriol", False)
+    set_nml_section(sim.nml, sim.nml_docs, "user_defined", "physics", "lcoriol", True)
     set_nml_section(sim.nml, sim.nml_docs, "user_defined", "surface", "thls", 293.15)
     set_nml_section(
         sim.nml, sim.nml_docs, "user_defined", "namsubgrid", "sgs_surface_fix", False
@@ -307,9 +257,6 @@ if __name__ == "__main__":
         sim.nml, sim.nml_docs, "user_defined", "NAMNUDGE", "lnudge", True
     )  # we don't want to have nudging, so we explicitly disable
 
-    # if sim.nml.get("namchecksim") is None:
-    #     sim.nml["namchecksim"] = {}
-    # sim.nml["namchecksim"]["tcheck"] = 60
     sim += CheckSimulationModule(check_interval=120)
     sim.init_output_folder()
     sim.setup_module_links()
@@ -317,19 +264,6 @@ if __name__ == "__main__":
     sim.check_settings()
     sim.prepare_all_calculations()
 
-    # ref = sim.retrieve_module(do_openboundary)
-    # time, zt, xt = xr.broadcast(
-    #     ref.boundaries.time, ref.boundaries.zt, ref.boundaries.xt
-    # )
-
-    # def triangle_function(x, x0, width):
-
-    #     return np.maximum(0, 1 - np.abs(x - x0) / width)
-
-    # time_prof = triangle_function(np.mod(time, 410), 300, 100)
-    # zt_prof = triangle_function(zt, 90, 30)
-    # xt_prof = triangle_function(xt, 320, 50)
-    # ref.boundaries.othersouth[:, :, :] = time_prof * zt_prof * xt_prof
     sim.write_module_files()
     sim.apply_job_configuration()
     sim.write_simulation_files()

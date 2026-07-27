@@ -31,6 +31,7 @@ from modular_dales.Geometry import GridDales
 from modular_dales.IBM import FromAHN, IBMModule
 from modular_dales.logging_wrapper import setup_logging
 from modular_dales.Surface import ConstantSurfaceTemperatureModule
+from modular_dales.modular.simulation_module import set_nml_section
 from modular_dales.vars import ua, va, thetal, qt, wa, tke
 
 setup_logging("logging.yaml")
@@ -70,7 +71,7 @@ if __name__ == "__main__":
     logger.info("=" * 70)
 
     # Create minimal configuration with just case name and output directory
-    case_name = "011_test"
+    case_name = "002_ibm"
     output_directory = None
 
     # Simple but valid domain configuration
@@ -169,7 +170,9 @@ if __name__ == "__main__":
     if sim.nml.get("namchecksim") is None:
         sim.nml["namchecksim"] = {}
     sim.nml["namchecksim"]["tcheck"] = 60
-
+    set_nml_section(
+        sim.nml, sim.nml_docs, "user_defined", "namnetcdfstats", "lsync", True
+    )
     # if sim.nml.get("thermodynamics") is None:
     #     sim.nml["thermodynamics"] = {}
     # sim.nml["thermodynamics"]["lconstexner"] = True

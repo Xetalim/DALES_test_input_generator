@@ -35,11 +35,13 @@ from modular_dales.Configuration import (
     EasyOutputModule,
     TimeModule,
     SamplingModule,
+    ColumnStatisticsOutputModule,
+    VirtualMeasurementOutputModule,
 )
 from modular_dales.Configuration.output_modules import CheckSimulationModule
 from modular_dales.Emission.emission import EmissionModule, EmissionTracer
 import modular_dales.Emission.emission as emission
-from modular_dales.Geometry import GridDales, AllGeometry
+from modular_dales.Geometry import GridDales
 from modular_dales.LBC import Nest_in_Dales, NestingTopology, do_openboundary
 from modular_dales.LBC.openbc import Nest_in_AtmosphereProfiles
 from modular_dales.Radiation.radiation import RadiationModule
@@ -102,7 +104,7 @@ if __name__ == "__main__":
     logger.info("=" * 70)
 
     # Create minimal configuration with just case name and output directory
-    case_name = "029_utrecht"
+    case_name = "030_utrecht"
     output_directory = None
     x0, y0 = 133303, 453047  # knooppunt oudenrijn
     x1, y1 = 140146, 459189  # de bilt
@@ -115,11 +117,11 @@ if __name__ == "__main__":
         y1 = y0 + (x1 - x0)
 
     domain_info = GridDales(
-        itot=64,
-        jtot=64,
+        itot=128,
+        jtot=128,
         kmax=96,
-        xsize=x1 - x0,
-        ysize=y1 - y0,
+        xsize=(x1 - x0) / 4,
+        ysize=(y1 - y0) / 4,
         kmax_soil=4,
         xlat=52.09135,
         xlon=5.12258,
@@ -146,7 +148,7 @@ if __name__ == "__main__":
         xday=223,
         xtime=0.0,
         xyear=2025,
-        runtime=3600 * 24 * 1,  # 4 days in seconds
+        runtime=3600 * 4,  # 4 days in seconds
         startyear=2025,
         startmonth=8,
         startday=11,
@@ -170,16 +172,14 @@ if __name__ == "__main__":
     lsm += LSM.UniformSoilTemperature(
         [293.15, 293.15, 293.15, 293.15]
     )  # this will be overriden by LS2D-driven soil temperature
-    lsm += LSM.LandUseModification(geometry=AllGeometry(), type="grs")
-    lsm += LSM.FromLCZ()
-    # lsm += LSM.LandUseModification("all", type="slb", params={})
+    # lsm += LSM.FromLCZ()
+    lsm += LSM.LandUseModification("all", type="grs", params={})
     sim += lsm
     slurb = LSM.SLURBModule(
         deep_soil_temperature=293.15, building_indoor_temperature=273.15 + 30
     )
     # slurb += SLURBModification(
-    #     geometry=AllGeometry(),
-    #     vars=[{"varname": "lambda_roof", "value": 3, "n_layers": 4}],
+    #     geometry="all", vars=[{"varname": "f_bld", "value": 0.9999999}], params={}
     # )
     # slurb += SLURBModification(
     #     geometry="all", vars=[{"varname": "h_bld", "value": 10}], params={}
@@ -207,19 +207,28 @@ if __name__ == "__main__":
     # sim += nesting
 
     sim += EasyOutputModule(
-        output_interval=120,
+        output_interval=10,
         enable_output=True,
     )
     sim += SamplingModule(
-        output_interval=120,
+        output_interval=10,
         enable_output=True,
     )
+    x_idx = [x + 1 for x in range(domain_info.itot)][::8]  # every 4th point in x
+    y_idx = [y + 1 for y in range(domain_info.jtot)][::8]  # every 4th point in y
+    xmesh, ymesh = np.meshgrid(x_idx, y_idx)
+    sim += ColumnStatisticsOutputModule(
+        x_idx=xmesh.flatten(),
+        y_idx=ymesh.flatten(),
+    )
 
+    sim += VirtualMeasurementOutputModule(
+        x_idx=xmesh.flatten(),
+        y_idx=ymesh.flatten(),
+    )
     set_nml_section(sim.nml, sim.nml_docs, "user_defined", "RUN", "nprocx", 0)
     set_nml_section(sim.nml, sim.nml_docs, "user_defined", "RUN", "nprocy", 0)
-    set_nml_section(
-        sim.nml, sim.nml_docs, "user_defined", "NAMSLURB", "dtav_slurb", 120
-    )
+    set_nml_section(sim.nml, sim.nml_docs, "user_defined", "NAMSLURB", "dtav_slurb", 10)
     # External atmosphere module, not registered via sim += as openbc inits it for you.
     time = TimedependentModule(
         ltimedep=True
@@ -248,43 +257,14 @@ if __name__ == "__main__":
     # initial profiles here so that ``init.<exp_id>.nc`` is written via
     # the standard AtmosphereModule machinery.
     atmo = AtmosphereModule()
-    # atmo += InterpolatedProfile(variable=ua, z=[0, 4000, 5000], points=[5, 1e-8, 1e-8])
-    # atmo += InterpolatedProfile(variable=va, z=[0, 4000, 5000], points=[0, 1e-8, 1e-8])
-    # atmo += InterpolatedProfile(
-    #     variable=ua_nudge, z=[0, 4000, 5000], points=[5, 1e-8, 1e-8]
-    # )
-    # atmo += InterpolatedProfile(
-    #     variable=va_nudge, z=[0, 4000, 5000], points=[0, 1e-8, 1e-8]
-    # )
-    # atmo += InterpolatedProfile(variable=ug, z=[0, 4000, 5000], points=[5, 1e-8, 1e-8])
-    # atmo += InterpolatedProfile(variable=vg, z=[0, 4000, 5000], points=[0, 1e-8, 1e-8])
 
     sim += atmo
 
-    # Basic openboundary configuration using the external atmosphere
-    # openbc = do_openboundary(
-    #     time0="2025-08-13T00:00:00",
-    #     start="2025-08-13T00:00:00",
-    #     end="2025-08-15T00:00:00",
-    #     e12=0.1,
-    #     dxint=domain_info.xsize,  # / supergrid.itot,
-    #     dyint=domain_info.ysize,  # / supergrid.jtot,
-    #     tracernames=[],
-    # )
-
-    # openbc += Nest_in_AtmosphereProfiles(
-    #     atmosphere_module=atmo,  # use the base AtmosphereModule as source for openboundary profiles, which will be injected with LS2D data via the FromLS2D module
-    #     noise_boundaries=["south", "west", "east", "north"],
-    #     noise_variables=["thl"],
-    #     noise_std=0.1,
-    #     noise_seed=0,
-    #     noise_minzt=0,
-    #     noise_maxzt=400,
-    #     add_to_top_thl=0.5,  # add 0.5 K to the top boundary thl to make sure we don't get a downdraft along the top everywhere
-    # )
-    # sim += openbc
     set_nml_section(
         sim.nml, sim.nml_docs, "user_defined", "namnetcdfstats", "lsync", True
+    )
+    set_nml_section(
+        sim.nml, sim.nml_docs, "user_defined", "namnetcdfstats", "lparallel", False
     )
     set_nml_section(sim.nml, sim.nml_docs, "user_defined", "physics", "lcoriol", False)
     set_nml_section(sim.nml, sim.nml_docs, "user_defined", "surface", "thls", 293.15)
@@ -307,29 +287,13 @@ if __name__ == "__main__":
         sim.nml, sim.nml_docs, "user_defined", "NAMNUDGE", "lnudge", True
     )  # we don't want to have nudging, so we explicitly disable
 
-    # if sim.nml.get("namchecksim") is None:
-    #     sim.nml["namchecksim"] = {}
-    # sim.nml["namchecksim"]["tcheck"] = 60
-    sim += CheckSimulationModule(check_interval=120)
+    sim += CheckSimulationModule(check_interval=0)
     sim.init_output_folder()
     sim.setup_module_links()
     sim.do_config()
     sim.check_settings()
     sim.prepare_all_calculations()
 
-    # ref = sim.retrieve_module(do_openboundary)
-    # time, zt, xt = xr.broadcast(
-    #     ref.boundaries.time, ref.boundaries.zt, ref.boundaries.xt
-    # )
-
-    # def triangle_function(x, x0, width):
-
-    #     return np.maximum(0, 1 - np.abs(x - x0) / width)
-
-    # time_prof = triangle_function(np.mod(time, 410), 300, 100)
-    # zt_prof = triangle_function(zt, 90, 30)
-    # xt_prof = triangle_function(xt, 320, 50)
-    # ref.boundaries.othersouth[:, :, :] = time_prof * zt_prof * xt_prof
     sim.write_module_files()
     sim.apply_job_configuration()
     sim.write_simulation_files()

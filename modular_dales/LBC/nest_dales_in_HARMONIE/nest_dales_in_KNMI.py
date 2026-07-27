@@ -597,7 +597,7 @@ class KNMIPrepper(prep_harmonie.harmoniePrepper):
 
         # ── Build clean datasets with only the needed variables ────────
         ds_3d_clean = ds_3d[["u", "v", "wz", "t", "q", "clwc"]]
-        sfc_ds = xr.Dataset({"msl": sfc_ps, "2t": t2m, "2sh": huss})
+        sfc_ds = xr.Dataset({"ps": sfc_ps, "2t": t2m, "2sh": huss})
 
         # ── Reproject to target CRS with x/y in meters ────────────────
         src_crs = _detect_source_crs(ds_ml)
@@ -720,7 +720,7 @@ class KNMIPrepper(prep_harmonie.harmoniePrepper):
             wz = w_from_continuity(
                 ds_3d_clean["u"],
                 ds_3d_clean["v"],
-                sfc_ds["msl"],
+                sfc_ds["ps"],
                 hybrid_levels.ahalf,
                 hybrid_levels.bhalfs,
             )

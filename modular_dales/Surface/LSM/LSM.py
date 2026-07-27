@@ -122,7 +122,26 @@ class AGSParameters:
 
 @register_module
 @dataclass
-class LSMModule(BaseLSMModule):
+class FromNetCDF:
+    """Use a user-supplied NetCDF file as land-surface data source.
+
+    The file must contain:
+      FRAC_WATER, FRAC_SEA  – water/ocean fractions
+      FRAC_NATURE           – natural land fraction (sub-typed via ESA WorldCover)
+      FRAC_TOWN             – urban fraction (drives SLuRB)
+      D_Z0_town, D_BLD, D_BLD_HEIG, WALL_O_HOR  – optional SLuRB morphology
+    """
+
+    path: str
+    """Absolute or relative path to the NetCDF file."""
+
+    esa_cache_dir: Optional[str] = field(default=None, metadata={"serialize": True})
+    """Optional directory for caching the ESA WorldCover reprojected tile."""
+
+
+@register_module
+@dataclass
+class LSMModule(SurfaceModule):
     """Land Surface Model simulation module.
 
     When added to a simulation, automatically enables LSM by setting isurf=11
@@ -177,6 +196,12 @@ class LSMModule(BaseLSMModule):
         default=None,
         init=True,
         repr=True,
+        metadata={"serialize": True},
+    )
+    from_netcdf: Optional["FromNetCDF"] = field(
+        default=None,
+        init=True,
+        repr=False,
         metadata={"serialize": True},
     )
     from_ls2d: Optional[FromLS2D] = field(
@@ -255,6 +280,8 @@ class LSMModule(BaseLSMModule):
             self.from_bofek = obj
         elif isinstance(obj, AGSParameters):
             self.ags_parameters = obj
+        elif isinstance(obj, FromNetCDF):
+            self.from_netcdf = obj
         elif isinstance(obj, FromLS2D):
             self.from_ls2d = obj
         elif isinstance(obj, (UniformSkinTemperature, VaryingSkinTemperature)):
@@ -276,6 +303,7 @@ class LSMModule(BaseLSMModule):
                 self.skin_temperature = obj
         else:
             raise TypeError(
+                "Expected LandUseModification/FromLCZ/FromNetCDF/FromLS2D/"
                 "Expected LandUseModification/FromLCZ/FromTop10/FromBofek/"
                 "AGSParameters/FromLS2D/"
                 "SkinTemperatures/SoilTemperatures/SoilMoistures, got "
@@ -299,12 +327,12 @@ class LSMModule(BaseLSMModule):
             self.slurb_module = self.retrieve_module(SLURBModule)
 
         # Determine land use types
-        if self.from_lcz is None:
+        if self.from_lcz is not None or self.from_netcdf is not None:
+            lu_types = landuse_types.lu_types_ifs
+        else:
             lu_types = landuse_types.lu_types_depac.copy()
             if self.slurb_module:
                 lu_types["slb"] = landuse_types.slb
-        else:
-            lu_types = landuse_types.lu_types_ifs
 
         # Initialize LSM writer
         self.lsm_writer = LSM_output_dales(
@@ -325,7 +353,6 @@ class LSMModule(BaseLSMModule):
             self.lsm_writer = modifier.lsm_input
             self.lsm_writer.init_lutypes_ifs()
             self.lsm_writer.recalculate_remaining_cover()
-        else:
             self.lsm_writer.from_lcz()
 
             # Apply SLURB parameters if SLURB is enabled and module is present
@@ -334,6 +361,27 @@ class LSMModule(BaseLSMModule):
                 self.lsm_writer.apply_slurb_parameters_lcz(
                     self.slurb_module.slb_generator
                 )
+        elif self.from_netcdf is not None:
+            from modular_dales.Surface.LSM.LCZ.from_netcdf import load_from_netcdf
+            from pathlib import Path
+
+            esa_cache = (
+                Path(self.from_netcdf.esa_cache_dir)
+                if self.from_netcdf.esa_cache_dir is not None
+                else None
+            )
+            nc_ds = load_from_netcdf(
+                self.from_netcdf.path, self.grid, esa_cache_dir=esa_cache
+            )
+
+            if self.slurb_module is not None:
+                self.slurb_module.init_generator()
+            slb_gen = (
+                self.slurb_module.slb_generator
+                if self.slurb_module is not None
+                else None
+            )
+            self.lsm_writer.apply_from_netcdf(nc_ds, slb_gen)
 
         # Optional overlay from Top10NL; this can be used standalone or on top
         # of LCZ-derived fields.

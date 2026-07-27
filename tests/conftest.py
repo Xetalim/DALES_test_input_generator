@@ -4,6 +4,9 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
+import matplotlib
+
+matplotlib.use("Agg")
 
 from .helpers import load_machine_conf
 

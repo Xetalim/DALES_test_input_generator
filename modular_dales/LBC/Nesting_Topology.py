@@ -116,10 +116,10 @@ class NestingTopology(simulation_module):
 
             merged_height = list(dict.fromkeys(existing_height + [iztop + 2]))
             merged_plane = list(
-                dict.fromkeys(existing_plane + [iysouth + 2, iynorth + 2])
+                dict.fromkeys(existing_plane + [iysouth + 1, iynorth + 1])
             )
             merged_ortho = list(
-                dict.fromkeys(existing_ortho + [ixwest + 2, ixeast + 2])
+                dict.fromkeys(existing_ortho + [ixwest + 1, ixeast + 1])
             )
 
             self.set_nml_section("namcrosssection", "crossheight", merged_height)

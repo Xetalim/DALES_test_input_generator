@@ -135,6 +135,105 @@ class LSM_output_dales:
         # any gridpoint with total_cover <1 is set to bare soil to make sure the total cover is 1
         self.recalculate_remaining_cover()
 
+    def apply_from_netcdf(self, ds, slb_generator):
+        """Fill lu_types fracs + SLuRB morphology from a ``load_from_netcdf`` dataset.
+
+        Parameters
+        ----------
+        ds:
+            xarray Dataset returned by
+            ``modular_dales.Surface.LSM.LCZ.from_netcdf.load_from_netcdf``.
+        slb_generator:
+            ``slbCreatorClass`` instance (may be *None* when SLURBModule is absent).
+        """
+
+        self.value_dic["index_soil"][:, :] = ds["index_soil"].values
+
+        frac_water = np.asarray(ds["frac_water"].values, dtype=float)
+        frac_sea = np.asarray(ds["frac_sea"].values, dtype=float)
+        frac_town = np.asarray(ds["frac_town"].values, dtype=float)
+        frac_nature = np.asarray(ds["frac_nature"].values, dtype=float)
+        ifs_cover = np.asarray(ds["ifs_land_cover"].values, dtype=float)
+
+        # Clip to [0, 1] to guard against reprojection artefacts
+        frac_water = np.clip(frac_water, 0.0, 1.0)
+        frac_sea = np.clip(frac_sea, 0.0, 1.0)
+        frac_town = np.clip(frac_town, 0.0, 1.0)
+        frac_nature = np.clip(frac_nature, 0.0, 1.0)
+
+        # Combined ocean / water fraction → lu types with ifs_id == 22 (laqu=True)
+        frac_water_total = np.clip(frac_water + frac_sea, 0.0, 1.0)
+        water_lu_keys = [
+            lu_key for lu_key, lu_dic in self.lu_types.items()
+            if lu_dic.get("ifs_id") == 22
+        ]
+        # Distribute equally among all water lu_types (usually just 'wat')
+        n_water = max(len(water_lu_keys), 1)
+        for lu_key in water_lu_keys:
+            self.lu_types[lu_key]["lu_frac"][:, :] = frac_water_total / n_water
+
+        # Urban / SLuRB fraction → lu types with ifs_id == 20
+        slb_lu_keys = [
+            lu_key for lu_key, lu_dic in self.lu_types.items()
+            if lu_dic.get("ifs_id") == 20
+        ]
+        n_slb = max(len(slb_lu_keys), 1)
+        for lu_key in slb_lu_keys:
+            self.lu_types[lu_key]["lu_frac"][:, :] = frac_town / n_slb
+
+        # Nature fraction → distributed proportionally by dominant ESA IFS type
+        # For each grid cell, frac_nature is split among non-water/non-urban IFS types
+        # according to the fractional pixel count from the ESA raster.
+        nature_lu_keys = [
+            lu_key for lu_key, lu_dic in self.lu_types.items()
+            if lu_dic.get("ifs_id") not in (20, 22)
+            and lu_dic.get("ifs_id") is not None
+        ]
+        if nature_lu_keys:
+            # Build a count array for each nature IFS id across the grid.
+            # The ESA raster has one IFS code per pixel; we use it as a soft
+            # distribution weight (each pixel = 1 unit of area).
+
+            jtot, itot = frac_nature.shape
+            weights = {lu_key: np.zeros((jtot, itot), dtype=float) for lu_key in nature_lu_keys}
+
+            for lu_key in nature_lu_keys:
+                ifs_id = self.lu_types[lu_key]["ifs_id"]
+                weights[lu_key] = (ifs_cover == ifs_id).astype(float)
+
+            total_weight = sum(weights[k] for k in nature_lu_keys)
+            # Where total weight is zero (e.g. ESA has no matching class) give equal share
+            zero_mask = total_weight == 0
+            n_nat = len(nature_lu_keys)
+            for lu_key in nature_lu_keys:
+                w = weights[lu_key].copy()
+                w[zero_mask] = 1.0 / n_nat
+                total_w = total_weight.copy()
+                total_w[zero_mask] = 1.0
+                self.lu_types[lu_key]["lu_frac"][:, :] = frac_nature * (w / total_w)
+
+        self.init_lutypes_ifs()
+        self.recalculate_remaining_cover()
+
+        # SLuRB morphological fields
+        if slb_generator is not None:
+            slurb_field_map = {
+                "hw_can": "hw_can",
+                "f_bld": "f_bld",
+                "h_bld": "h_bld",
+                "z0_urb": "z0_urb",
+            }
+            for nc_field, slurb_field in slurb_field_map.items():
+                if nc_field not in ds:
+                    continue
+                modification = {
+                    "geometry": "all",
+                    "params": None,
+                    "vars": [{"varname": slurb_field, "value": 0, "dtype": "real"}],
+                }
+                slb_generator.parse_yaml_name(modification)
+                getattr(slb_generator, slurb_field)[:, :] = ds[nc_field].values
+
     def apply_slurb_parameters_lcz(self, slb_generator: slbCreatorClass):
         LCZ_ds = self.LCZ_ds
         # slb_modifications:

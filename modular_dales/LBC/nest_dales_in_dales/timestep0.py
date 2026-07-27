@@ -3,6 +3,7 @@ import logging
 
 import numpy as np
 import xarray as xr
+import glob
 
 
 from modular_dales.Geometry.GridDales import GridDalesOpenBC
@@ -202,7 +203,9 @@ def boundaries_timestep0(input_json, grid: GridDalesOpenBC, indices: "NestingInd
 
         all_ls = []
         for boundary, (boundaryfile, sel_index) in boundary_dict.items():
-            with xr.open_dataset(boundaryfile) as ds:
+            with xr.open_mfdataset(
+                glob.glob(boundaryfile.as_posix()), join="outer"
+            ) as ds:
                 for var in [
                     "u",
                     "v",

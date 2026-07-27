@@ -1,3 +1,4 @@
+import glob
 import logging
 from typing import TYPE_CHECKING
 
@@ -38,7 +39,7 @@ def get_all_dales_boundaries(
     boundary_dict = get_boundary_dict(input_json["outpath_coarse"], grid, indices)
     all_ls = []
     for boundary, (boundaryfile, sel_index) in boundary_dict.items():
-        with xr.open_dataset(boundaryfile) as ds:
+        with xr.open_mfdataset(glob.glob(boundaryfile.as_posix()), join="outer") as ds:
             for var in [
                 "u",
                 "v",

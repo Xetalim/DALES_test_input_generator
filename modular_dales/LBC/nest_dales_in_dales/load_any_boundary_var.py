@@ -185,35 +185,35 @@ def load_any_boundary_var(
 def get_boundary_dict(path, grid: GridDalesOpenBC, indices: "NestingIndices"):
     return {
         "west": (
-            Path(path) / ".." / "crossyz.nc",
+            Path(path) / "crossyz.*.*.nc",
             {
                 "xm": indices.supergrid.xm[indices.ix_west],
                 "xt": indices.supergrid.xt[indices.ix_west],
             },
         ),
         "east": (
-            Path(path) / ".." / "crossyz.nc",
+            Path(path) / "crossyz.*.*.nc",
             {
                 "xm": indices.supergrid.xm[indices.ix_east],
                 "xt": indices.supergrid.xt[indices.ix_east],
             },
         ),
         "south": (
-            Path(path) / ".." / "crossxz.nc",
+            Path(path) / "crossxz.*.*.nc",
             {
                 "ym": indices.supergrid.ym[indices.iy_south],
                 "yt": indices.supergrid.yt[indices.iy_south],
             },
         ),
         "north": (
-            Path(path) / ".." / "crossxz.nc",
+            Path(path) / "crossxz.*.*.nc",
             {
                 "ym": indices.supergrid.ym[indices.iy_north],
                 "yt": indices.supergrid.yt[indices.iy_north],
             },
         ),
         "top": (
-            Path(path) / ".." / "crossxy.nc",
+            Path(path) / "crossxy.*.*.nc",
             {
                 "zt": indices.supergrid.zt[grid.kmax],
                 "zm": indices.supergrid.zm[grid.kmax],

@@ -18,7 +18,6 @@ def _configure_sim(sim) -> None:
 def test_virtual_measurement_resolves_real_coordinates(machine_conf):
     sim = _build_basic_sim(machine_conf("virtual_measurement"))
     sim += VirtualMeasurementOutputModule(
-        dtav=30,
         x=[14.9, 149.0],
         y=[6.0, 144.9],
     )
@@ -26,7 +25,6 @@ def test_virtual_measurement_resolves_real_coordinates(machine_conf):
     _configure_sim(sim)
 
     assert sim.nml["NAMVIRTUALMEASUREMENT"]["lvirtualmeasurement"] is True
-    assert sim.nml["NAMVIRTUALMEASUREMENT"]["dtav"] == 30
     assert sim.nml["NAMVIRTUALMEASUREMENT"]["npoints"] == 2
     assert sim.nml["NAMVIRTUALMEASUREMENT"]["x_idx"] == [2, 15]
     assert sim.nml["NAMVIRTUALMEASUREMENT"]["y_idx"] == [1, 15]
