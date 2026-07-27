@@ -2,6 +2,7 @@
 # Transforms pressure coordinates into height levels.
 # Transforms HARMONIE prognostic variables to DALES prognostic variables
 import logging
+import pathlib
 
 import dask
 import numpy as np
@@ -78,6 +79,7 @@ class harmoniePrepper:
         self.exnrs = None
         self.exnr = None
         self.thl = None
+        self.backrad_profile = None
 
     def load_data(self):
         variables = ["ua", "va", "wa", "ta", "hus", "clw", "ps", "tas", "huss"]
@@ -135,6 +137,8 @@ class harmoniePrepper:
 
         # Interpolate data to reference height levels
         self.data = interpolate_ref_height(self.input_json, self.data, self.z_int)
+
+        self.backrad_profile = _build_backrad_profile_from_harmonie(self.data)
 
         # make sure z_int is also dimension z now..
         self.z_int = self.z_int.rename({"lev": "z"})
@@ -200,6 +204,50 @@ class harmoniePrepper:
         (self.data,) = dask.optimize(self.data)
 
         return self.data, self.transform
+
+    def write_backrad_file(self, output_dir: pathlib.Path, exp_id: int) -> pathlib.Path:
+        """Write a pressure-based backrad NetCDF profile derived from HARMONIE data."""
+        if self.backrad_profile is None:
+            raise ValueError(
+                "Backrad profile is not available yet. Call prep_harmonie() before write_backrad_file()."
+            )
+        output_dir.mkdir(parents=True, exist_ok=True)
+        target = output_dir / f"backrad.inp.{int(exp_id):03d}.nc"
+        self.backrad_profile.to_netcdf(target)
+        return target
+
+
+def _build_backrad_profile_from_harmonie(data: xr.Dataset) -> xr.Dataset:
+    """Build a domain-mean pressure sounding for DALES backrad input."""
+    for key in ("p", "t", "q"):
+        if key not in data:
+            raise KeyError(
+                f"HARMONIE dataset does not contain required variable '{key}'"
+            )
+
+    p = data["p"].isel(time=0, drop=True).mean(dim=["x", "y"], skipna=True)
+    t = data["t"].isel(time=0, drop=True).mean(dim=["x", "y"], skipna=True)
+    q = data["q"].isel(time=0, drop=True).mean(dim=["x", "y"], skipna=True)
+
+    p_vals = np.asarray(p.values, dtype=float)
+    t_vals = np.asarray(t.values, dtype=float)
+    q_vals = np.asarray(q.values, dtype=float)
+
+    order = np.argsort(p_vals)[::-1]
+    p_vals = p_vals[order]
+    t_vals = t_vals[order]
+    q_vals = q_vals[order]
+
+    o3_vals = np.zeros_like(p_vals)
+
+    return xr.Dataset(
+        data_vars={
+            "T": ("lev", t_vals),
+            "q": ("lev", q_vals),
+            "o3": ("lev", o3_vals),
+        },
+        coords={"lev": ("lev", p_vals)},
+    )
 
 
 @logwrap

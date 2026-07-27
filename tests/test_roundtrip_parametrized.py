@@ -44,6 +44,17 @@ from .sim_builders.test_openbc_atmosphere_profiles import (
     assert_openbc_atmosphere_profiles_files_written,
     assert_openbc_atmosphere_profiles_timedep_files_written,
 )
+from .sim_builders.test_runtime_special_cases import (
+    assert_sprayed_salt_in_fielddump,
+    lsm_homogeneous_runtime_case,
+    radiation_backrad_interpolated_case,
+    radiation_backrad_profile_case,
+    radiation_backrad_source_case,
+    radiation_type_1_case,
+    radiation_type_4_case,
+    radiation_type_5_case,
+    spraying_runtime_case,
+)
 
 
 @pytest.fixture(
@@ -97,6 +108,29 @@ def sim_builder(request):
         pytest.param(
             openbc_atmosphere_profiles_timedep_case,
             id="openbc_atmosphere_profiles_timedep_case",
+        ),
+        pytest.param(radiation_type_1_case, id="radiation_type_1_case"),
+        pytest.param(radiation_type_4_case, id="radiation_type_4_case"),
+        pytest.param(radiation_type_5_case, id="radiation_type_5_case"),
+        pytest.param(
+            radiation_backrad_profile_case,
+            id="radiation_backrad_profile_case",
+        ),
+        pytest.param(
+            radiation_backrad_source_case,
+            id="radiation_backrad_source_case",
+        ),
+        pytest.param(
+            radiation_backrad_interpolated_case,
+            id="radiation_backrad_interpolated_case",
+        ),
+        pytest.param(
+            lsm_homogeneous_runtime_case,
+            id="lsm_homogeneous_runtime_case",
+        ),
+        pytest.param(
+            (spraying_runtime_case, assert_sprayed_salt_in_fielddump),
+            id="spraying_runtime_case",
         ),
     ]
 )

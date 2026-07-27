@@ -1,7 +1,7 @@
 import logging
 import pathlib
-from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from dataclasses import dataclass, field
+from typing import List, Optional, Union
 
 import numpy as np
 
@@ -19,8 +19,16 @@ from modular_dales.Surface.LSM.modular_temps_moisture import (
 )
 from modular_dales.Surface.LSM import plot_lsm
 from modular_dales.Surface.LSM.translation_tables import landuse_types
-from modular_dales.Surface.surface import SurfaceModule
+from modular_dales.Surface.LSM.top10_bofek_ags import (
+    apply_ags_parameters_to_lsm_writer,
+    apply_bofek_to_lsm_writer,
+    apply_top10_to_lsm_writer,
+)
 from modular_dales.Atmosphere.ls2d_atmosphere import LS2DAtmosphereModule, FromLS2D
+from modular_dales.Geometry.geometry_modification import (
+    GeometricModification,
+)
+from .base import BaseLSMModule
 
 from .SLuRB.slurb import SLURBModule
 
@@ -29,15 +37,13 @@ logger = logging.getLogger(__name__)
 
 @register_module
 @dataclass
-class LandUseModification:
+class LandUseModification(GeometricModification):
     """Single land use modification."""
 
-    geometry: str
-    """Geometry type (all, circle_idx, rectangle_idx, etc.)"""
-    type: str
+    type: str = "grs"
     """Land use type (grs, urb, fbd, etc.)"""
-    params: Dict[str, Any] = field(default_factory=dict)
-    """Geometry-specific parameters"""
+    frac: float = 1.0
+    """Optional fractional land-use coverage for selected cells."""
 
 
 @register_module
@@ -58,13 +64,6 @@ class LandUseModifications:
         """In-place addition."""
         return self.__add__(modification)
 
-    def apply_to_config(self, config: Dict[str, Any]) -> None:
-        """Apply modifications to config dictionary."""
-        if "land_use_modifications" not in config:
-            config["land_use_modifications"] = []
-        for mod in self.modifications:
-            config["land_use_modifications"].append(mod.to_dict())
-
 
 @register_singleton
 @register_module
@@ -75,7 +74,55 @@ class FromLCZ:
 
 @register_module
 @dataclass
-class LSMModule(SurfaceModule):
+class FromTop10:
+    """Apply Top10NL land-use classes to LSM fractions.
+
+    This can be combined with ``FromLCZ`` as an overlay. When both are used,
+    LCZ-derived values are built first and Top10 fractions are then applied.
+    """
+
+    spatial_data_path: pathlib.Path = field(
+        default=pathlib.Path(
+            "DALES_input_generator/dales_openBC_setup/scripts/land_surface/spatial_data"
+        ),
+        metadata={"serialize": True},
+    )
+    top10_filename: str = field(
+        default="top10nl_landuse_010m.nc", metadata={"serialize": True}
+    )
+    fill_north_sea: bool = field(default=False, metadata={"serialize": True})
+
+
+@register_module
+@dataclass
+class FromBofek:
+    """Apply BOFEK soil classes to ``index_soil`` in LSM input."""
+
+    spatial_data_path: pathlib.Path = field(
+        default=pathlib.Path(
+            "DALES_input_generator/dales_openBC_setup/scripts/land_surface/spatial_data"
+        ),
+        metadata={"serialize": True},
+    )
+    bofek_filename: str = field(
+        default="BOFEK2012_010m.nc", metadata={"serialize": True}
+    )
+    bofek_profile_csv: str = field(
+        default="BOFEK2012_profielen_versie2_1.csv", metadata={"serialize": True}
+    )
+
+
+@register_module
+@dataclass
+class AGSParameters:
+    """Enable AGS parameter fields in generated LSM NetCDF."""
+
+    grass_planttype: Optional[int] = field(default=None, metadata={"serialize": True})
+
+
+@register_module
+@dataclass
+class LSMModule(BaseLSMModule):
     """Land Surface Model simulation module.
 
     When added to a simulation, automatically enables LSM by setting isurf=11
@@ -93,86 +140,14 @@ class LSMModule(SurfaceModule):
         dz_soil: List of soil layer thicknesses (m)
     """
 
-    sim: Optional["simulation_module"] = field(default=None, repr=False)
-    isurf: int = field(
-        default=11, init=False, metadata={"nml": "NAMSURFACE", "key": "isurf"}
-    )
-    ps: Optional[float] = field(
-        default=None,
-        metadata={
-            "nml": "NAMSURFACE",
-            "key": "ps",
-            "required": True,
-            "serialize": True,
-        },
-    )
-    z0mav: Optional[float] = field(
-        default=None,
-        metadata={
-            "nml": "NAMSURFACE",
-            "key": "z0mav",
-            "required": True,
-            "serialize": True,
-        },
-    )
-    z0hav: Optional[float] = field(
-        default=None,
-        metadata={
-            "nml": "NAMSURFACE",
-            "key": "z0hav",
-            "required": True,
-            "serialize": True,
-        },
-    )
-    albedoav: Optional[float] = field(
-        default=None,
-        metadata={"nml": "NAMSURFACE", "key": "albedoav", "serialize": True},
-    )
-    iinterp_t: Optional[int] = field(
-        default=None,
-        metadata={
-            "nml": "NAMLSM",
-            "key": "iinterp_t",
-            "required": True,
-            "serialize": True,
-        },
-    )
-    iinterp_theta: Optional[int] = field(
-        default=None,
-        metadata={
-            "nml": "NAMLSM",
-            "key": "iinterp_theta",
-            "required": True,
-            "serialize": True,
-        },
-    )
-    kmax_soil: Optional[int] = field(
-        default=4,
-        metadata={
-            "nml": "DOMAIN",
-            "key": "kmax_soil",
-            "required": True,
-            "serialize": True,
-        },
-    )
-    dz_soil: Optional[List[float]] = field(
-        default=None,
-        metadata={
-            "nml": "NAMLSM",
-            "key": "dz_soil",
-            "required": True,
-            "serialize": True,
-        },
-    )
     lheterogeneous: bool = field(
         default=True,
-        metadata={"nml": "NAMLSM", "key": "lheterogeneous", "serialize": False},
-    )
-    nlu: int = field(
-        default=0,
-        metadata={"nml": "NAMLSM", "key": "nlu", "serialize": False},
-        init=False,
-        repr=False,
+        metadata={
+            "nml": "NAMLSM",
+            "key": "lheterogeneous",
+            "required": True,
+            "serialize": True,
+        },
     )
     land_use_modifications: LandUseModifications = field(
         default_factory=LandUseModifications,
@@ -184,6 +159,24 @@ class LSMModule(SurfaceModule):
         default=None,
         init=True,
         repr=False,
+        metadata={"serialize": True},
+    )
+    from_top10: Optional[FromTop10] = field(
+        default=None,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    from_bofek: Optional[FromBofek] = field(
+        default=None,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+    ags_parameters: Optional[AGSParameters] = field(
+        default=None,
+        init=True,
+        repr=True,
         metadata={"serialize": True},
     )
     from_ls2d: Optional[FromLS2D] = field(
@@ -236,31 +229,15 @@ class LSMModule(SurfaceModule):
     )
 
     def __post_init__(self):
-        super().__init__(self.sim)
+        super().__post_init__()
         self.module_name = "LSMModule"
-
-    def do_config(self):
-        """Configure namelist and surface configuration for LSM."""
-
-        # Validate iinterp settings
-        for param_name in ["iinterp_t", "iinterp_theta"]:
-            value = getattr(self, param_name)
-            if value is None:
-                raise ValueError(f"LSMModule requires '{param_name}' parameter")
-            if not isinstance(value, int):
-                raise ValueError(f"{param_name} must be an integer")
-            if not 1 <= value <= 4:
-                raise ValueError(
-                    f"{param_name} must be an integer between 1 and 4 (1=arithmetic mean, 2=geometric mean, 3=harmonic mean, 4=max)"
-                )
-
-        logger.info("LSMModule: NAMSURFACE/NAMLSM configured from dataclass fields")
 
     def __add__(self, obj) -> "LSMModule":
         """Add configurations to LSM module.
 
         Args:
-            obj: LandUseModification, LandUseModifications or FromLCZ
+            obj: LandUseModification, LandUseModifications, FromLCZ,
+                FromTop10, FromBofek, AGSParameters or temperature/moisture helpers
 
         Returns:
             self for chaining
@@ -272,6 +249,12 @@ class LSMModule(SurfaceModule):
                 self.land_use_modifications += mod
         elif isinstance(obj, FromLCZ):
             self.from_lcz = obj
+        elif isinstance(obj, FromTop10):
+            self.from_top10 = obj
+        elif isinstance(obj, FromBofek):
+            self.from_bofek = obj
+        elif isinstance(obj, AGSParameters):
+            self.ags_parameters = obj
         elif isinstance(obj, FromLS2D):
             self.from_ls2d = obj
         elif isinstance(obj, (UniformSkinTemperature, VaryingSkinTemperature)):
@@ -293,7 +276,8 @@ class LSMModule(SurfaceModule):
                 self.skin_temperature = obj
         else:
             raise TypeError(
-                "Expected LandUseModification/FromLCZ/FromLS2D/"
+                "Expected LandUseModification/FromLCZ/FromTop10/FromBofek/"
+                "AGSParameters/FromLS2D/"
                 "SkinTemperatures/SoilTemperatures/SoilMoistures, got "
                 f"{type(obj)}"
             )
@@ -337,7 +321,7 @@ class LSMModule(SurfaceModule):
             # Apply land use modifications
             modifier = LsmModifier(self.lsm_writer, self.grid)
             for modification in self.land_use_modifications.modifications:
-                modifier.parse_yaml_name(asdict(modification))
+                modifier.apply_modification(modification)
             self.lsm_writer = modifier.lsm_input
             self.lsm_writer.init_lutypes_ifs()
             self.lsm_writer.recalculate_remaining_cover()
@@ -350,12 +334,63 @@ class LSMModule(SurfaceModule):
                 self.lsm_writer.apply_slurb_parameters_lcz(
                     self.slurb_module.slb_generator
                 )
+
+        # Optional overlay from Top10NL; this can be used standalone or on top
+        # of LCZ-derived fields.
+        if self.from_top10 is not None:
+            top10_path = (
+                pathlib.Path(self.from_top10.spatial_data_path)
+                / self.from_top10.top10_filename
+            )
+            if not top10_path.exists():
+                raise FileNotFoundError(
+                    f"Top10 file not found: {top10_path}. "
+                    "Set FromTop10.spatial_data_path/top10_filename accordingly."
+                )
+            apply_top10_to_lsm_writer(
+                self.lsm_writer,
+                top10_path=top10_path,
+                fill_north_sea=self.from_top10.fill_north_sea,
+            )
+
+        # Optional BOFEK soil index mapping.
+        if self.from_bofek is not None:
+            bofek_nc_path = (
+                pathlib.Path(self.from_bofek.spatial_data_path)
+                / self.from_bofek.bofek_filename
+            )
+            bofek_csv_path = (
+                pathlib.Path(self.from_bofek.spatial_data_path)
+                / self.from_bofek.bofek_profile_csv
+            )
+            if not bofek_nc_path.exists():
+                raise FileNotFoundError(
+                    f"BOFEK map file not found: {bofek_nc_path}. "
+                    "Set FromBofek.spatial_data_path/bofek_filename accordingly."
+                )
+            if not bofek_csv_path.exists():
+                raise FileNotFoundError(
+                    f"BOFEK profile table not found: {bofek_csv_path}. "
+                    "Set FromBofek.spatial_data_path/bofek_profile_csv accordingly."
+                )
+            apply_bofek_to_lsm_writer(
+                self.lsm_writer,
+                bofek_nc_path=bofek_nc_path,
+                bofek_csv_path=bofek_csv_path,
+            )
         # Apply soil temperature profiles, skin temperature, soil moisture profiles
         self.apply_soil_temp_moisture_skin_temp()
 
         # If LS2D-derived soil information is available, override the
         # default soil temperature / moisture / index with LS2D data.
         self._override_soil_from_ls2d_if_available()
+
+        # Optional AGS setup fields (additive; does not alter existing fields).
+        if self.ags_parameters is not None:
+            apply_ags_parameters_to_lsm_writer(
+                self.lsm_writer,
+                grass_planttype=self.ags_parameters.grass_planttype,
+            )
 
         # Finalize
         self.lsm_writer.trim_landuse()
@@ -539,14 +574,6 @@ class LSMModule(SurfaceModule):
             raise ValueError(
                 "Invalid skin temperature configuration. Must be UniformSkinTemperature or VaryingSkinTemperature."
             )
-
-    def check_settings(self):
-        """Check LSM settings validity."""
-        self.sim.required_files["van_genuchten_parameters.nc"] = (
-            pathlib.Path(self.sim.machine_conf["case_conf"]["SOURCE_PATH"])
-            / "data"
-            / "van_genuchten_parameters.nc"
-        )
 
     def write_files(self):
         """Write LSM input files and generate plots."""

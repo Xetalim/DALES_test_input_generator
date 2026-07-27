@@ -11,6 +11,10 @@ from modular_dales.Atmosphere import (
 from modular_dales.Configuration.defaultnamelist import DefaultNamelistModule
 from modular_dales.Configuration.run_and_time import TimeModule
 from modular_dales.Geometry.GridDales import GridDales
+from modular_dales.Geometry.geometry_modification import (
+    AllGeometry,
+    RectangleIdxGeometry,
+)
 from modular_dales.IBM.IBM import IBMModification, IBMModule
 from modular_dales.Radiation.radiation import RadiationModule
 from modular_dales.Surface.LSM.LSM import LSMModule, LandUseModification
@@ -78,13 +82,14 @@ def IBM_case(machine_conf: dict) -> dales_simulation:
     lsm += UniformSkinTemperature(293)
     lsm += UniformSoilTemperature([293, 293, 293, 293])
     lsm += UniformSoilMoisture([0.3, 0.3, 0.3, 0.3])
-    lsm += LandUseModification(geometry="all", type="grs", params={})
+    lsm += LandUseModification(geometry=AllGeometry(), type="grs")
     sim += lsm
 
     ibm = IBMModule()
-    ibm += IBMModification("all", height=0, params={})
+    ibm += IBMModification(geometry=AllGeometry(), height=0)
     ibm += IBMModification(
-        "rectangle_idx", height=20, params={"minx": 4, "maxx": 6, "miny": 4, "maxy": 4}
+        geometry=RectangleIdxGeometry(minx=4, maxx=6, miny=4, maxy=4),
+        height=20,
     )
     sim += ibm
     return sim

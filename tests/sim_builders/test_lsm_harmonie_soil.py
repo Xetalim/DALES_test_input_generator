@@ -17,6 +17,7 @@ from modular_dales.Configuration.output_modules import (
 from modular_dales.Geometry.GridDales import GridDales
 from modular_dales.Radiation.radiation import RadiationModule
 from modular_dales.Surface.LSM.LSM import LSMModule, LandUseModification
+from modular_dales.Geometry.geometry_modification import AllGeometry
 from modular_dales.Surface.LSM.modular_temps_moisture import (
     UniformSkinTemperature,
     SoilTemperatureMoistureFromHarmonie,
@@ -83,7 +84,7 @@ def LSM_with_HARM_soil(machine_conf: dict) -> dales_simulation:
         harmonie_soil_valid_time="2023-08-20T00:00:00",
         harmonie_soil_height_levels=harmonie_soil_levels,
     )
-    lsm += LandUseModification(geometry="all", type="grs", params={})
+    lsm += LandUseModification(geometry=AllGeometry(), type="grs")
     sim += lsm
 
     sim += RadiationModule(

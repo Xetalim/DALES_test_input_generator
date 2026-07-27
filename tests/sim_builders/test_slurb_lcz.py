@@ -14,7 +14,12 @@ from modular_dales.Configuration.run_and_time import TimeModule
 from modular_dales.Geometry.GridDales import GridDales
 from modular_dales.Radiation.radiation import RadiationModule
 from modular_dales.Surface.LSM.LSM import FromLCZ, LSMModule, LandUseModification
-from modular_dales.Surface.LSM.SLuRB.slurb import SLURBModification, SLURBModule
+from modular_dales.Surface.LSM.SLuRB.slurb import (
+    SLURBModification,
+    SLURBModule,
+    SLURBVariableModification,
+)
+from modular_dales.Geometry.geometry_modification import AllGeometry
 from modular_dales.Surface.LSM.modular_temps_moisture import (
     UniformSkinTemperature,
     UniformSoilMoisture,
@@ -90,13 +95,14 @@ def SLURB_LCZ_case(machine_conf: dict) -> dales_simulation:
             0.16459982,
         ]
     )
-    lsm += LandUseModification(geometry="all", type="grs", params={})
+    lsm += LandUseModification(geometry=AllGeometry(), type="grs")
     lsm += FromLCZ()
     sim += lsm
 
     slurb = SLURBModule(deep_soil_temperature=293)
     slurb += SLURBModification(
-        geometry="all", vars=[{"varname": "albedo_av", "value": 10}], params={}
+        geometry=AllGeometry(),
+        vars=[SLURBVariableModification(varname="albedo_av", value=10)],
     )
     sim += slurb
 

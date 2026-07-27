@@ -13,6 +13,7 @@ from modular_dales.Configuration.run_and_time import TimeModule
 from modular_dales.Geometry.GridDales import GridDales
 from modular_dales.Radiation.radiation import RadiationModule
 from modular_dales.Surface.LSM.LSM import LSMModule, LandUseModification
+from modular_dales.Geometry.geometry_modification import AllGeometry
 from modular_dales.Surface.LSM.modular_temps_moisture import (
     UniformSkinTemperature,
     UniformSoilMoisture,
@@ -77,6 +78,6 @@ def sim_2_case(machine_conf: dict) -> dales_simulation:
     lsm += UniformSkinTemperature(293)
     lsm += UniformSoilTemperature([293, 293, 293, 293])
     lsm += UniformSoilMoisture([0.3, 0.3, 0.3, 0.3])
-    lsm += LandUseModification(geometry="all", type="grs", params={})
+    lsm += LandUseModification(geometry=AllGeometry(), type="grs")
     sim += lsm
     return sim

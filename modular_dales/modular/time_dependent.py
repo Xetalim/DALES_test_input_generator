@@ -183,9 +183,10 @@ class TimedependentModule(simulation_module):
         timesteps = [float(t) for t in self.timesteps]
         if len(timesteps) != len(set(timesteps)):
             raise ValueError("TimedependentModule.timesteps contains duplicates")
-        if timesteps[-1] < self.retrieve_module(TimeModule).runtime:
+        runtime = self.retrieve_module(TimeModule).runtime
+        if timesteps and timesteps[-1] < runtime:
             raise ValueError(
-                f"TimedependentModule.timesteps must include the final time {self.retrieve_module(TimeModule).runtime}"
+                f"TimedependentModule.timesteps must include the final time {runtime}"
             )
         if timesteps != sorted(timesteps):
             raise ValueError("TimedependentModule.timesteps must be in ascending order")

@@ -6,12 +6,15 @@ import netCDF4 as nc4
 import numpy as np
 
 from modular_dales.Geometry.geometry_modification import ModifierClass
+from modular_dales.Geometry.geometry_modification import AllGeometry
 from modular_dales.Geometry.GridDales import GridDales
 from modular_dales.logging_wrapper import logwrap
 from modular_dales.Surface.LSM.LCZ import get_from_LCZ
 
 # Custom Python scripts/tools/...
 from modular_dales.Surface.LSM.SLuRB.slurb import slbCreatorClass
+from modular_dales.Surface.LSM.SLuRB.slurb import SLURBModification
+from modular_dales.Surface.LSM.SLuRB.slurb import SLURBVariableModification
 from modular_dales.Surface.LSM.translation_tables.vegetation_properties import (
     ifs_vegetation,
 )
@@ -142,13 +145,18 @@ class LSM_output_dales:
         #         value: 1
         #         dtype: real
         for LCZ_field, slurb_field in get_from_LCZ.LCZ_field_to_slurb.items():
-            modification = {
-                "geometry": "all",
-                "params": None,
-                "vars": [{"varname": slurb_field, "value": 0, "dtype": "real"}],
-            }
+            modification = SLURBModification(
+                geometry=AllGeometry(),
+                vars=[
+                    SLURBVariableModification(
+                        varname=slurb_field,
+                        value=0,
+                        dtype="real",
+                    )
+                ],
+            )
 
-            slb_generator.parse_yaml_name(modification)
+            slb_generator.apply_modification(modification)
             getattr(slb_generator, slurb_field)[:, :] = LCZ_ds[LCZ_field].values
 
     def set_uniform_soil_temperature(self, temperature):
@@ -273,9 +281,9 @@ class LSM_output_dales:
         nc.createDimension("y", self.grid.jtot)
         nc.createDimension("z", self.soil_levels)
         nc.createDimension("nlu", self.nlu)
-        nc.createDimension("str3", size=3)
-        nc.createDimension("str32", size=32)
-        nc.createDimension("str1", size=1)
+        nc.createDimension("str1", 1)
+        nc.createDimension("str3", 3)
+        nc.createDimension("str32", 32)
 
         var_x = nc.createVariable("x", float, "x")
         var_y = nc.createVariable("y", float, "y")
@@ -290,25 +298,31 @@ class LSM_output_dales:
             var[:] = data[:]
         self.grid.set_cf_grid_mapping(nc, "Lambert_Conformal", self.fields)
 
-        luname = nc4.stringtochar(np.array(self.luname, "S32"))
+        def _to_char_matrix(values, width):
+            # Use null-padding to avoid trailing-space artifacts when consumers decode
+            # fixed-width strings (e.g., "sg\x00" instead of "sg ").
+            matrix = np.zeros((self.nlu, width), dtype="S1")
+            for idx, value in enumerate(values):
+                text = str(value).strip()[:width]
+                encoded = text.encode("ascii", errors="replace")
+                matrix[idx, : len(encoded)] = np.frombuffer(encoded, dtype="S1")
+            return matrix
+
         var_lun = nc.createVariable(
             "luname", datatype="S1", dimensions=("nlu", "str32")
         )
-        var_lun[:, :] = luname
+        var_lun[:, :] = _to_char_matrix(self.luname, 32)
 
-        lushort = nc4.stringtochar(np.array(self.lushort, "S3"))
         var_lus = nc.createVariable(
             "lushort", datatype="S1", dimensions=("nlu", "str3")
         )
-        var_lus[:, :] = lushort
+        var_lus[:, :] = _to_char_matrix(self.lushort, 3)
 
-        lveg = nc4.stringtochar(np.array([str(b)[0] for b in self.lveg], "S1"))
         var_lveg = nc.createVariable("lveg", datatype="S1", dimensions=("nlu", "str1"))
-        var_lveg[:, :] = lveg
+        var_lveg[:, :] = _to_char_matrix(self.lveg, 1)
 
-        laqu = nc4.stringtochar(np.array([str(b)[0] for b in self.laqu], "S1"))
         var_laqu = nc.createVariable("laqu", datatype="S1", dimensions=("nlu", "str1"))
-        var_laqu[:, :] = laqu
+        var_laqu[:, :] = _to_char_matrix(self.laqu, 1)
 
         ilu = np.array(self.ilu, dtype=int)
         var_ilu = nc.createVariable("ilu", int, ("nlu",))
@@ -497,7 +511,5 @@ class LsmModifier(ModifierClass):
                     self.lsm_input.lu_types[other_lu_type]["lu_frac"][mask] = 0
 
     def do_modification(self, geometry, modification):
-        if "frac" in modification.keys():
-            self.set_type(geometry, modification["type"], frac=modification["frac"])
-        else:
-            self.set_type(geometry, modification["type"], frac=1)
+        frac = modification.frac if modification.frac is not None else 1.0
+        self.set_type(geometry, modification.type, frac=frac)

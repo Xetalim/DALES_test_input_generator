@@ -30,7 +30,7 @@ from modular_dales.Configuration import (
     SamplingModule,
 )
 from modular_dales.Configuration.output_modules import CheckSimulationModule
-from modular_dales.Geometry import GridDales
+from modular_dales.Geometry import GridDales, AllGeometry
 from modular_dales.LBC import Nest_in_Dales, NestingTopology, do_openboundary
 from modular_dales.Radiation.radiation import RadiationModule
 import modular_dales.Surface as Surface
@@ -230,7 +230,7 @@ if __name__ == "__main__":
         albedoav=0.22,
     )
 
-    lsm += LSM.LandUseModification(geometry="all", type="grs", params={})
+    lsm += LSM.LandUseModification(geometry=AllGeometry(), type="grs")
     soil_levels = [0.01, 0.04, 0.1, 0.2, 0.4, 0.6, 0.8, 1, 1.5, 2, 3, 5, 8, 12]
     lsm += LSM.SoilTemperatureMoistureFromHarmonie(
         harmonie_soil_file="/Users/andrevanginkel/tmp/soil_split/diditwork.nc",
@@ -243,7 +243,7 @@ if __name__ == "__main__":
 
     slurb = SLURBModule(deep_soil_temperature=293)
     # slurb += SLURBModification(
-    #     geometry="all", vars=[{"varname": "albedo_av", "value": 10}], params={}
+    #     geometry=AllGeometry(), vars=[{"varname": "albedo_av", "value": 10}]
     # )
     sim += slurb
     sim += nesting

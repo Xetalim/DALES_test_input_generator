@@ -104,25 +104,27 @@ class NestingTopology(simulation_module):
             ), list(subnest_supergrid.ym).index(np.max(subnest_subgrid.ym))
             iztop = list(subnest_supergrid.zt).index(np.max(subnest_subgrid.zt))
 
-            self.set_nml_section("namcrosssection", "crossheight", [])
-            self.set_nml_section("namcrosssection", "crossplane", [])
-            self.set_nml_section("namcrosssection", "crossortho", [])
+            existing_height = list(
+                self.nml.get("namcrosssection", {}).get("crossheight", [])
+            )
+            existing_plane = list(
+                self.nml.get("namcrosssection", {}).get("crossplane", [])
+            )
+            existing_ortho = list(
+                self.nml.get("namcrosssection", {}).get("crossortho", [])
+            )
 
-            self.set_nml_section(
-                "namcrosssection",
-                "crossheight",
-                self.nml["namcrosssection"]["crossheight"] + [iztop + 2],
+            merged_height = list(dict.fromkeys(existing_height + [iztop + 2]))
+            merged_plane = list(
+                dict.fromkeys(existing_plane + [iysouth + 2, iynorth + 2])
             )
-            self.set_nml_section(
-                "namcrosssection",
-                "crossplane",
-                self.nml["namcrosssection"]["crossplane"] + [iysouth + 2, iynorth + 2],
+            merged_ortho = list(
+                dict.fromkeys(existing_ortho + [ixwest + 2, ixeast + 2])
             )
-            self.set_nml_section(
-                "namcrosssection",
-                "crossortho",
-                self.nml["namcrosssection"]["crossortho"] + [ixwest + 2, ixeast + 2],
-            )
+
+            self.set_nml_section("namcrosssection", "crossheight", merged_height)
+            self.set_nml_section("namcrosssection", "crossplane", merged_plane)
+            self.set_nml_section("namcrosssection", "crossortho", merged_ortho)
         if self.my_idx > 0:
             # we are nested inside another grid, we need to set up the indices for the interpolation of the boundary conditions from the supergrid
             supernest_subgrid = self.grid.as_openbc()

@@ -5,6 +5,7 @@ from .IBM import (
     IBMModification,
     IBMModifications,
     FromAHN,
+    FromGlobalDEM,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "IBMModification",
     "IBMModifications",
     "FromAHN",
+    "FromGlobalDEM",
 ]

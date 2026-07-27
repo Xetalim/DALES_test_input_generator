@@ -1,11 +1,12 @@
 import logging
-from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from dataclasses import dataclass, field
+from typing import Any, List, Literal, Optional, Union
 
 import netCDF4
 import numpy as np
 
 from modular_dales.Geometry.geometry_modification import ModifierClass
+from modular_dales.Geometry.geometry_modification import GeometricModification
 from modular_dales.Geometry.GridDales import GridDales
 from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.MODULE_REGISTRY import register_module
@@ -15,15 +16,30 @@ logger = logging.getLogger(__name__)
 
 @register_module
 @dataclass
-class SLURBModification:
+class SLURBVariableModification:
+    """Typed SLURB variable modification payload."""
+
+    varname: str
+    value: Union[int, float]
+    dtype: Literal["float", "real", "int", "integer"] = "float"
+    n_layers: Optional[int] = None
+
+    def to_numpy_dtype(self):
+        """Map supported dtype labels to numpy-compatible dtypes."""
+        if self.dtype in ("float", "real"):
+            return float
+        if self.dtype in ("int", "integer"):
+            return int
+        raise ValueError(f"Invalid dtype given: {self.dtype}")
+
+
+@register_module
+@dataclass
+class SLURBModification(GeometricModification):
     """Single SLURB modification."""
 
-    geometry: Optional[str] = None
-    """Geometry type (all, circle_idx, etc.)"""
-    vars: List[dict] = field(default_factory=list)
-    """List of variable modifications, each as a dict with keys: var_name, value"""
-    params: Dict[str, Any] = field(default_factory=dict)
-    """Geometry-specific parameters"""
+    vars: List[SLURBVariableModification] = field(default_factory=list)
+    """List of typed variable modifications."""
 
 
 @register_module
@@ -51,43 +67,20 @@ class SLURBModifications:
         """In-place addition."""
         return self.__add__(modification)
 
-    def apply_to_config(self, config: Dict[str, Any]) -> None:
-        """Apply modifications to config dictionary."""
-        if "slb_modifications" not in config:
-            config["slb_modifications"] = []
-        for mod in self.modifications:
-            mod_dict = mod.to_dict()
-            if mod_dict is not None:
-                config["slb_modifications"].append(mod_dict)
-
 
 class slbCreatorClass(ModifierClass):
     def __init__(self, grid: GridDales):
         super().__init__(grid)
         self.vars = {}
 
-    def init_var(self, submod):
-        varname = submod["varname"]
-        dtype = float
+    def init_var(self, submod: SLURBVariableModification):
+        varname = submod.varname
+        dtype = submod.to_numpy_dtype()
         if not (varname in self.vars):
-            if "dtype" in submod:
-                match submod["dtype"]:
-                    case "real":
-                        dtype = float
-                    case "float":
-                        dtype = float
-                    case "int":
-                        dtype = int
-                    case "integer":
-                        dtype = int
-                    case "<class 'float'>":
-                        dtype = float
-                    case default:
-                        raise ValueError("Invalid dtype given")
             shape = self.meshx.shape
-            if "n_layers" in submod:
-                shape = (submod["n_layers"], *shape)
-                n_layers = submod["n_layers"]
+            if submod.n_layers is not None:
+                shape = (submod.n_layers, *shape)
+                n_layers = submod.n_layers
             else:
                 n_layers = None
 
@@ -95,13 +88,13 @@ class slbCreatorClass(ModifierClass):
             setattr(self, varname, np.zeros(shape, dtype=dtype))
 
     def do_modification(self, geometry, modification):
-        for submod in modification["vars"]:
+        for submod in modification.vars:
             self.init_var(submod)
-            if "n_layers" in submod:
-                newgeometry = np.tile(geometry, [submod["n_layers"], 1, 1])
-                getattr(self, submod["varname"])[newgeometry] = submod["value"]
+            if submod.n_layers is not None:
+                newgeometry = np.tile(geometry, [submod.n_layers, 1, 1])
+                getattr(self, submod.varname)[newgeometry] = submod.value
             else:
-                getattr(self, submod["varname"])[geometry] = submod["value"]
+                getattr(self, submod.varname)[geometry] = submod.value
 
     def output_nc(self, filename):
         with netCDF4.Dataset(filename, "w") as nc:
@@ -150,6 +143,116 @@ class SLURBModule(simulation_module):
     slb_generator: Any = field(
         default=None, init=False, repr=False, metadata={"serialize": False}
     )
+    urban_fraction: Optional[float] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "urban_fraction",
+            "doc": "Urban tile fraction used by the SLURB parameterization.",
+        },
+    )
+    urban_roughness_length: Optional[float] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "urban_roughness_length",
+            "doc": "Bulk roughness length for urban canopy momentum exchange in m.",
+        },
+    )
+    building_plan_area_fraction: Optional[float] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "building_plan_area_fraction",
+            "doc": "Plan area fraction covered by buildings.",
+        },
+    )
+    building_frontal_area_fraction: Optional[float] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "building_frontal_area_fraction",
+            "doc": "Frontal area density controlling urban drag.",
+        },
+    )
+    building_height: Optional[float] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "building_height",
+            "doc": "Representative building height in m.",
+        },
+    )
+    window_fraction: Optional[float] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "window_fraction",
+            "doc": "Fraction of facade area occupied by windows.",
+        },
+    )
+    street_canyon_aspect_ratio: Optional[float] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "street_canyon_aspect_ratio",
+            "doc": "Street canyon height-to-width ratio.",
+        },
+    )
+    building_type: Optional[int] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "building_type",
+            "doc": "Index selecting building material/thermal parameter set.",
+        },
+    )
+    pavement_type: Optional[int] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "pavement_type",
+            "doc": "Index selecting pavement material parameter set.",
+        },
+    )
+    anisotropic_street_canyons: Optional[bool] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "anisotropic_street_canyons",
+            "doc": "Enable anisotropic canyon treatment with separate facade directions.",
+        },
+    )
+    street_canyon_orientation: Optional[float] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "street_canyon_orientation",
+            "doc": "Azimuth orientation of street canyon axis in degrees.",
+        },
+    )
     deep_soil_temperature: float = field(
         default=283.15,
         init=True,
@@ -158,6 +261,7 @@ class SLURBModule(simulation_module):
             "nml": "NAMSLURB",
             "key": "deep_soil_temperature",
             "required": True,
+            "doc": "Deep soil temperature boundary condition in K.",
         },
     )
     building_indoor_temperature: float = field(
@@ -168,6 +272,27 @@ class SLURBModule(simulation_module):
             "nml": "NAMSLURB",
             "key": "building_indoor_temperature",
             "required": True,
+            "doc": "Indoor building temperature used for wall/roof heat transfer in K.",
+        },
+    )
+    shf_external: Optional[float] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "shf_external",
+            "doc": "External anthropogenic sensible heat flux source in W m-2.",
+        },
+    )
+    qsws_external: Optional[float] = field(
+        default=None,
+        init=True,
+        metadata={
+            "serialize": True,
+            "nml": "NAMSLURB",
+            "key": "qsws_external",
+            "doc": "External anthropogenic latent heat flux source in W m-2.",
         },
     )
 
@@ -216,7 +341,7 @@ class SLURBModule(simulation_module):
         # Apply SLURB modifications
         for modification in self.slb_modifications.modifications:
             if modification is not None:
-                self.slb_generator.parse_yaml_name(asdict(modification))
+                self.slb_generator.apply_modification(modification)
 
     def check_settings(self):
         """Check SLURB settings validity."""

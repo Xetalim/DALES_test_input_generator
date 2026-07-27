@@ -39,7 +39,7 @@ from modular_dales.Configuration import (
 from modular_dales.Configuration.output_modules import CheckSimulationModule
 from modular_dales.Emission.emission import EmissionModule, EmissionTracer
 import modular_dales.Emission.emission as emission
-from modular_dales.Geometry import GridDales
+from modular_dales.Geometry import GridDales, AllGeometry
 from modular_dales.LBC import Nest_in_Dales, NestingTopology, do_openboundary
 from modular_dales.LBC.openbc import Nest_in_AtmosphereProfiles
 from modular_dales.Radiation.radiation import RadiationModule
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     lsm += LSM.UniformSkinTemperature(293.15)
     lsm += LSM.UniformSoilMoisture([0.2, 0.2, 0.2, 0.2])
     lsm += LSM.UniformSoilTemperature([293.15, 293.15, 293.15, 293.15])
-    lsm += LSM.LandUseModification("all", type="grs", params={})
+    lsm += LSM.LandUseModification(geometry=AllGeometry(), type="grs")
     # lsm += LSM.FromLCZ()
     sim += lsm
     # sim += LSM.SLURBModule(deep_soil_temperature=293.15)

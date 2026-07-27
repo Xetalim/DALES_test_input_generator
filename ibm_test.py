@@ -147,16 +147,15 @@ if __name__ == "__main__":
     # LSM += UniformSkinTemperature(293)
     # LSM += UniformSoilTemperature([293, 293, 293, 293])
     # LSM += UniformSoilMoisture([0.3, 0.3, 0.3, 0.3])
-    # LSM += LandUseModification(geometry="all", type="grs", params={})
+    # LSM += LandUseModification(geometry=AllGeometry(), type="grs")
     # sim += LSM
     #
     IBM = IBMModule()
     IBM += FromAHN()
-    # IBM += IBMModification("all", height=0, params={})
+    # IBM += IBMModification(geometry=AllGeometry(), height=0)
     # IBM += IBMModification(
-    #     "rectangle_idx",
+    #     geometry=RectangleIdxGeometry(minx=10, maxx=20, miny=10, maxy=20),
     #     height=20,
-    #     params={"minx": 10, "maxx": 20, "miny": 10, "maxy": 20},
     # )
     sim += IBM
 

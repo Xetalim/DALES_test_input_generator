@@ -17,6 +17,14 @@ from .modular.dales_simulation import dales_simulation
 from .modular.simulation_module import simulation_module
 
 from .Geometry.GridDales import GridDales, GridDalesOpenBC
+from .Geometry.geometry_modification import (
+    AllGeometry,
+    CircleRealGeometry,
+    RectangleRealGeometry,
+    RectangleIdxGeometry,
+    CircleIdxGeometry,
+    MaskGeometry,
+)
 
 from .logging_wrapper import logwrap, setup_logging
 
@@ -24,12 +32,6 @@ from .modular.time_dependent import (
     TimedependentModule,
 )
 from .vars import VariableDefinition, get_all_vars
-from .Atmosphere import (
-    AtmosphereModule,
-    AtmosphericProfile,
-    InterpolatedProfile,
-    HarmonieAtmosphereModule,
-)
 
 from .LBC import (
     do_openboundary,
@@ -38,12 +40,30 @@ from .LBC import (
     NestingTopology,
 )
 
+from .Atmosphere import (
+    AtmosphereModule,
+    AtmosphericProfile,
+    InterpolatedProfile,
+    HarmonieAtmosphereModule,
+)
+
 from .Configuration.defaultnamelist import DefaultNamelistModule
 from .Configuration.run_and_time import RunModule, TimeModule
+from .Configuration.settings_modules import (
+    GeneralPhysicsModule,
+    LateralSpongeModule,
+    SprayingModule,
+)
 from .Configuration.output_modules import (
+    CapeModule,
     CrossSectionOutputModule,
     EasyOutputModule,
-    IndependentOutputModule,
+    FielddumpModule,
+    LSMCrossModule,
+    RadfieldModule,
+    SamplingModule,
+    StatsModule,
+    TimestatModule,
 )
 
 from .Geometry.geometry_modification import ModifierClass
@@ -59,7 +79,12 @@ from .Surface.LSM.LSM import (
     LandUseModification,
     LandUseModifications,
     FromLCZ,
+    FromTop10,
+    FromBofek,
+    AGSParameters,
 )
+from .Surface.LSM.base import BaseLSMModule
+from .Surface.LSM.homogeneous import LSMHomogeneousModule
 from .Surface.LSM.modular_temps_moisture import (
     UniformSkinTemperature,
     UniformSoilTemperature,
@@ -71,6 +96,7 @@ from .Surface.LSM.modular_temps_moisture import (
 from .Surface.LSM.SLuRB.slurb import (
     SLURBModule,
     SLURBModification,
+    SLURBVariableModification,
     SLURBModifications,
 )
 
@@ -81,12 +107,26 @@ from .Emission.emission import (
 )
 
 from .Radiation.radiation import RadiationModule
+from .Radiation.backrad_profile import (
+    BackradInterpolatedProfile,
+    BackradPressureProfile,
+)
+from .Radiation.radiation_types import (
+    FullRadiationModule,
+    NoRadiationModule,
+    ParameterizedRadiationModule,
+    RRTMGRadiationModule,
+    RteRrtmgpRadiationModule,
+    SurfaceLSMRadiationModule,
+    UserRadiationModule,
+)
 
 from .IBM.IBM import (
     IBMModule,
     IBMModification,
     IBMModifications,
     FromAHN,
+    FromGlobalDEM,
 )
 
 __all__ = [
@@ -99,13 +139,28 @@ __all__ = [
     "DefaultNamelistModule",
     "RunModule",
     "TimeModule",
+    "GeneralPhysicsModule",
+    "SprayingModule",
+    "LateralSpongeModule",
     "EasyOutputModule",
-    "IndependentOutputModule",
+    "CapeModule",
+    "LSMCrossModule",
+    "TimestatModule",
+    "StatsModule",
+    "RadfieldModule",
     "CrossSectionOutputModule",
+    "FielddumpModule",
+    "SamplingModule",
     # Geometry
     "GridDales",
     "GridDalesOpenBC",
     "ModifierClass",
+    "AllGeometry",
+    "CircleRealGeometry",
+    "RectangleRealGeometry",
+    "RectangleIdxGeometry",
+    "CircleIdxGeometry",
+    "MaskGeometry",
     # AtmosphereModule, AtmosphericProfile, InterpolatedProfile
     "AtmosphereModule",
     "AtmosphericProfile",
@@ -117,9 +172,14 @@ __all__ = [
     "ConstantFluxesWithShearModule",
     "ConstantSurfaceTemperatureModule",
     "LSMModule",
+    "BaseLSMModule",
+    "LSMHomogeneousModule",
     "LandUseModification",
     "LandUseModifications",
     "FromLCZ",
+    "FromTop10",
+    "FromBofek",
+    "AGSParameters",
     "UniformSkinTemperature",
     "UniformSoilTemperature",
     "UniformSoilMoisture",
@@ -128,6 +188,7 @@ __all__ = [
     "VaryingSoilMoisture",
     "SLURBModule",
     "SLURBModification",
+    "SLURBVariableModification",
     "SLURBModifications",
     # Lateral boundary conditions
     "do_openboundary",
@@ -140,11 +201,21 @@ __all__ = [
     "EmissionPointSource",
     # Radiation
     "RadiationModule",
+    "BackradPressureProfile",
+    "BackradInterpolatedProfile",
+    "NoRadiationModule",
+    "FullRadiationModule",
+    "ParameterizedRadiationModule",
+    "SurfaceLSMRadiationModule",
+    "RRTMGRadiationModule",
+    "RteRrtmgpRadiationModule",
+    "UserRadiationModule",
     # IBM
     "IBMModule",
     "IBMModification",
     "IBMModifications",
     "FromAHN",
+    "FromGlobalDEM",
     # LBC / nesting
     "NestingTopology",
     "do_openboundary",

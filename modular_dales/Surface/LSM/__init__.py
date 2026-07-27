@@ -5,8 +5,13 @@ from .LSM import (
     LandUseModification,
     LandUseModifications,
     FromLCZ,
+    FromTop10,
+    FromBofek,
+    AGSParameters,
     FromLS2D,
 )
+from .base import BaseLSMModule
+from .homogeneous import LSMHomogeneousModule
 from .modular_temps_moisture import (
     UniformSkinTemperature,
     UniformSoilTemperature,
@@ -19,15 +24,21 @@ from .modular_temps_moisture import (
 from .SLuRB.slurb import (
     SLURBModule,
     SLURBModification,
+    SLURBVariableModification,
     SLURBModifications,
     slbCreatorClass,
 )
 
 __all__ = [
     "LSMModule",
+    "BaseLSMModule",
+    "LSMHomogeneousModule",
     "LandUseModification",
     "LandUseModifications",
     "FromLCZ",
+    "FromTop10",
+    "FromBofek",
+    "AGSParameters",
     "FromLS2D",
     "UniformSkinTemperature",
     "UniformSoilTemperature",
@@ -38,6 +49,7 @@ __all__ = [
     "SoilTemperatureMoistureFromHarmonie",
     "SLURBModule",
     "SLURBModification",
+    "SLURBVariableModification",
     "SLURBModifications",
     "slbCreatorClass",
 ]

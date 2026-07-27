@@ -11,6 +11,7 @@ from modular_dales.Geometry import GridDalesOpenBC
 from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.MODULE_REGISTRY import register_module
 from modular_dales.Atmosphere import AtmosphereModule
+from modular_dales.IO_helpers.external_data_cache import cache_root
 from modular_dales.LBC.openbc_atmosphere_worker import OpenBCAtmosphereWorker
 from modular_dales.LBC.openbc_knmi_worker import OpenBCKNMIWorker
 
@@ -534,6 +535,12 @@ class do_openboundary(simulation_module):
         )
         self.harmonieprepper.load_data()
         data, transform = self.harmonieprepper.prep_harmonie()
+        backrad_path = self.harmonieprepper.write_backrad_file(
+            cache_root(self.sim) / "backrad", self.exp_id
+        )
+        self.sim.required_files[f"backrad.inp.{self.exp_id:03d}.nc"] = (
+            backrad_path.as_posix()
+        )
         # we need to use the right surface pressure as calculated from the input data
         logger.info("Setting namelist NAMSURFACE:ps to %f", self.harmonieprepper.ps)
 

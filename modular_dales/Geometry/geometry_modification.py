@@ -1,11 +1,141 @@
 import logging
+from dataclasses import dataclass, field
+from typing import Any, Protocol, Union
 
 import numpy as np
 
 from modular_dales.Geometry import GridDales
+from modular_dales.MODULE_REGISTRY import register_module, register_special_serializing
 
 logger = logging.getLogger(__name__)
 logger.debug("Entered module: %s", __name__)
+
+
+@register_special_serializing
+@register_module
+@dataclass
+class AllGeometry:
+    """Select the full 2D horizontal domain."""
+
+    def to_mask(self, modifier: "ModifierClass") -> np.ndarray:
+        return np.ones_like(modifier.meshx, dtype=bool)
+
+
+@register_special_serializing
+@register_module
+@dataclass
+class CircleRealGeometry:
+    """Circular mask in real-space coordinates (meters)."""
+
+    x0: float
+    y0: float
+    size: float
+
+    def to_mask(self, modifier: "ModifierClass") -> np.ndarray:
+        return (modifier.meshx - self.x0) ** 2 + (
+            modifier.meshy - self.y0
+        ) ** 2 <= self.size**2
+
+
+@register_special_serializing
+@register_module
+@dataclass
+class RectangleRealGeometry:
+    """Rectangular mask in real-space coordinates (meters)."""
+
+    minx: float
+    maxx: float
+    miny: float
+    maxy: float
+
+    def to_mask(self, modifier: "ModifierClass") -> np.ndarray:
+        return (
+            (modifier.meshx >= self.minx)
+            & (modifier.meshx <= self.maxx)
+            & (modifier.meshy >= self.miny)
+            & (modifier.meshy <= self.maxy)
+        )
+
+
+@register_special_serializing
+@register_module
+@dataclass
+class RectangleIdxGeometry:
+    """Rectangular mask in index-space coordinates."""
+
+    minx: int
+    maxx: int
+    miny: int
+    maxy: int
+
+    def to_mask(self, modifier: "ModifierClass") -> np.ndarray:
+        return (
+            (modifier.idxmesh >= self.minx)
+            & (modifier.idxmesh <= self.maxx)
+            & (modifier.idymesh >= self.miny)
+            & (modifier.idymesh <= self.maxy)
+        )
+
+
+@register_special_serializing
+@register_module
+@dataclass
+class CircleIdxGeometry:
+    """Circular mask in index-space coordinates."""
+
+    idx0: int
+    idy0: int
+    size: float
+
+    def to_mask(self, modifier: "ModifierClass") -> np.ndarray:
+        return (modifier.idxmesh - self.idx0) ** 2 + (
+            modifier.idymesh - self.idy0
+        ) ** 2 <= self.size**2
+
+
+@register_special_serializing
+@register_module
+@dataclass
+class MaskGeometry:
+    """Explicit boolean mask geometry.
+
+    The provided mask must have shape ``(jtot, itot)`` after conversion to a
+    numpy array and will be interpreted as a boolean selection.
+    """
+
+    mask: Any
+
+    def to_mask(self, modifier: "ModifierClass") -> np.ndarray:
+        mask_arr = np.asarray(self.mask)
+        if mask_arr.shape != modifier.meshx.shape:
+            raise ValueError(
+                "MaskGeometry shape mismatch: "
+                f"expected {modifier.meshx.shape}, got {mask_arr.shape}"
+            )
+        return mask_arr.astype(bool)
+
+
+class GeometryLike(Protocol):
+    """Protocol for typed geometry objects that produce a boolean mask."""
+
+    def to_mask(self, modifier: "ModifierClass") -> np.ndarray: ...
+
+
+GeometrySpec = Union[
+    AllGeometry,
+    CircleRealGeometry,
+    RectangleRealGeometry,
+    RectangleIdxGeometry,
+    CircleIdxGeometry,
+    MaskGeometry,
+]
+
+
+@dataclass
+class GeometricModification:
+    """Base class for modifications that target a typed horizontal geometry."""
+
+    geometry: GeometrySpec = field(default_factory=AllGeometry)
 
 
 class ModifierClass:
@@ -37,60 +167,21 @@ class ModifierClass:
         )
         self.grid = grid
 
-    def allGeometry(self):
-        return np.ones_like(self.meshx, dtype=bool)
+    def apply_modification(self, modification: GeometricModification):
+        """Apply a typed modification object to this modifier."""
 
-    def circleGeometry_realspace(self, x0, y0, size):
-        return (self.meshx - x0) ** 2 + (self.meshy - y0) ** 2 <= size**2
-
-    def rectangleGeometry_realspace(self, minx, maxx, miny, maxy):
-        return (
-            (self.meshx >= minx)
-            & (self.meshx <= maxx)
-            & (self.meshy >= miny)
-            & (self.meshy <= maxy)
-        )
-
-    def rectangleGeometry_idxspace(self, minx, maxx, miny, maxy):
-        return (
-            (self.idxmesh >= minx)
-            & (self.idxmesh <= maxx)
-            & (self.idymesh >= miny)
-            & (self.idymesh <= maxy)
-        )
-
-    def circleGeometry_idxspace(self, idx0, idy0, size):
-        return (self.idxmesh - idx0) ** 2 + (self.idymesh - idy0) ** 2 <= size**2
-
-    def parse_yaml_name(self, modification):
-        """
-        Parse YAML modification configuration and apply geometric transformation.
-
-        Executes the specified geometry function based on the modification type,
-        then applies the modification operation to the generated geometry.
-
-        Args:
-            modification (dict): Configuration dictionary containing:
-                - "geometry" (str): Type of geometry to generate. Must be one of:
-                  "circle_real", "all", "rectangle_real", "rectangle_idx", "circle_idx"
-                - "params" (dict): Parameter dictionary passed to the geometry function
-
-        Returns:
-            None
-        """
-        param_dic = modification["params"]
-        dic = {
-            "circle_real": lambda: self.circleGeometry_idxspace(**param_dic),
-            "all": lambda: self.allGeometry(),
-            "rectangle_real": lambda: self.rectangleGeometry_realspace(**param_dic),
-            "rectangle_idx": lambda: self.rectangleGeometry_idxspace(**param_dic),
-            "circle_idx": lambda: self.circleGeometry_idxspace(**param_dic),
-        }
-
-        name = modification["geometry"]
-        geometry_function = dic[name]
-        geometry = geometry_function()
-
+        if not isinstance(modification, GeometricModification):
+            raise TypeError(
+                "Modification must inherit GeometricModification, got "
+                f"{type(modification)}"
+            )
+        geometry_obj = modification.geometry
+        if not hasattr(geometry_obj, "to_mask") or not callable(geometry_obj.to_mask):
+            raise TypeError(
+                "geometry must implement to_mask(modifier), got "
+                f"{type(geometry_obj)}"
+            )
+        geometry = geometry_obj.to_mask(self)
         self.do_modification(geometry, modification)
 
     def do_modification(self, geometry, modification):

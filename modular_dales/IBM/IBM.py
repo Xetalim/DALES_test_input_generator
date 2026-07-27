@@ -1,8 +1,9 @@
 """Immersed Boundary Method (IBM) module for building and geometry representation."""
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 import logging
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, List, Optional
 import netCDF4
 import numpy as np
 
@@ -10,9 +11,11 @@ from modular_dales.Geometry import (
     ModifierClass,
     GridDales,
 )
+from modular_dales.Geometry.geometry_modification import GeometricModification
 from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.MODULE_REGISTRY import register_module, register_singleton
 from .download_AHN import get_process_ahn
+from .global_dem import get_process_global_dem
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +30,37 @@ class FromAHN:
 
 @register_module
 @dataclass
-class IBMModification:
+class FromGlobalDEM:
+    """Use a user-provided global DEM raster as IBM terrain input.
+
+    The DEM must be readable by rasterio, for example a GeoTIFF or a cloud
+    optimized GeoTIFF. It is reprojected onto the DALES grid before the same
+    post-processing used for AHN is applied. When combined with ``FromAHN``,
+    the global DEM is used as a base field and AHN refines cells where it has
+    positive resolved terrain.
+    """
+
+    dem_path: str
+    resampling: str = field(default="bilinear", metadata={"serialize": True})
+
+
+@dataclass(frozen=True)
+class _TerrainLayer:
+    """Resolved terrain field plus metadata used during IBM preparation."""
+
+    name: str
+    values: np.ndarray
+
+
+@register_module
+@dataclass
+class IBMModification(GeometricModification):
     """Single IBM modification. Set Geometry type and parameters to define the modification."""
 
-    geometry: Optional[str] = None
-    """Geometry type"""
-    height: Optional[float] = None
+    height: float = 0.0
     """Building height"""
-    params: Dict[str, Any] = field(default_factory=dict)
-    """Geometry-specific parameters"""
+    mode: str = field(default="replace")
+    """How the modification affects terrain: replace, add, or subtract."""
 
 
 class IBMCreatorClass(ModifierClass):
@@ -56,7 +81,27 @@ class IBMCreatorClass(ModifierClass):
         self.bc_height = np.zeros_like(self.meshx)
 
     def do_modification(self, geometry, modification):
-        self.bc_height[geometry] = modification["height"]
+        height = float(modification.height)
+        mode = str(modification.mode).strip().lower()
+
+        if mode == "replace":
+            self.bc_height[geometry] = height
+            return
+
+        if mode == "add":
+            self.bc_height[geometry] = self.bc_height[geometry] + height
+            return
+
+        if mode == "subtract":
+            self.bc_height[geometry] = np.maximum(
+                self.bc_height[geometry] - height,
+                0.0,
+            )
+            return
+
+        raise ValueError(
+            f"Unsupported IBM modification mode '{mode}'. Expected one of: replace, add, subtract"
+        )
 
     def output_nc(self, filename):
         with netCDF4.Dataset(filename, "w") as nc:
@@ -91,11 +136,12 @@ class IBMModule(simulation_module):
         ibm_modifications (List[IBMModification]): List of IBM geometry modifications to apply.
         ibm_generator (Any): IBM geometry creator instance, initialized during preparation.
         from_ahn (Optional[FromAHN]): AHN terrain data configuration object.
+        from_global_dem (Optional[FromGlobalDEM]): Global DEM terrain source.
         ahn_zeroes_buffer (int): Buffer size for AHN zero elevation handling. Default: 5.
         subtract_ahn_mode (bool): Whether to subtract AHN elevation data. Default: True.
         apply_ibm (bool): Enable/disable IBM application. Default: True.
-        ibas_prf (int): PRF advection scheme Default: 2.
-        iadv_mom (int): Advection scheme for momentum. Default: 2.
+        ibas_prf (int): Fixed base-state profile selector. Always 2.
+        iadv_mom (int): Fixed momentum advection scheme selector. Always 2.
 
     Methods:
         __post_init__: Initialize module and set module name.
@@ -119,10 +165,17 @@ class IBMModule(simulation_module):
         repr=False,
         metadata={"serialize": True},
     )
+    from_global_dem: Optional[FromGlobalDEM] = field(
+        default=None,
+        init=True,
+        repr=False,
+        metadata={"serialize": True},
+    )
     ahn_zeroes_buffer: int = field(
         default=5,
         metadata={
             "serialize": True,
+            "doc": "Padding in cells used when filling zero-elevation holes in terrain input.",
         },
         init=True,
         repr=False,
@@ -131,6 +184,7 @@ class IBMModule(simulation_module):
         default=True,
         metadata={
             "serialize": True,
+            "doc": "When true, subtract terrain baseline before writing IBM heights.",
         },
         init=True,
         repr=False,
@@ -142,6 +196,97 @@ class IBMModule(simulation_module):
             "key": "lapply_ibm",
             "serialize": True,
             "required": True,
+            "doc": "Enable immersed boundary method in IBM:lapply_ibm.",
+        },
+        init=True,
+        repr=False,
+    )
+    lwallheat: Optional[bool] = field(
+        default=None,
+        metadata={
+            "nml": "IBM",
+            "key": "lwallheat",
+            "serialize": True,
+            "doc": "Enable lateral wall heat flux treatment for buildings.",
+        },
+        init=True,
+        repr=False,
+    )
+    thlwall: Optional[float] = field(
+        default=None,
+        metadata={
+            "nml": "IBM",
+            "key": "thlwall",
+            "serialize": True,
+            "doc": "Potential temperature at building side walls in K.",
+        },
+        init=True,
+        repr=False,
+    )
+    thlibm: Optional[float] = field(
+        default=None,
+        metadata={
+            "nml": "IBM",
+            "key": "thlibm",
+            "serialize": True,
+            "required": True,
+            "doc": "Interior obstacle potential temperature in K.",
+        },
+        init=True,
+        repr=False,
+    )
+    thlroof: Optional[float] = field(
+        default=None,
+        metadata={
+            "nml": "IBM",
+            "key": "thlroof",
+            "serialize": True,
+            "required": True,
+            "doc": "Potential temperature at obstacle roofs in K.",
+        },
+        init=True,
+        repr=False,
+    )
+    qtibm: Optional[float] = field(
+        default=None,
+        metadata={
+            "nml": "IBM",
+            "key": "qtibm",
+            "serialize": True,
+            "doc": "Interior obstacle specific humidity in kg/kg.",
+        },
+        init=True,
+        repr=False,
+    )
+    lpoislast: Optional[bool] = field(
+        default=None,
+        metadata={
+            "nml": "IBM",
+            "key": "lpoislast",
+            "serialize": True,
+            "doc": "If true, apply Poisson solver after IBM velocity correction.",
+        },
+        init=True,
+        repr=False,
+    )
+    z0m_wall: Optional[float] = field(
+        default=None,
+        metadata={
+            "nml": "IBM",
+            "key": "z0m_wall",
+            "serialize": True,
+            "doc": "Wall roughness length for momentum in m.",
+        },
+        init=True,
+        repr=False,
+    )
+    z0h_wall: Optional[float] = field(
+        default=None,
+        metadata={
+            "nml": "IBM",
+            "key": "z0h_wall",
+            "serialize": True,
+            "doc": "Wall roughness length for heat/scalars in m.",
         },
         init=True,
         repr=False,
@@ -153,8 +298,9 @@ class IBMModule(simulation_module):
             "key": "IBAS_PRF",
             "serialize": True,
             "required": True,
+            "doc": "Base-state profile selector, forced to IBM-compatible choice by DALES.",
         },
-        init=True,
+        init=False,
         repr=False,
     )
     iadv_mom: int = field(
@@ -164,8 +310,9 @@ class IBMModule(simulation_module):
             "key": "IADV_MOM",
             "serialize": True,
             "required": True,
+            "doc": "Momentum advection scheme; IBM is typically used with second-order centered scheme.",
         },
-        init=True,
+        init=False,
         repr=False,
     )
 
@@ -184,11 +331,13 @@ class IBMModule(simulation_module):
         """
         if isinstance(obj, FromAHN):
             self.from_ahn = obj
+        elif isinstance(obj, FromGlobalDEM):
+            self.from_global_dem = obj
         elif isinstance(obj, IBMModification):
             self.ibm_modifications.append(obj)
         else:
             raise TypeError(
-                f"Cannot add object of type {type(obj)} to IBMModule. Expected FromAHN or IBMModification."
+                f"Cannot add object of type {type(obj)} to IBMModule. Expected FromAHN, FromGlobalDEM or IBMModification."
             )
         return self
 
@@ -196,28 +345,130 @@ class IBMModule(simulation_module):
         """In-place addition."""
         return self.__add__(obj)
 
-    def prepare_calculation(self):
-        """Set up IBM geometry and update namelist."""
+    def has_terrain_source(self) -> bool:
+        """Return whether any terrain source was configured."""
 
-        self.ibm_generator = IBMCreatorClass(self.grid)
+        return self.from_ahn is not None or self.from_global_dem is not None
 
-        if self.from_ahn:
-            ds = get_process_ahn(
+    def _terrain_layers(self) -> list[_TerrainLayer]:
+        """Load configured terrain sources in merge order.
+
+        The global DEM is treated as the coarse base terrain, while AHN acts as
+        a higher-quality refinement that overrides strictly positive cells.
+        This preserves the previous AHN-only behavior and keeps the combined
+        path deterministic.
+        """
+
+        layers: list[_TerrainLayer] = []
+
+        if self.from_global_dem is not None:
+            dem_path = Path(self.from_global_dem.dem_path).expanduser()
+            terrain = get_process_global_dem(
+                self.grid,
+                dem_path=dem_path,
+                zeroes_buffer=self.ahn_zeroes_buffer,
+                subtract_dem_mode=self.subtract_ahn_mode,
+                resampling_name=self.from_global_dem.resampling,
+            )
+            layers.append(
+                _TerrainLayer(
+                    name=f"global_dem:{dem_path}",
+                    values=np.asarray(terrain, dtype=float),
+                )
+            )
+
+        if self.from_ahn is not None:
+            terrain = get_process_ahn(
                 self.grid,
                 zeroes_buffer=self.ahn_zeroes_buffer,
                 subtract_ahn_mode=self.subtract_ahn_mode,
             )
-            self.ibm_generator.bc_height[:, :] = ds[:, :]
+            layers.append(
+                _TerrainLayer(name="ahn", values=np.asarray(terrain, dtype=float))
+            )
+
+        return layers
+
+    def _merge_terrain_layers(
+        self, layers: list[_TerrainLayer]
+    ) -> Optional[np.ndarray]:
+        """Merge loaded terrain layers into a single IBM height field."""
+
+        if not layers:
+            return None
+
+        merged = np.array(layers[0].values, copy=True, dtype=float)
+
+        for layer in layers[1:]:
+            if layer.values.shape != merged.shape:
+                raise ValueError(
+                    "IBM terrain source shape mismatch: "
+                    f"{layer.name} has shape {layer.values.shape}, expected {merged.shape}"
+                )
+            merged = np.where(layer.values > 0.0, layer.values, merged)
+
+        return merged
+
+    def _apply_terrain(self) -> None:
+        """Populate the IBM terrain field from configured terrain sources."""
+
+        terrain_layers = self._terrain_layers()
+        terrain = self._merge_terrain_layers(terrain_layers)
+        if terrain is None:
+            return
+
+        self.ibm_generator.bc_height[:, :] = terrain[:, :]
+        logger.info(
+            "IBMModule: applied terrain sources %s",
+            ", ".join(layer.name for layer in terrain_layers),
+        )
+
+    def prepare_calculation(self):
+        """Set up IBM geometry and update namelist."""
+
+        self.ibm_generator = IBMCreatorClass(self.grid)
+        self._apply_terrain()
+
         # Apply IBM modifications
         for modification in self.ibm_modifications:
-            self.ibm_generator.parse_yaml_name(asdict(modification))
+            self.ibm_generator.apply_modification(modification)
 
         logger.info("IBMModule: IBM configured and namelist updated")
 
     def check_settings(self):
         """Check IBM settings validity."""
 
-        pass
+        if self.grid is None:
+            raise ValueError("IBMModule requires a GridDales grid to be configured")
+
+        if self.from_global_dem is not None:
+            dem_path = Path(self.from_global_dem.dem_path).expanduser()
+            if not dem_path.exists():
+                raise FileNotFoundError(f"Global DEM file not found: {dem_path}")
+
+        for modification in self.ibm_modifications:
+            mode = str(modification.mode).strip().lower()
+            if mode not in {"replace", "add", "subtract"}:
+                raise ValueError(
+                    "IBMModification.mode must be one of: replace, add, subtract"
+                )
+
+        if self.thlibm is None:
+            raise ValueError("IBMModule.thlibm is mandatory and must be provided")
+
+        if self.thlroof is None:
+            raise ValueError("IBMModule.thlroof is mandatory and must be provided")
+
+        if self.lwallheat is True and self.thlwall is None:
+            raise ValueError(
+                "IBMModule.thlwall is mandatory when IBMModule.lwallheat is True"
+            )
+
+        if self.ibas_prf != 2:
+            raise ValueError("IBMModule.ibas_prf is fixed and must be 2")
+
+        if self.iadv_mom != 2:
+            raise ValueError("IBMModule.iadv_mom is fixed and must be 2")
 
     def write_files(self):
         """Write IBM files."""
@@ -244,12 +495,3 @@ class IBMModifications:
     def __iadd__(self, modification: IBMModification) -> "IBMModifications":
         """In-place addition."""
         return self.__add__(modification)
-
-    def apply_to_config(self, config: Dict[str, Any]) -> None:
-        """Apply modifications to config dictionary."""
-        if "ibm_modifications" not in config:
-            config["ibm_modifications"] = []
-        for mod in self.modifications:
-            mod_dict = mod.to_dict()
-            if mod_dict is not None:
-                config["ibm_modifications"].append(mod_dict)

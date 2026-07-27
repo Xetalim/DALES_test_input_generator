@@ -5,8 +5,19 @@ import pathlib
 import logging
 from typing import Optional
 
+from modular_dales.IO_helpers.external_data_cache import (
+    cache_root,
+    resolve_rrtmg_data_paths,
+)
 from modular_dales.MODULE_REGISTRY import register_module
 from modular_dales.modular.simulation_module import simulation_module
+from modular_dales.Radiation.backrad_profile import (
+    BackradInterpolatedProfile,
+    BackradPressureProfile,
+    default_profile,
+    profile_from_path,
+    write_profile,
+)
 from modular_dales.Surface.surface import SurfaceModule
 
 logger = logging.getLogger(__name__)
@@ -115,6 +126,27 @@ class RadiationModule(simulation_module):
     surface_module: Optional["SurfaceModule"] = field(
         default=None, init=False, repr=False, metadata={"serialize": False}
     )
+    backrad_profile: Optional[BackradPressureProfile] = field(
+        default=None,
+        metadata={
+            "serialize": True,
+            "doc": "Optional pressure-based profile (Pa, K, kg/kg) used to generate backrad files.",
+        },
+    )
+    backrad_source_file: Optional[pathlib.Path] = field(
+        default=None,
+        metadata={
+            "serialize": True,
+            "doc": "Optional path to existing backrad.inp.* or backrad.inp.*.nc profile.",
+        },
+    )
+    backrad_interpolated_profile: Optional[BackradInterpolatedProfile] = field(
+        default=None,
+        metadata={
+            "serialize": True,
+            "doc": "Optional interpolated-profile style backrad specification.",
+        },
+    )
 
     def __post_init__(self):
         super().__init__(self.sim)
@@ -149,60 +181,63 @@ class RadiationModule(simulation_module):
                 "RadiationModule: albedoav must be set in surface config for radiation to work properly"
             )
         exp_id = self.exp_id
-        machine_conf = self.sim.machine_conf
+
+        profile_sources = sum(
+            value is not None
+            for value in (
+                self.backrad_profile,
+                self.backrad_source_file,
+                self.backrad_interpolated_profile,
+            )
+        )
+        if profile_sources > 1:
+            raise ValueError(
+                "RadiationModule: provide at most one of backrad_profile, backrad_source_file, or backrad_interpolated_profile."
+            )
+
+        selected_profile = self.backrad_profile
+        if selected_profile is None and self.backrad_source_file is not None:
+            selected_profile = profile_from_path(pathlib.Path(self.backrad_source_file))
+        if selected_profile is None and self.backrad_interpolated_profile is not None:
+            selected_profile = self.backrad_interpolated_profile.to_profile(
+                template_profile=default_profile()
+            )
+        if selected_profile is None:
+            selected_profile = default_profile()
+
+        backrad_cache = cache_root(self.sim) / "backrad"
+        backrad_cache.mkdir(parents=True, exist_ok=True)
+
         if iradiation == 1:
+            backrad_ascii = write_profile(
+                selected_profile,
+                backrad_cache / f"backrad.inp.{exp_id:03d}",
+            )
             self.sim.required_files[f"backrad.inp.{exp_id:03d}"] = (
-                pathlib.Path(machine_conf["case_conf"]["SOURCE_PATH"])
-                / "cases"
-                / "example"
-                / "backrad.inp.001"
-            ).as_posix()
+                backrad_ascii.as_posix()
+            )
         if iradiation == 4:
-            # this is an RRTMG case, we need RRTMG_LW and RRTMG_SW and backrad.inp.001.nc
+            backrad_nc = write_profile(
+                selected_profile,
+                backrad_cache / f"backrad.inp.{exp_id:03d}.nc",
+            )
             self.sim.required_files[f"backrad.inp.{exp_id:03d}.nc"] = (
-                pathlib.Path.cwd() / "extra_data/backrad.inp.001.nc"
-            ).as_posix()
-            self.sim.required_files["rrtmg_lw.nc"] = (
-                pathlib.Path(machine_conf["case_conf"]["SOURCE_PATH"])
-                / "external"
-                / "RRTMG"
-                / "RRTMG_LW"
-                / "data"
-                / "rrtmg_lw.nc"
-            ).as_posix()
-            self.sim.required_files["rrtmg_sw.nc"] = (
-                pathlib.Path(machine_conf["case_conf"]["SOURCE_PATH"])
-                / "external"
-                / "RRTMG"
-                / "RRTMG_SW"
-                / "data"
-                / "rrtmg_sw.nc"
-            ).as_posix()
+                backrad_nc.as_posix()
+            )
+            external = resolve_rrtmg_data_paths(self.sim)
+            self.sim.required_files["rrtmg_lw.nc"] = external.rrtmg_lw.as_posix()
+            self.sim.required_files["rrtmg_sw.nc"] = external.rrtmg_sw.as_posix()
         elif iradiation == 5:
-            # this is RTE_RRTMG, we need all data from RTE_RRTMG
+            backrad_nc = write_profile(
+                selected_profile,
+                backrad_cache / f"backrad.inp.{exp_id:03d}.nc",
+            )
             self.sim.required_files[f"backrad.inp.{exp_id:03d}.nc"] = (
-                pathlib.Path.cwd() / "extra_data/backrad.inp.001.nc"
-            ).as_posix()
-            self.sim.required_files["rrtmg_lw.nc"] = (
-                pathlib.Path(machine_conf["case_conf"]["SOURCE_PATH"])
-                / "external"
-                / "RRTMG"
-                / "RRTMG_LW"
-                / "data"
-                / "rrtmg_lw.nc"
-            ).as_posix()
-            self.sim.required_files["rrtmg_sw.nc"] = (
-                pathlib.Path(machine_conf["case_conf"]["SOURCE_PATH"])
-                / "external"
-                / "RRTMG"
-                / "RRTMG_SW"
-                / "data"
-                / "rrtmg_sw.nc"
-            ).as_posix()
-            for file in (
-                pathlib.Path(machine_conf["case_conf"]["SOURCE_PATH"])
-                / "external"
-                / "rrtmgp-data"
-            ).glob("*.nc"):
+                backrad_nc.as_posix()
+            )
+            external = resolve_rrtmg_data_paths(self.sim)
+            self.sim.required_files["rrtmg_lw.nc"] = external.rrtmg_lw.as_posix()
+            self.sim.required_files["rrtmg_sw.nc"] = external.rrtmg_sw.as_posix()
+            for file in external.rrtmgp_data_dir.glob("*.nc"):
                 self.sim.required_files[file.name] = file.as_posix()
         return None

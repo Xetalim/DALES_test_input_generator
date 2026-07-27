@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -73,36 +74,100 @@ class TimeModule(simulation_module):
 
     sim: Optional["dales_simulation"] = field(default=None, repr=False)
     xtime: float = field(
-        default=0.0, metadata={"nml": "DOMAIN", "key": "xtime", "required": True}
+        default=0.0,
+        metadata={
+            "nml": "DOMAIN",
+            "key": "xtime",
+            "required": True,
+            "doc": "UTC start time in hours within the day for DOMAIN:xtime.",
+        },
     )
     xday: int = field(
-        default=265, metadata={"nml": "DOMAIN", "key": "xday", "required": True}
+        default=265,
+        metadata={
+            "nml": "DOMAIN",
+            "key": "xday",
+            "required": True,
+            "doc": "Day of year (1-365/366) used by DOMAIN:xday.",
+        },
     )
     xyear: int = field(
-        default=2025, metadata={"nml": "DOMAIN", "key": "xyear", "required": True}
+        default=2025,
+        metadata={
+            "nml": "DOMAIN",
+            "key": "xyear",
+            "required": True,
+            "doc": "Simulation year used by DOMAIN:xyear.",
+        },
     )
     enable_datetime: bool = field(
         default=True,
-        metadata={"nml": "namdatetime", "key": "l_datetime", "required": True},
+        metadata={
+            "nml": "namdatetime",
+            "key": "l_datetime",
+            "required": True,
+            "doc": "Enable NAMDATETIME-based calendar interpretation.",
+        },
     )
-    timezone: int = field(default=0, metadata={"nml": "namdatetime", "key": "timezone"})
+    timezone: int = field(
+        default=0,
+        metadata={
+            "nml": "namdatetime",
+            "key": "timezone",
+            "doc": "Timezone offset in hours for NAMDATETIME.",
+        },
+    )
     startyear: int = field(
         default=2025,
-        metadata={"nml": "namdatetime", "key": "startyear", "required": True},
+        metadata={
+            "nml": "namdatetime",
+            "key": "startyear",
+            "required": True,
+            "doc": "Calendar start year for NAMDATETIME.",
+        },
     )
     startmonth: int = field(
         default=1,
-        metadata={"nml": "namdatetime", "key": "startmonth", "required": True},
+        metadata={
+            "nml": "namdatetime",
+            "key": "startmonth",
+            "required": True,
+            "doc": "Calendar start month for NAMDATETIME.",
+        },
     )
     startday: int = field(
-        default=1, metadata={"nml": "namdatetime", "key": "startday", "required": True}
+        default=1,
+        metadata={
+            "nml": "namdatetime",
+            "key": "startday",
+            "required": True,
+            "doc": "Calendar start day for NAMDATETIME.",
+        },
+    )
+    inferfromdatetime: bool = field(
+        default=False,
+        metadata={
+            "serialize": True,
+            "doc": "If true, infer DOMAIN:xday and DOMAIN:xyear from NAMDATETIME start date.",
+        },
     )
 
     runtime: Optional[float] = field(
-        default=None, metadata={"nml": "RUN", "key": "runtime", "required": True}
+        default=None,
+        metadata={
+            "nml": "RUN",
+            "key": "runtime",
+            "required": True,
+            "doc": "Total runtime in seconds for RUN:runtime.",
+        },
     )
     trestart: Optional[float] = field(
-        default=None, metadata={"nml": "RUN", "key": "trestart"}
+        default=None,
+        metadata={
+            "nml": "RUN",
+            "key": "trestart",
+            "doc": "Restart write interval in seconds for RUN:trestart.",
+        },
     )
 
     def __post_init__(self):
@@ -113,8 +178,18 @@ class TimeModule(simulation_module):
         """Configure time-related namelist parameters."""
         return None
 
+    def _apply_datetime_inference(self) -> None:
+        """Infer DOMAIN xyear/xday from NAMDATETIME start date when enabled."""
+        if not self.inferfromdatetime:
+            return
+
+        start_dt = date(self.startyear, self.startmonth, self.startday)
+        self.xyear = int(start_dt.year)
+        self.xday = int(start_dt.timetuple().tm_yday)
+
     def check_settings(self):
         """Check time settings validity."""
+        self._apply_datetime_inference()
         if self.xyear != self.startyear:
             logger.warning(
                 "TimeModule: xyear (%d) does not match startyear (%d)",

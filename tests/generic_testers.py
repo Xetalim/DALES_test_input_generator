@@ -29,16 +29,6 @@ def assert_roundtrip_simulation_outputs_identical(sim_builder, machine_conf) -> 
     sim1.sim_preprocessing_pipeline()
     out1 = sim1.output_path
 
-    subprocess.run(
-        [
-            "cp",
-            "-r",
-            out1.as_posix(),
-            "/Users/andrevanginkel/Documents/40_Input_and_Runs/42_Dales_Cases/42.01_generated_cases/roundtrip",
-        ],
-        check=True,
-    )
-
     yaml_text = sim1.save_sim_to_yaml()
 
     machine_conf_2 = machine_conf("from_yaml")
@@ -61,6 +51,10 @@ def run_simulation_and_check_job(sim_builder, machine_conf) -> None:
 
     machine_conf_1 = machine_conf("from_scratch")
 
+    post_run_checker = None
+    if isinstance(sim_builder, tuple):
+        sim_builder, post_run_checker = sim_builder
+
     sim1 = sim_builder(machine_conf_1)
     if sim1.nml.get("RUN") is None:
         sim1.nml["RUN"] = {}
@@ -74,16 +68,10 @@ def run_simulation_and_check_job(sim_builder, machine_conf) -> None:
     sim1.sim_preprocessing_pipeline()
     out1 = sim1.output_path
 
-    subprocess.run(
-        [
-            "cp",
-            "-r",
-            out1.as_posix(),
-            "/Users/andrevanginkel/Documents/40_Input_and_Runs/42_Dales_Cases/42.01_generated_cases/all_tests",
-        ],
-        check=True,
-    )
     subprocess.run(["./job.001"], check=True, cwd=out1.as_posix())
+
+    if post_run_checker is not None:
+        post_run_checker(out1)
 
 
 def test_diff_works(machine_conf) -> None:
