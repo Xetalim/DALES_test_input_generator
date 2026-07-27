@@ -64,6 +64,8 @@ from .Configuration.output_modules import (
     SamplingModule,
     StatsModule,
     TimestatModule,
+    ColumnStatisticsOutputModule,
+    VirtualMeasurementOutputModule,
 )
 
 from .Geometry.geometry_modification import ModifierClass
@@ -143,6 +145,8 @@ __all__ = [
     "SprayingModule",
     "LateralSpongeModule",
     "EasyOutputModule",
+    "ColumnStatisticsOutputModule",
+    "VirtualMeasurementOutputModule",
     "CapeModule",
     "LSMCrossModule",
     "TimestatModule",

@@ -4,6 +4,7 @@ These modules configure namelist sections for a DALES simulation.
 """
 
 from .defaultnamelist import DefaultNamelistModule
+from .physics_modules import BulkMicrophysicsSettingsModule, TracerSettingsModule
 from .run_and_time import RunModule, TimeModule
 from .settings_modules import (
     GeneralPhysicsModule,
@@ -20,6 +21,10 @@ from .output_modules import (
     SamplingModule,
     StatsModule,
     TimestatModule,
+    BulkMicrophysicsStatisticsOutputModule,
+    ColumnStatisticsOutputModule,
+    NetCDFStatisticsSyncModule,
+    VirtualMeasurementOutputModule,
 )
 
 __all__ = [
@@ -38,4 +43,17 @@ __all__ = [
     "CrossSectionOutputModule",
     "FielddumpModule",
     "SamplingModule",
+    "SamplingTendencyOutputModule",
+    "VariableBudgetOutputModule",
+    "QuadrantStatisticsOutputModule",
+    "StatTendencyOutputModule",
+    "BulkMicrophysicsStatisticsOutputModule",
+    "TiltStatisticsOutputModule",
+    "StressStatisticsOutputModule",
+    "ParticlesOutputModule",
+    "BulkMicrophysicsSettingsModule",
+    "TracerSettingsModule",
+    "NetCDFStatisticsSyncModule",
+    "VirtualMeasurementOutputModule",
+    "ColumnStatisticsOutputModule",
 ]

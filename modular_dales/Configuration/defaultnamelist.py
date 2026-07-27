@@ -8,7 +8,6 @@ from modular_dales.MODULE_REGISTRY import register_module
 from modular_dales.modular.simulation_module import simulation_module
 from modular_dales.modular.dales_simulation import dales_simulation
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -37,6 +36,39 @@ class DefaultNamelistModule(simulation_module):
         init=True,
         repr=False,
         metadata={"nml": "RUN", "key": "iinput", "serialize": True, "required": True},
+    )
+    lwarmstart: bool = field(
+        default=False,
+        init=True,
+        repr=False,
+        metadata={
+            "nml": "RUN",
+            "key": "lwarmstart",
+            "serialize": True,
+            "required": True,
+        },
+    )
+    trestart: int = field(
+        default=3600,
+        init=True,
+        repr=False,
+        metadata={
+            "nml": "RUN",
+            "key": "trestart",
+            "serialize": True,
+            "required": True,
+        },
+    )
+    startfile: str = field(
+        default="initd_latest_x000y000.001",
+        init=True,
+        repr=False,
+        metadata={
+            "nml": "RUN",
+            "key": "startfile",
+            "serialize": True,
+            "required": True,
+        },
     )
     ladaptive: bool = field(
         default=True,

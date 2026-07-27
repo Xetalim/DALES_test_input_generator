@@ -449,12 +449,56 @@ class LSMModule(BaseLSMModule):
 
         nz_soil, jtot, itot = self.lsm_writer.value_dic["t_soil"].shape
 
+        target_depths = None
+        if self.dz_soil is not None:
+            try:
+                dz_soil = np.asarray(self.dz_soil, dtype=float)
+                if dz_soil.ndim == 1 and dz_soil.size == nz_soil:
+                    target_depths = np.cumsum(dz_soil)
+            except (TypeError, ValueError):
+                target_depths = None
+
+        source_depths = None
+        if hasattr(les_input, "zs"):
+            try:
+                zs = np.asarray(les_input["zs"].values, dtype=float)
+                if zs.ndim == 1 and zs.size > 1:
+                    source_depths = zs
+            except (TypeError, ValueError, KeyError):
+                source_depths = None
+
+        def _resample_profile(profile: np.ndarray, name: str) -> np.ndarray:
+            if profile.size == nz_soil:
+                return profile
+
+            if profile.size < 2:
+                logger.warning(
+                    "LSMModule: cannot resample LS2D profile %s with only %d level(s)",
+                    name,
+                    profile.size,
+                )
+                return np.full(nz_soil, float(profile[0]), dtype=float)
+
+            if (
+                source_depths is not None
+                and target_depths is not None
+                and source_depths.size == profile.size
+                and target_depths.size == nz_soil
+            ):
+                return np.interp(target_depths, source_depths, profile)
+
+            # Fallback when depth coordinates are unavailable:
+            # interpolate by normalized vertical index.
+            src_idx = np.linspace(0.0, 1.0, profile.size)
+            dst_idx = np.linspace(0.0, 1.0, nz_soil)
+            return np.interp(dst_idx, src_idx, profile)
+
         def _extract_soil_profile(name: str) -> Optional[np.ndarray]:
             if not hasattr(les_input, name):
                 return None
             try:
                 values = np.asarray(les_input[name].values, dtype=float)
-            except Exception:
+            except (TypeError, ValueError, KeyError):
                 return None
 
             if values.ndim == 2:
@@ -465,8 +509,14 @@ class LSMModule(BaseLSMModule):
                     return values[0, :]
                 if nt == nz_soil:
                     return values[:, 0]
+                if nt > 1:
+                    return _resample_profile(values[0, :], name)
+                if nlev > 1:
+                    return _resample_profile(values[:, 0], name)
             elif values.ndim == 1 and values.size == nz_soil:
                 return values
+            elif values.ndim == 1 and values.size > 1:
+                return _resample_profile(values, name)
 
             logger.warning(
                 "LSMModule: unexpected shape for LS2D les_input.%s: %s; expected (time,%d) or (%d,)",
@@ -482,22 +532,26 @@ class LSMModule(BaseLSMModule):
         prof_theta = _extract_soil_profile("theta_soil")
 
         if prof_tsoil is not None:
-            for k in range(nz_soil):
-                self.lsm_writer.value_dic["t_soil"][k, :, :] = prof_tsoil[k]
+            self.lsm_writer.value_dic["t_soil"][:, :, :] = prof_tsoil[:, np.newaxis, np.newaxis]
 
         if prof_theta is not None:
-            for k in range(nz_soil):
-                self.lsm_writer.value_dic["theta_soil"][k, :, :] = prof_theta[k]
+            self.lsm_writer.value_dic["theta_soil"][:, :, :] = prof_theta[:, np.newaxis, np.newaxis]
 
         # Soil type index (Fortran-style indexing from LS2D/ERA5)
         if hasattr(les_input, "type_soil"):
             try:
                 soil_type_vals = np.asarray(les_input["type_soil"].values)
-                soil_index = int(np.ravel(soil_type_vals)[0])
-            except Exception:
-                soil_index = None
-            if soil_index is not None:
-                self.lsm_writer.value_dic["index_soil"][:, :, :] = soil_index
+                if soil_type_vals.ndim == 0:
+                    soil_index = int(soil_type_vals)
+                    self.lsm_writer.value_dic["index_soil"][:, :, :] = soil_index
+                elif soil_type_vals.ndim == 2 and soil_type_vals.shape == (jtot, itot):
+                    soil_map = soil_type_vals.astype(int)
+                    self.lsm_writer.value_dic["index_soil"][:, :, :] = soil_map[np.newaxis, :, :]
+                else:
+                    soil_index = int(np.ravel(soil_type_vals)[0])
+                    self.lsm_writer.value_dic["index_soil"][:, :, :] = soil_index
+            except (TypeError, ValueError, KeyError, IndexError):
+                pass
 
         # Bulk roughness lengths: set NAMSURFACE z0mav/z0hav from LS2D
         # time series when available.
@@ -505,13 +559,31 @@ class LSMModule(BaseLSMModule):
             if hasattr(les_input, name):
                 try:
                     arr = np.asarray(les_input[name].values, dtype=float)
-                    if arr.ndim == 1 and arr.size > 0:
-                        setattr(self, attr, float(arr[0]))
-                except Exception:
+                    if arr.size > 0:
+                        setattr(self, attr, float(np.nanmean(arr)))
+                except (TypeError, ValueError, KeyError):
                     continue
 
+        # Surface pressure is required by LSM and can be taken from LS2D.
+        if hasattr(les_input, "ps"):
+            try:
+                arr_ps = np.asarray(les_input["ps"].values, dtype=float)
+                if arr_ps.size > 0:
+                    self.ps = float(arr_ps[0])
+            except (TypeError, ValueError, KeyError, IndexError):
+                pass
+
+        # Use LS2D skin temperature as initial tskin for all land-use classes.
+        if hasattr(les_input, "ts"):
+            try:
+                arr_ts = np.asarray(les_input["ts"].values, dtype=float)
+                if arr_ts.size > 0:
+                    self.lsm_writer.set_skin_temperature(float(arr_ts[0]), lu_type="all")
+            except (TypeError, ValueError, KeyError, IndexError):
+                pass
+
         logger.info(
-            "LSMModule: applied LS2D-derived soil profiles and roughness where available"
+            "LSMModule: applied LS2D-derived soil profiles, soil index, roughness, ps and skin temperature where available"
         )
 
     def apply_soil_temp_moisture_skin_temp(self):
@@ -577,6 +649,12 @@ class LSMModule(BaseLSMModule):
 
     def write_files(self):
         """Write LSM input files and generate plots."""
+
+        # Re-apply LS2D-derived overrides at write time. This guarantees
+        # values such as ps/z0 are available even when LSM prepare happened
+        # before LS2D prepare due to module ordering.
+        self._override_soil_from_ls2d_if_available()
+        self.apply_namelist_from_fields()
 
         self.lsm_writer.save_netcdf(self.output_path / "input", self.exp_id)
         plot_lsm.plot_lsm_cover(

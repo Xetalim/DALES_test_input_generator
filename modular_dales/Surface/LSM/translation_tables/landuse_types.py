@@ -525,4 +525,12 @@ lu_types_ifs = {
         "lveg": False,
         "laqu": False,
     },
+    "wat": {
+        "lu_long": "water",
+        "lu_short": "wat",
+        "ifs_id": 22,
+        "bare_soil": False,
+        "lveg": False,
+        "laqu": True,
+    },
 }

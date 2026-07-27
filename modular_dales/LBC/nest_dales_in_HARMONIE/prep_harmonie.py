@@ -106,7 +106,7 @@ class harmoniePrepper:
         if "synturb" in self.input_json:
             variables.append("tkes")
         self.data = self.data.assign(
-            {var: xr.zeros_like(self.data["msl"]) for var in variables}
+            {var: xr.zeros_like(self.data["ps"]) for var in variables}
         )
 
         if "synturb" in self.input_json:
@@ -260,7 +260,7 @@ def calculate_pressure(data):
     hybrid_B = xr.DataArray(
         hybrid_levels.bhalfs, dims=["lev"], coords={"lev": np.arange(1, 92)}
     )
-    ph = (hybrid_A + hybrid_B * data["msl"]).transpose(*data["u"].dims)
+    ph = (hybrid_A + hybrid_B * data["ps"]).transpose(*data["u"].dims)
     # calculate on pressure levels
     p = 0.5 * (ph.assign_coords({"lev": ph["lev"] - 1}) + ph)
     return p.sel(lev=data["lev"]).chunk(data["u"].chunks)
@@ -275,7 +275,7 @@ def merge_steps(data, variables):
         "ta": "t",
         "hus": "q",
         "clw": "clwc",
-        "ps": "msl",
+        "ps": "ps",
         "tas": "2t",
         "huss": "2sh",
         "p": "p",
@@ -478,7 +478,7 @@ def interpolate_ref_height(input_json, data, z_int):
         "ta": "t",
         "hus": "q",
         "clw": "clwc",
-        "ps": "msl",
+        "ps": "ps",
         "tas": "2t",
         "huss": "2sh",
         "p": "p",
@@ -537,7 +537,7 @@ def calculate_3d_height_levels(input_json, data):
 #     hybrid_B = xr.DataArray(
 #         hybrid_levels.bhalfs, dims=["lev"], coords={"lev": np.arange(1, 92)}
 #     )
-#     ph = (hybrid_A + hybrid_B * data["msl"]).transpose(*data["u"].dims)
+#     ph = (hybrid_A + hybrid_B * data["ps"]).transpose(*data["u"].dims)
 #     # calculate on pressure levels
 #     p = 0.5 * (ph.assign_coords({"lev": ph["lev"] - 1}) + ph)
 #     return p.sel(lev=data["lev"]).chunk(data["u"].chunks)
@@ -618,7 +618,7 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
                 "ta": "t",
                 "hus": "q",
                 "clw": "clwc",
-                "ps": "msl",
+                "ps": "ps",
                 "tas": "2t",
                 "huss": "2sh",
             }[var_raw]
@@ -634,7 +634,7 @@ def create_xarray_dataset(input_json, grid: GridDalesOpenBC, variables):
                 buffer = dx
 
             # Interpolate fluxes and surface levels to same time
-            if var in ["tauu", "tauv", "hfss", "msl", "2t", "2sh"]:
+            if var in ["tauu", "tauv", "hfss", "ps", "2t", "2sh"]:
                 data.append(
                     ds_sfc[var].sel(
                         time=time.sortby("time").sel(

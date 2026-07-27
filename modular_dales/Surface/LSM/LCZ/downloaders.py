@@ -54,7 +54,15 @@ def cached_cog_subset_from_url(
 
         xmin, ymin = transformer.transform(grid.xt[0], grid.yt[0])
         xmax, ymax = transformer.transform(grid.xt[-1], grid.yt[-1])
-
+        logger.debug(
+            "Original grid bounds: xt[0]=%f, xt[-1]=%f, yt[0]=%f, yt[-1]=%f",
+            grid.xt[0],
+            grid.xt[-1],
+            grid.yt[0],
+            grid.yt[-1],
+        )
+        logger.debug("Transformed grid bounds to COG CRS: %s", (xmin, ymin, xmax, ymax))
+        logger.debug("Transform is %s", ds.transform)
         window = (
             from_bounds(xmin, ymin, xmax, ymax, transform=ds.transform)
             .round_offsets()

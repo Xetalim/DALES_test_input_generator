@@ -1,9 +1,68 @@
 from typing import List, Optional, Union
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from modular_dales.MODULE_REGISTRY import register_module
 from modular_dales.modular.dales_simulation import dales_simulation
 from modular_dales.modular.simulation_module import simulation_module
+
+
+def _normalize_horizontal_points(values):
+    if values is None:
+        return None
+    if isinstance(values, (list, tuple, np.ndarray)):
+        return list(values)
+    return [values]
+
+
+def _resolve_nearest_indices(grid_axis, coordinates, axis_name: str) -> list[int]:
+    if coordinates is None:
+        return None
+    if grid_axis is None:
+        raise RuntimeError(
+            f"Cannot resolve {axis_name} coordinates without an attached GridDales module"
+        )
+    return [int(np.abs(grid_axis - coord).argmin()) + 1 for coord in coordinates]
+
+
+class _HorizontalPointOutputMixin:
+    def _prepare_horizontal_point_indices(self, module_label: str) -> None:
+        x_idx = _normalize_horizontal_points(self.x_idx)
+        y_idx = _normalize_horizontal_points(self.y_idx)
+        x = _normalize_horizontal_points(self.x)
+        y = _normalize_horizontal_points(self.y)
+
+        if x_idx is None:
+            if x is None:
+                raise ValueError(f"{module_label} requires x_idx or real x coordinates")
+            x_idx = _resolve_nearest_indices(self.grid.xt, x, "x")
+        else:
+            x_idx = [int(idx) for idx in x_idx]
+
+        if y_idx is None:
+            if y is None:
+                raise ValueError(f"{module_label} requires y_idx or real y coordinates")
+            y_idx = _resolve_nearest_indices(self.grid.yt, y, "y")
+        else:
+            y_idx = [int(idx) for idx in y_idx]
+
+        if len(x_idx) != len(y_idx):
+            raise ValueError(
+                f"{module_label} requires x and y point definitions with matching lengths"
+            )
+        if len(x_idx) == 0:
+            raise ValueError(f"{module_label} requires at least one sampling point")
+
+        resolved_npoints = len(x_idx)
+        if self.npoints is not None and int(self.npoints) != resolved_npoints:
+            raise ValueError(
+                f"{module_label} npoints={self.npoints} does not match resolved point count {resolved_npoints}"
+            )
+
+        self.x_idx = x_idx
+        self.y_idx = y_idx
+        self.npoints = resolved_npoints
 
 
 @register_module
@@ -866,3 +925,174 @@ class FielddumpModule(simulation_module):
 
     def write_files(self):
         return None
+
+@register_module
+@dataclass
+class NetCDFStatisticsSyncModule(simulation_module):
+    """Configure NAMNETCDFSTATS synchronization settings."""
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    lsync: bool = field(default=True, metadata={"nml": "NAMNETCDFSTATS", "key": "lsync", "required": True})
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "NetCDFStatisticsSyncModule"
+
+    def do_config(self):
+        return None
+
+    def prepare_calculation(self):
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+
+@register_module
+@dataclass
+class BulkMicrophysicsStatisticsOutputModule(simulation_module):
+    """Configure NAMBULKMICROSTAT output."""
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    enabled: bool = field(default=True, metadata={"nml": "NAMBULKMICROSTAT", "key": "lmicrostat", "required": True})
+    dtav: Optional[float] = field(default=60, metadata={"nml": "NAMBULKMICROSTAT", "key": "dtav", "required": True})
+    timeav: Optional[float] = field(default=60, metadata={"nml": "NAMBULKMICROSTAT", "key": "timeav", "required": True})
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "BulkMicrophysicsStatisticsOutputModule"
+
+    def do_config(self):
+        return None
+
+    def prepare_calculation(self):
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+@register_module
+@dataclass
+class VirtualMeasurementOutputModule(_HorizontalPointOutputMixin, simulation_module):
+    """Configure NAMVIRTUALMEASUREMENT point output.
+
+    Points can be specified directly via DALES indices or by providing real
+    horizontal coordinates, which are snapped to the nearest cell center.
+    """
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    enabled: bool = field(
+        default=True,
+        metadata={
+            "nml": "NAMVIRTUALMEASUREMENT",
+            "key": "lvirtualmeasurement",
+            "required": True,
+        },
+    )
+    npoints: Optional[int] = field(
+        default=None,
+        metadata={
+            "nml": "NAMVIRTUALMEASUREMENT",
+            "key": "npoints",
+        },
+    )
+    x_idx: Optional[Union[int, list[int]]] = field(
+        default=None,
+        metadata={
+            "nml": "NAMVIRTUALMEASUREMENT",
+            "key": "x_idx",
+        },
+    )
+    y_idx: Optional[Union[int, list[int]]] = field(
+        default=None,
+        metadata={
+            "nml": "NAMVIRTUALMEASUREMENT",
+            "key": "y_idx",
+        },
+    )
+    x: Optional[Union[float, list[float]]] = field(default=None)
+    y: Optional[Union[float, list[float]]] = field(default=None)
+
+    def do_config(self):
+        return None
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "VirtualMeasurementOutputModule"
+
+    def prepare_calculation(self):
+        self._prepare_horizontal_point_indices(self.module_name)
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
+
+@register_module
+@dataclass
+class ColumnStatisticsOutputModule(_HorizontalPointOutputMixin, simulation_module):
+    """Configure NAMCOLSTAT point output.
+
+    Points can be specified directly via DALES indices or by providing real
+    horizontal coordinates, which are snapped to the nearest cell center.
+    """
+
+    sim: Optional["dales_simulation"] = field(default=None, repr=False)
+    enabled: bool = field(
+        default=True,
+        metadata={
+            "nml": "NAMCOLSTAT",
+            "key": "lcolstat",
+            "required": True,
+        },
+    )
+    npoints: Optional[int] = field(
+        default=None,
+        metadata={
+            "nml": "NAMCOLSTAT",
+            "key": "npoints",
+        },
+    )
+    x_idx: Optional[Union[int, list[int]]] = field(
+        default=None,
+        metadata={
+            "nml": "NAMCOLSTAT",
+            "key": "x_idx",
+        },
+    )
+    y_idx: Optional[Union[int, list[int]]] = field(
+        default=None,
+        metadata={
+            "nml": "NAMCOLSTAT",
+            "key": "y_idx",
+        },
+    )
+    x: Optional[Union[float, list[float]]] = field(default=None)
+    y: Optional[Union[float, list[float]]] = field(default=None)
+
+    def do_config(self):
+        return None
+
+    def __post_init__(self):
+        super().__init__(self.sim)
+        self.module_name = "ColumnStatisticsOutputModule"
+
+    def prepare_calculation(self):
+        self._prepare_horizontal_point_indices(self.module_name)
+        return None
+
+    def check_settings(self):
+        return None
+
+    def write_files(self):
+        return None
+
