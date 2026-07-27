@@ -6,6 +6,20 @@ coldstart="true"
 Exp_dir=$(dirname "$0")
 cd "$Exp_dir" || exit
 RUNDIR="./run_$expnr/"
+RUN_NAMELIST="$RUNDIR/namoptions.$expnr"
+
+if [ "$1" = "WARMSTART" ]; then
+    coldstart="false"
+fi
+
+ensure_warmstart_namelist() {
+    namelist_file="$1"
+
+    mkdir -p "$(dirname "$namelist_file")" || exit 1
+    [ -f "$namelist_file" ] || return 1
+
+    perl -0pi -e 's{(^\s*&run\b.*?^\s*lwarmstart\s*=\s*)(?:\.true\.|\.false\.)}{$1.true.}ims' "$namelist_file"
+}
 
 
 if [ $coldstart = true ]; then
@@ -27,10 +41,11 @@ done
 if [ "$1" = "NORUN" ]; then
     exit 0
 fi
-rsync -vt {{dales_exec}} $RUNDIR/dales || echo "Dales exec not found"
 else
 echo "Warm start"
+ensure_warmstart_namelist "$RUN_NAMELIST" || exit 1
 fi
+rsync -vt {{dales_exec}} $RUNDIR/dales || echo "Dales exec not found"
 cd $RUNDIR || exit
 
 
