@@ -118,15 +118,6 @@ class _RadiationTypedBase(simulation_module):
         backrad_cache = cache_root(self.sim) / "backrad"
         backrad_cache.mkdir(parents=True, exist_ok=True)
 
-        if self.iradiation == 1:
-            backrad_ascii = write_profile(
-                selected_profile,
-                backrad_cache / f"backrad.inp.{exp_id:03d}",
-            )
-            self.sim.required_files[f"backrad.inp.{exp_id:03d}"] = (
-                backrad_ascii.as_posix()
-            )
-
         if self.iradiation == 4:
             backrad_nc = write_profile(
                 selected_profile,
@@ -175,27 +166,6 @@ class NoRadiationModule(_RadiationTypedBase):
     def __post_init__(self):
         super().__post_init__()
         self.module_name = "NoRadiationModule"
-
-
-@register_module
-@dataclass
-class FullRadiationModule(_RadiationTypedBase):
-    """Full legacy radiation scheme (iradiation=1)."""
-
-    iradiation: int = field(
-        default=1,
-        init=False,
-        metadata={
-            "nml": "PHYSICS",
-            "key": "IRADIATION",
-            "required": True,
-            "doc": "Radiation scheme selector 1: full legacy radiation.",
-        },
-    )
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.module_name = "FullRadiationModule"
 
 
 @register_module

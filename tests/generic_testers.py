@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 import logging
 
 import pytest
@@ -9,13 +8,15 @@ from modular_dales.Configuration.output_modules import CheckSimulationModule
 from modular_dales.modular import dales_simulation
 from modular_dales.Configuration.run_and_time import TimeModule
 
-from .helpers import assert_dirs_equal
+from .helpers import SimulationReport, assert_dirs_equal, run_command_with_report
 from .sim_builders.test_basic import _build_basic_sim
 
 logger = logging.getLogger(__name__)
 
 
-def assert_roundtrip_simulation_outputs_identical(sim_builder, machine_conf) -> None:
+def assert_roundtrip_simulation_outputs_identical(
+    sim_builder, machine_conf, add_report: SimulationReport | None = None
+) -> None:
     """Run a round-trip YAML serialization test for a given simulation builder.
 
     Builds the simulation, runs preprocessing, serializes to YAML, loads a new
@@ -23,26 +24,86 @@ def assert_roundtrip_simulation_outputs_identical(sim_builder, machine_conf) -> 
     again, and asserts the two output directories are bit-for-bit identical.
     """
 
-    machine_conf_1 = machine_conf("from_scratch")
+    builder_name = getattr(sim_builder, "__name__", type(sim_builder).__name__)
+    stage = "init"
+    sim1 = None
+    sim2 = None
+    out1 = None
+    out2 = None
 
-    sim1 = sim_builder(machine_conf_1)
-    sim1.sim_preprocessing_pipeline()
-    out1 = sim1.output_path
+    try:
+        stage = "build_from_scratch"
+        machine_conf_1 = machine_conf("from_scratch")
+        sim1 = sim_builder(machine_conf_1)
 
-    yaml_text = sim1.save_sim_to_yaml()
+        stage = "preprocess_from_scratch"
+        sim1.sim_preprocessing_pipeline()
+        out1 = sim1.output_path
 
-    machine_conf_2 = machine_conf("from_yaml")
-    sim2 = dales_simulation.load_sim_from_yaml(yaml_text, machine_conf=machine_conf_2)
-    sim2.sim_preprocessing_pipeline()
-    out2 = sim2.output_path
+        stage = "serialize_yaml"
+        yaml_text = sim1.save_sim_to_yaml()
 
-    assert out1 != out2
-    assert out1.is_dir() and out2.is_dir()
+        stage = "build_from_yaml"
+        machine_conf_2 = machine_conf("from_yaml")
+        sim2 = dales_simulation.load_sim_from_yaml(
+            yaml_text, machine_conf=machine_conf_2
+        )
 
-    assert_dirs_equal(out1, out2)
+        stage = "preprocess_from_yaml"
+        sim2.sim_preprocessing_pipeline()
+        out2 = sim2.output_path
+
+        stage = "validate_output_dirs"
+        assert out1 != out2
+        assert out1.is_dir() and out2.is_dir()
+
+        stage = "roundtrip_output_compare"
+        assert_dirs_equal(out1, out2)
+    except Exception as exc:
+        case_name = getattr(sim1, "case_name", "<unavailable>")
+        out1_str = str(out1) if out1 is not None else "<unavailable>"
+        out2_str = str(out2) if out2 is not None else "<unavailable>"
+
+        if add_report is not None:
+            add_report(
+                f"{case_name} roundtrip failed",
+                {
+                    "crash_message": str(exc),
+                    "log_messages": "Roundtrip simulation failed; inspect stage and case directories.",
+                    "case_dir": out1_str,
+                    "comparison_case_dir": out2_str,
+                    "info_and_location": "\n".join(
+                        [
+                            f"stage={stage}",
+                            f"sim_builder={builder_name}",
+                            f"case_name={case_name}",
+                            f"case_dir={out1_str}",
+                            f"comparison_case_dir={out2_str}",
+                            f"from_scratch_output={out1_str}",
+                            f"from_yaml_output={out2_str}",
+                        ]
+                    ),
+                },
+            )
+
+        pytest.fail(
+            "\n".join(
+                [
+                    f"Roundtrip simulation failed at stage '{stage}'",
+                    f"sim_builder={builder_name}",
+                    f"case_name={case_name}",
+                    f"case_dir={out1_str}",
+                    f"comparison_case_dir={out2_str}",
+                    f"error={exc}",
+                ]
+            ),
+            pytrace=False,
+        )
 
 
-def run_simulation_and_check_job(sim_builder, machine_conf) -> None:
+def run_simulation_and_check_job(
+    sim_builder, machine_conf, add_report: SimulationReport | None = None
+) -> None:
     """Run a short simulation using a builder and then execute job.001.
 
     The simulation is configured with a small runtime and a tcheck value so
@@ -68,7 +129,15 @@ def run_simulation_and_check_job(sim_builder, machine_conf) -> None:
     sim1.sim_preprocessing_pipeline()
     out1 = sim1.output_path
 
-    subprocess.run(["./job.001"], check=True, cwd=out1.as_posix())
+    builder_name = getattr(sim_builder, "__name__", type(sim_builder).__name__)
+    run_command_with_report(
+        ["./job.001"],
+        stage="job_001",
+        case_dir=out1,
+        title=f"{sim1.case_name} job.001 crash",
+        add_report=add_report,
+        info_lines=[f"sim_builder={builder_name}"],
+    )
 
     if post_run_checker is not None:
         post_run_checker(out1)

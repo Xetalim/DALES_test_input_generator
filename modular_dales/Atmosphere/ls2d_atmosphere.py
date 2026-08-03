@@ -207,6 +207,13 @@ class LS2DAtmosphereModule(simulation_module):
         metadata={"serialize": True},
     )
 
+    smooth_initial_uv_to_geostrophic: bool = field(
+        default=False,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
+
     # Nudging NetCDF output options
     write_nudging_netcdf: bool = field(
         default=True,
@@ -436,7 +443,16 @@ class LS2DAtmosphereModule(simulation_module):
         prof_qt = _first_time_profile("qt")
         prof_u = _first_time_profile("u")
         prof_v = _first_time_profile("v")
+        prof_ug = _first_time_profile("ug")
+        prof_vg = _first_time_profile("vg")
         prof_w = _first_time_profile("wls")
+
+        prof_u, prof_v = self._apply_initial_wind_sponge_to_geostrophic(
+            prof_u,
+            prof_v,
+            prof_ug,
+            prof_vg,
+        )
 
         if prof_thetal is not None:
             base_profiles[thetal] = prof_thetal
@@ -578,6 +594,78 @@ class LS2DAtmosphereModule(simulation_module):
             nz,
         )
         return None
+
+    def _apply_initial_wind_sponge_to_geostrophic(
+        self,
+        prof_u: Optional[np.ndarray],
+        prof_v: Optional[np.ndarray],
+        prof_ug: Optional[np.ndarray],
+        prof_vg: Optional[np.ndarray],
+    ) -> tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """Blend initial wind toward geostrophic wind in the upper sponge layer.
+
+        The sponge layer starts at the lower (deeper) of:
+        * top 15 vertical points, and
+        * the top quarter of the domain (start at 3/4 of levels).
+        This selects the larger sponge thickness.
+        """
+
+        if not self.smooth_initial_uv_to_geostrophic:
+            return prof_u, prof_v
+
+        required = {
+            "u": prof_u,
+            "v": prof_v,
+            "ug": prof_ug,
+            "vg": prof_vg,
+        }
+        missing = [name for name, values in required.items() if values is None]
+        if missing:
+            logger.warning(
+                "LS2DAtmosphereModule: cannot smooth initial wind to geostrophic, missing fields: %s",
+                ", ".join(missing),
+            )
+            return prof_u, prof_v
+
+        assert prof_u is not None
+        assert prof_v is not None
+        assert prof_ug is not None
+        assert prof_vg is not None
+
+        nz = prof_u.size
+        if not (prof_v.size == nz and prof_ug.size == nz and prof_vg.size == nz):
+            logger.warning(
+                "LS2DAtmosphereModule: skipping initial wind smoothing due to inconsistent profile lengths"
+            )
+            return prof_u, prof_v
+
+        start_top_15 = max(nz - 15, 0)
+        start_top_quarter = int(np.floor(0.75 * nz))
+        sponge_start = min(start_top_15, start_top_quarter)
+        if sponge_start >= nz:
+            return prof_u, prof_v
+
+        sponge_size = nz - sponge_start
+        if sponge_size <= 1:
+            weights = np.ones(sponge_size, dtype=float)
+        else:
+            weights = np.linspace(0.0, 1.0, sponge_size, dtype=float) ** (0.2) * 0 + 1
+
+        new_u = prof_u.copy()
+        new_v = prof_v.copy()
+        new_u[sponge_start:] = (1.0 - weights) * new_u[
+            sponge_start:
+        ] + weights * prof_ug[sponge_start:]
+        new_v[sponge_start:] = (1.0 - weights) * new_v[
+            sponge_start:
+        ] + weights * prof_vg[sponge_start:]
+
+        logger.info(
+            "LS2DAtmosphereModule: smoothed initial ua/va toward ug/vg in sponge layer from level %d to top (%d points)",
+            sponge_start,
+            sponge_size,
+        )
+        return new_u, new_v
 
     def _inject_timed_profiles(
         self,

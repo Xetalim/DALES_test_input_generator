@@ -476,7 +476,11 @@ class CrossSectionOutputModule(simulation_module):
             min_allowed=2,
             max_allowed=int(self.grid.itot) + 1,
         )
+        self.check_for_new_cross()
+        """No preparation needed."""
+        return None
 
+    def check_for_new_cross(self):
         existing_cross = self.nml.get("namcrosssection", {}) if self.nml else {}
         self.xy = self._merge_unique(
             [int(v) for v in existing_cross.get("crossheight", [])], self.xy
@@ -500,14 +504,14 @@ class CrossSectionOutputModule(simulation_module):
             self.yz_enabled = True
         else:
             self.yz_enabled = False
-        """No preparation needed."""
-        return None
 
     def check_settings(self):
         """Check output settings validity."""
         return None
 
     def write_files(self):
+        self.check_for_new_cross()
+        self.apply_namelist_from_fields()
         """Write output files if needed."""
         return None
 
@@ -700,56 +704,56 @@ class FielddumpModule(simulation_module):
             "doc": "Enable field dump output.",
         },
     )
-    ldiracc: bool = field(
-        default=False,
-        metadata={
-            "nml": "namfielddump",
-            "key": "ldiracc",
-            "doc": "Use direct-access output file mode.",
-        },
-    )
-    lbinary: bool = field(
-        default=False,
-        metadata={
-            "nml": "namfielddump",
-            "key": "lbinary",
-            "doc": "Write binary fielddump files instead of text.",
-        },
-    )
-    klow: int = field(
-        default=1,
+    # ldiracc: bool = field(
+    #     default=False,
+    #     metadata={
+    #         "nml": "namfielddump",
+    #         "key": "ldiracc",
+    #         "doc": "Use direct-access output file mode.",
+    #     },
+    # )
+    # lbinary: bool = field(
+    #     default=False,
+    #     metadata={
+    #         "nml": "namfielddump",
+    #         "key": "lbinary",
+    #         "doc": "Write binary fielddump files instead of text.",
+    #     },
+    # )
+    klow: Optional[int] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "klow",
             "doc": "Lowest model level index included in dump.",
         },
     )
-    khigh: int = field(
-        default=0,
+    khigh: Optional[int] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "khigh",
             "doc": "Highest model level index included in dump; 0 lets DALES decide.",
         },
     )
-    ncoarse: int = field(
-        default=1,
+    ncoarse: Optional[int] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "ncoarse",
             "doc": "Horizontal coarsening factor for dumped fields.",
         },
     )
-    tmin: float = field(
-        default=0.0,
+    tmin: Optional[float] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "tmin",
             "doc": "Start time in seconds for writing dumps.",
         },
     )
-    tmax: float = field(
-        default=1.0e30,
+    tmax: Optional[float] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "tmax",
@@ -757,148 +761,148 @@ class FielddumpModule(simulation_module):
         },
     )
 
-    lu: bool = field(
-        default=False,
+    lu: Optional[bool] = field(
+        default=None,
         metadata={"nml": "namfielddump", "key": "lu", "doc": "Dump u velocity field."},
     )
-    lv: bool = field(
-        default=False,
+    lv: Optional[bool] = field(
+        default=None,
         metadata={"nml": "namfielddump", "key": "lv", "doc": "Dump v velocity field."},
     )
-    lw: bool = field(
-        default=False,
+    lw: Optional[bool] = field(
+        default=None,
         metadata={"nml": "namfielddump", "key": "lw", "doc": "Dump w velocity field."},
     )
-    lqt: bool = field(
-        default=False,
+    lqt: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lqt",
             "doc": "Dump total water mixing ratio field.",
         },
     )
-    lql: bool = field(
-        default=False,
+    lql: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lql",
             "doc": "Dump liquid water mixing ratio field.",
         },
     )
-    lthl: bool = field(
-        default=False,
+    lthl: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lthl",
             "doc": "Dump liquid water potential temperature field.",
         },
     )
-    lbuoy: bool = field(
-        default=False,
+    lbuoy: Optional[bool] = field(
+        default=None,
         metadata={"nml": "namfielddump", "key": "lbuoy", "doc": "Dump buoyancy field."},
     )
-    lcli: bool = field(
-        default=False,
+    lcli: Optional[bool] = field(
+        default=None,
         metadata={"nml": "namfielddump", "key": "lcli", "doc": "Dump cloud ice field."},
     )
-    lclw: bool = field(
-        default=False,
+    lclw: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lclw",
             "doc": "Dump cloud liquid water field.",
         },
     )
-    lta: bool = field(
-        default=False,
+    lta: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lta",
             "doc": "Dump absolute temperature field.",
         },
     )
-    lplw: bool = field(
-        default=False,
+    lplw: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lplw",
             "doc": "Dump longwave pressure-related field.",
         },
     )
-    lpli: bool = field(
-        default=False,
+    lpli: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lpli",
             "doc": "Dump ice-phase pressure-related field.",
         },
     )
-    lhus: bool = field(
-        default=False,
+    lhus: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lhus",
             "doc": "Dump specific humidity field.",
         },
     )
-    lhur: bool = field(
-        default=False,
+    lhur: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lhur",
             "doc": "Dump relative humidity field.",
         },
     )
-    ltntr: bool = field(
-        default=False,
+    ltntr: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "ltntr",
             "doc": "Dump total tendency field (resolved).",
         },
     )
-    ltntrs: bool = field(
-        default=False,
+    ltntrs: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "ltntrs",
             "doc": "Dump subgrid tendency field.",
         },
     )
-    ltntrl: bool = field(
-        default=False,
+    ltntrl: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "ltntrl",
             "doc": "Dump large-scale tendency field.",
         },
     )
-    le12: bool = field(
-        default=False,
+    le12: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "le12",
             "doc": "Dump subgrid TKE field.",
         },
     )
-    lekh: bool = field(
-        default=False,
+    lekh: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lekh",
             "doc": "Dump heat diffusivity field.",
         },
     )
-    lekm: bool = field(
-        default=False,
+    lekm: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lekm",
             "doc": "Dump momentum diffusivity field.",
         },
     )
-    lsv: bool = field(
-        default=False,
+    lsv: Optional[bool] = field(
+        default=None,
         metadata={
             "nml": "namfielddump",
             "key": "lsv",
@@ -917,14 +921,16 @@ class FielddumpModule(simulation_module):
         return None
 
     def check_settings(self):
-        if self.khigh != 0 and self.khigh < self.klow:
-            raise ValueError(
-                "FielddumpModule: khigh must be >= klow, or 0 for DALES default"
-            )
+        if self.khigh and self.klow:
+            if self.khigh != 0 and self.khigh < self.klow:
+                raise ValueError(
+                    "FielddumpModule: khigh must be >= klow, or 0 for DALES default"
+                )
         return None
 
     def write_files(self):
         return None
+
 
 @register_module
 @dataclass
@@ -932,7 +938,10 @@ class NetCDFStatisticsSyncModule(simulation_module):
     """Configure NAMNETCDFSTATS synchronization settings."""
 
     sim: Optional["dales_simulation"] = field(default=None, repr=False)
-    lsync: bool = field(default=True, metadata={"nml": "NAMNETCDFSTATS", "key": "lsync", "required": True})
+    lsync: bool = field(
+        default=True,
+        metadata={"nml": "NAMNETCDFSTATS", "key": "lsync", "required": True},
+    )
 
     def __post_init__(self):
         super().__init__(self.sim)
@@ -957,9 +966,18 @@ class BulkMicrophysicsStatisticsOutputModule(simulation_module):
     """Configure NAMBULKMICROSTAT output."""
 
     sim: Optional["dales_simulation"] = field(default=None, repr=False)
-    enabled: bool = field(default=True, metadata={"nml": "NAMBULKMICROSTAT", "key": "lmicrostat", "required": True})
-    dtav: Optional[float] = field(default=60, metadata={"nml": "NAMBULKMICROSTAT", "key": "dtav", "required": True})
-    timeav: Optional[float] = field(default=60, metadata={"nml": "NAMBULKMICROSTAT", "key": "timeav", "required": True})
+    enabled: bool = field(
+        default=True,
+        metadata={"nml": "NAMBULKMICROSTAT", "key": "lmicrostat", "required": True},
+    )
+    dtav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "NAMBULKMICROSTAT", "key": "dtav", "required": True},
+    )
+    timeav: Optional[float] = field(
+        default=60,
+        metadata={"nml": "NAMBULKMICROSTAT", "key": "timeav", "required": True},
+    )
 
     def __post_init__(self):
         super().__init__(self.sim)
@@ -977,6 +995,7 @@ class BulkMicrophysicsStatisticsOutputModule(simulation_module):
     def write_files(self):
         return None
 
+
 @register_module
 @dataclass
 class VirtualMeasurementOutputModule(_HorizontalPointOutputMixin, simulation_module):
@@ -992,6 +1011,14 @@ class VirtualMeasurementOutputModule(_HorizontalPointOutputMixin, simulation_mod
         metadata={
             "nml": "NAMVIRTUALMEASUREMENT",
             "key": "lvirtualmeasurement",
+            "required": True,
+        },
+    )
+    dtav: Optional[float] = field(
+        default=60,
+        metadata={
+            "nml": "NAMVIRTUALMEASUREMENT",
+            "key": "dtav",
             "required": True,
         },
     )
@@ -1095,4 +1122,3 @@ class ColumnStatisticsOutputModule(_HorizontalPointOutputMixin, simulation_modul
 
     def write_files(self):
         return None
-

@@ -4,7 +4,7 @@ import copy
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import f90nml
 import numpy as np
@@ -14,15 +14,11 @@ import xarray as xr
 from modular_dales.Configuration.output_modules import (
     BulkMicrophysicsStatisticsOutputModule,
     ColumnStatisticsOutputModule,
-    IndependentOutputModule,
     NetCDFStatisticsSyncModule,
-    ParticlesOutputModule,
-    QuadrantStatisticsOutputModule,
-    SamplingTendencyOutputModule,
-    StatTendencyOutputModule,
-    StressStatisticsOutputModule,
-    TiltStatisticsOutputModule,
-    VariableBudgetOutputModule,
+    SamplingModule,
+    StatsModule,
+    TimestatModule,
+    VirtualMeasurementOutputModule,
 )
 from modular_dales.Configuration.physics_modules import (
     BulkMicrophysicsSettingsModule,
@@ -37,7 +33,9 @@ def _dales_exec_exists(machine_conf: dict[str, Any]) -> bool:
     return bool(exe and Path(exe).exists())
 
 
-def _run_job(case_dir: Path, timeout_seconds: int, *args: str) -> subprocess.CompletedProcess[str]:
+def _run_job(
+    case_dir: Path, timeout_seconds: int, *args: str
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["./job.001", *args],
         cwd=str(case_dir),
@@ -45,6 +43,63 @@ def _run_job(case_dir: Path, timeout_seconds: int, *args: str) -> subprocess.Com
         capture_output=True,
         timeout=timeout_seconds,
         check=False,
+    )
+
+
+def _tail_text(text: str, limit: int = 4000) -> str:
+    if not text:
+        return "<empty>"
+    return text[-limit:]
+
+
+def _persist_process_logs(
+    case_dir: Path, stage: str, result: subprocess.CompletedProcess[str]
+) -> tuple[Path, Path]:
+    artifact_dir = case_dir / "pytest_artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    stdout_path = artifact_dir / f"{stage}.stdout.log"
+    stderr_path = artifact_dir / f"{stage}.stderr.log"
+    stdout_path.write_text(result.stdout or "", encoding="utf-8")
+    stderr_path.write_text(result.stderr or "", encoding="utf-8")
+    return stdout_path, stderr_path
+
+
+def _report_process_failure(
+    add_report: Callable[[str, Any], None],
+    *,
+    module_name: str,
+    np_ranks: int,
+    stage: str,
+    case_dir: Path,
+    result: subprocess.CompletedProcess[str],
+) -> str:
+    stdout_path, stderr_path = _persist_process_logs(case_dir, stage, result)
+    add_report(
+        f"{module_name} np={np_ranks} {stage} crash",
+        {
+            "crash_message": _tail_text(result.stderr),
+            "log_messages": _tail_text(result.stdout),
+            "info_and_location": "\n".join(
+                [
+                    f"module={module_name}",
+                    f"np_ranks={np_ranks}",
+                    f"stage={stage}",
+                    f"returncode={result.returncode}",
+                    f"case_dir={case_dir}",
+                    f"stdout_log={stdout_path}",
+                    f"stderr_log={stderr_path}",
+                ]
+            ),
+        },
+    )
+    return (
+        f"{module_name} np={np_ranks}: {stage} failed rc={result.returncode}\n"
+        f"case_dir={case_dir}\n"
+        f"stdout_log={stdout_path}\n"
+        f"stderr_log={stderr_path}\n"
+        f"stdout:\n{_tail_text(result.stdout)}\n"
+        f"stderr:\n{_tail_text(result.stderr)}"
     )
 
 
@@ -74,6 +129,39 @@ def _relative_diff(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.abs(a - b) / denom
 
 
+def _time_to_elapsed_seconds(values: np.ndarray) -> np.ndarray:
+    """Convert time coordinate values to elapsed seconds from first sample."""
+    arr = np.asarray(values)
+    if arr.size == 0:
+        return np.asarray([], dtype=float)
+
+    if np.issubdtype(arr.dtype, np.datetime64):
+        return (arr - arr[0]) / np.timedelta64(1, "s")
+
+    if np.issubdtype(arr.dtype, np.timedelta64):
+        return arr / np.timedelta64(1, "s")
+
+    try:
+        return arr.astype(float)
+    except (TypeError, ValueError):
+        base = arr[0]
+        elapsed: list[float] = []
+        for value in arr:
+            delta = value - base
+            if hasattr(delta, "total_seconds"):
+                elapsed.append(float(delta.total_seconds()))
+            else:
+                elapsed.append(float(delta / np.timedelta64(1, "s")))
+        return np.asarray(elapsed, dtype=float)
+
+
+def _format_time_value(value: Any) -> str:
+    try:
+        return f"{float(value):.6f}s"
+    except (TypeError, ValueError):
+        return str(value)
+
+
 def _compare_netcdf_file(
     cont_path: Path,
     split_path: Path,
@@ -82,20 +170,36 @@ def _compare_netcdf_file(
     rel_tol: float,
     include_restart_time: bool,
 ) -> list[str]:
-    with xr.open_dataset(cont_path, engine="netcdf4") as dcont, xr.open_dataset(split_path, engine="netcdf4") as dsplit:
+    with xr.open_dataset(
+        cont_path, engine="netcdf4", decode_times=False
+    ) as dcont, xr.open_dataset(
+        split_path, engine="netcdf4", decode_times=False
+    ) as dsplit:
         cont = dcont.load()
         split = dsplit.load()
 
     failures: list[str] = []
     tcoord = _time_coord_name(cont)
     if tcoord and tcoord in split.coords:
-        cont_times = np.asarray(cont[tcoord].values)
-        split_times = np.asarray(split[tcoord].values)
-        mask_cont = cont_times >= restart_time if include_restart_time else cont_times > restart_time
-        mask_split = split_times >= restart_time if include_restart_time else split_times > restart_time
+        cont_times_raw = np.asarray(cont[tcoord].values)
+        split_times_raw = np.asarray(split[tcoord].values)
+        cont_times = np.asarray(_time_to_elapsed_seconds(cont_times_raw), dtype=float)
+        split_times = np.asarray(_time_to_elapsed_seconds(split_times_raw), dtype=float)
+        mask_cont = (
+            cont_times >= restart_time
+            if include_restart_time
+            else cont_times > restart_time
+        )
+        mask_split = (
+            split_times >= restart_time
+            if include_restart_time
+            else split_times > restart_time
+        )
         cont_post = cont_times[mask_cont]
         split_post = split_times[mask_split]
-        if cont_post.shape != split_post.shape or not np.array_equal(cont_post, split_post):
+        if cont_post.shape != split_post.shape or not np.array_equal(
+            cont_post, split_post
+        ):
             failures.append(
                 f"{cont_path.name}: time grid mismatch post-restart "
                 f"(continuous={cont_post.shape[0]} records, split={split_post.shape[0]} records). "
@@ -103,8 +207,8 @@ def _compare_netcdf_file(
             )
             return failures
 
-        cont = cont.sel({tcoord: cont_post})
-        split = split.sel({tcoord: split_post})
+        cont = cont.sel({tcoord: cont_times_raw[mask_cont]})
+        split = split.sel({tcoord: split_times_raw[mask_split]})
 
     common_vars = sorted(set(cont.data_vars).intersection(set(split.data_vars)))
     if not common_vars:
@@ -136,10 +240,12 @@ def _compare_netcdf_file(
             axis = cont[var_name].dims.index(tcoord)
             times = np.asarray(cont[tcoord].values)
             reduced_axes = tuple(i for i in range(a.ndim) if i != axis)
-            exceeded = np.any((abs_diff > abs_tol) & (rel_diff > rel_tol), axis=reduced_axes)
+            exceeded = np.any(
+                (abs_diff > abs_tol) & (rel_diff > rel_tol), axis=reduced_axes
+            )
             idx = np.where(exceeded)[0]
             if idx.size > 0:
-                first_time_msg = f"first_time={float(times[idx[0]])}"
+                first_time_msg = f"first_time={_format_time_value(times[idx[0]])}"
 
         failures.append(
             f"{cont_path.name}: variable={var_name} mismatch (exact={exact}, within_tol={close}, "
@@ -165,7 +271,9 @@ def _compare_outputs(
     split_files: set[str] = set()
     for pattern in patterns:
         cont_files.update(fp.name for fp in cont_run_dir.glob(pattern) if fp.is_file())
-        split_files.update(fp.name for fp in split_run_dir.glob(pattern) if fp.is_file())
+        split_files.update(
+            fp.name for fp in split_run_dir.glob(pattern) if fp.is_file()
+        )
 
     missing = sorted(cont_files - split_files)
     extra = sorted(split_files - cont_files)
@@ -205,55 +313,21 @@ DEFAULTS = {
 }
 
 
-def _build_case_modules(module_name: str, timing: dict[str, Any], domain: dict[str, Any]) -> list[Any]:
+def _build_case_modules(module_name: str, timing: dict[str, Any]) -> list[Any]:
     dtav = float(timing["dtav"])
     timeav = float(timing["timeav"])
 
     modules: list[Any] = [
         TracerSettingsModule(nsv=0),
         NetCDFStatisticsSyncModule(lsync=True),
-        IndependentOutputModule(
-            stats_enabled=True,
-            stats_dtav=dtav,
-            stats_timeav=timeav,
-            timestat_enabled=True,
-            timestat_dtav=dtav,
-            budget_enabled=True,
-            budget_dtav=dtav,
-            budget_timeav=timeav,
-        ),
+        StatsModule(enabled=True, dtav=dtav, timeav=timeav),
+        TimestatModule(enabled=True, dtav=dtav),
     ]
 
-    if module_name == "modvarbudget":
-        modules.extend(
-            [
-                TracerSettingsModule(nsv=2),
-                VariableBudgetOutputModule(enabled=True, dtav=dtav, timeav=timeav),
-            ]
-        )
-    elif module_name == "modsampling":
-        modules.append(SamplingTendencyOutputModule(dtav=dtav, timeav=timeav))
-    elif module_name == "modquadrant":
+    if module_name == "modsampling":
         modules.append(
-            QuadrantStatisticsOutputModule(
-                enabled=True,
-                dtav=dtav,
-                timeav=timeav,
-                hole=0.0,
-                iwind=1,
-                klow=2,
-                khigh=int(domain["kmax"]),
-            )
+            SamplingModule(output_interval=[dtav, timeav], enable_output=True)
         )
-    elif module_name == "modsamptend":
-        modules.extend(
-            [
-                BulkMicrophysicsSettingsModule(imicro=2, l_sb=True, nsv=2),
-                SamplingTendencyOutputModule(dtav=dtav, timeav=timeav),
-            ]
-        )
-    elif module_name == "modstattend":
-        modules.append(StatTendencyOutputModule(enabled=True, dtav=dtav, timeav=timeav))
     elif module_name == "modcolstat":
         modules.append(
             ColumnStatisticsOutputModule(
@@ -267,15 +341,20 @@ def _build_case_modules(module_name: str, timing: dict[str, Any], domain: dict[s
         modules.extend(
             [
                 BulkMicrophysicsSettingsModule(imicro=2, l_sb=True, nsv=2),
-                BulkMicrophysicsStatisticsOutputModule(enabled=True, dtav=dtav, timeav=timeav),
+                BulkMicrophysicsStatisticsOutputModule(
+                    enabled=True, dtav=dtav, timeav=timeav
+                ),
             ]
         )
-    elif module_name == "modtilt":
-        modules.append(TiltStatisticsOutputModule(enabled=True, dtav=dtav, timeav=timeav))
-    elif module_name == "modstress":
-        modules.append(StressStatisticsOutputModule(enabled=True, dtav=dtav, timeav=timeav))
-    elif module_name == "modparticles":
-        modules.append(ParticlesOutputModule(enabled=True, dtav=dtav, timeav=timeav))
+    elif module_name == "modvirtualmeasurement":
+        modules.append(
+            VirtualMeasurementOutputModule(
+                enabled=True,
+                npoints=2,
+                x_idx=[3, 7],
+                y_idx=[3, 7],
+            )
+        )
     else:
         raise ValueError(f"Unknown warmstart module case: {module_name}")
 
@@ -284,25 +363,9 @@ def _build_case_modules(module_name: str, timing: dict[str, Any], domain: dict[s
 
 MODULE_CASES = [
     {
-        "name": "modvarbudget",
-        "patterns": ["*varbudget*", "*budget*"],
-    },
-    {
         "name": "modsampling",
         "mpi_layouts": [(1, 1), (2, 1)],
         "patterns": ["*sampling*", "*samptend*"],
-    },
-    {
-        "name": "modquadrant",
-        "patterns": ["*quadrant*"],
-    },
-    {
-        "name": "modsamptend",
-        "patterns": ["*samptend*", "*sampling*"],
-    },
-    {
-        "name": "modstattend",
-        "patterns": ["*stattend*"],
     },
     {
         "name": "modcolstat",
@@ -313,16 +376,8 @@ MODULE_CASES = [
         "patterns": ["*bulkmicro*", "*microstat*"],
     },
     {
-        "name": "modtilt",
-        "patterns": ["*tilt*"],
-    },
-    {
-        "name": "modstress",
-        "patterns": ["*stress*"],
-    },
-    {
-        "name": "modparticles",
-        "patterns": ["*particle*"],
+        "name": "modvirtualmeasurement",
+        "patterns": ["*virtualmeasurement*", "*virtual*"],
     },
 ]
 
@@ -330,6 +385,7 @@ MODULE_CASES = [
 def _run_single_layout(
     *,
     module_case: dict[str, Any],
+    add_report: Callable[[str, Any], None],
     base_machine_conf: dict[str, Any],
     tmp_path: Path,
     domain: dict[str, Any],
@@ -363,7 +419,7 @@ def _run_single_layout(
         tfinal=tfinal,
         trestart=trestart,
         lwarmstart=False,
-        extra_modules=_build_case_modules(module_name, timing, domain),
+        extra_modules=_build_case_modules(module_name, timing),
     )
     cont_sim.sim_preprocessing_pipeline()
     cont_case_dir = Path(cont_sim.output_path)
@@ -376,7 +432,7 @@ def _run_single_layout(
         tfinal=split_runtime,
         trestart=trestart,
         lwarmstart=False,
-        extra_modules=_build_case_modules(module_name, timing, domain),
+        extra_modules=_build_case_modules(module_name, timing),
     )
     split_sim.sim_preprocessing_pipeline()
     split_case_dir = Path(split_sim.output_path)
@@ -387,9 +443,14 @@ def _run_single_layout(
     cont_res = _run_job(cont_case_dir, timeout_seconds)
     if cont_res.returncode != 0:
         return [
-            f"{module_name} np={np_ranks}: continuous run failed rc={cont_res.returncode}\n"
-            f"stdout:\n{cont_res.stdout[-4000:]}\n"
-            f"stderr:\n{cont_res.stderr[-4000:]}"
+            _report_process_failure(
+                add_report,
+                module_name=module_name,
+                np_ranks=np_ranks,
+                stage="continuous",
+                case_dir=cont_case_dir,
+                result=cont_res,
+            )
         ]
 
     # 2) First split segment must be cold start (0 -> Trestart)
@@ -403,9 +464,14 @@ def _run_single_layout(
     split_res_1 = _run_job(split_case_dir, timeout_seconds)
     if split_res_1.returncode != 0:
         return [
-            f"{module_name} np={np_ranks}: split segment-1 failed rc={split_res_1.returncode}\n"
-            f"stdout:\n{split_res_1.stdout[-4000:]}\n"
-            f"stderr:\n{split_res_1.stderr[-4000:]}"
+            _report_process_failure(
+                add_report,
+                module_name=module_name,
+                np_ranks=np_ranks,
+                stage="split_segment_1",
+                case_dir=split_case_dir,
+                result=split_res_1,
+            )
         ]
 
     split_run_dir = split_case_dir / "run_001"
@@ -419,7 +485,7 @@ def _run_single_layout(
     split_run_nml_data = f90nml.read(str(split_run_nml))
     if "RUN" not in split_run_nml_data:
         split_run_nml_data["RUN"] = {}
-    split_run_nml_data["RUN"]["runtime"] = float(tfinal)
+    split_run_nml_data["RUN"]["runtime"] = float(tfinal - trestart)
     split_run_nml_data["RUN"]["lwarmstart"] = True
     split_run_nml_data.write(str(split_run_nml), force=True)
 
@@ -433,9 +499,14 @@ def _run_single_layout(
     split_res_2 = _run_job(split_case_dir, timeout_seconds, "WARMSTART")
     if split_res_2.returncode != 0:
         return [
-            f"{module_name} np={np_ranks}: split segment-2 warmstart failed rc={split_res_2.returncode}\n"
-            f"stdout:\n{split_res_2.stdout[-4000:]}\n"
-            f"stderr:\n{split_res_2.stderr[-4000:]}"
+            _report_process_failure(
+                add_report,
+                module_name=module_name,
+                np_ranks=np_ranks,
+                stage="split_segment_2_warmstart",
+                case_dir=split_case_dir,
+                result=split_res_2,
+            )
         ]
 
     cont_run_dir = cont_case_dir / "run_001"
@@ -450,23 +521,51 @@ def _run_single_layout(
         include_restart_time=include_restart_time,
     )
 
+    if failures:
+        add_report(
+            f"{module_name} np={np_ranks} output mismatch",
+            "\n".join(
+                [
+                    f"module={module_name}",
+                    f"np_ranks={np_ranks}",
+                    f"continuous_run_dir={cont_run_dir}",
+                    f"split_run_dir={split_run_dir}",
+                    "failures:",
+                    *failures,
+                ]
+            ),
+        )
+
     return [f"{module_name} np={np_ranks}: {msg}" for msg in failures]
 
 
-@pytest.mark.parametrize("module_case", MODULE_CASES, ids=[c["name"] for c in MODULE_CASES])
-def test_warmstart_continuity_module(module_case: dict[str, Any], machine_conf, tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "module_case", MODULE_CASES, ids=[c["name"] for c in MODULE_CASES]
+)
+def test_warmstart_continuity_module(
+    module_case: dict[str, Any],
+    machine_conf,
+    simulation_report: Callable[[str, Any], None],
+    tmp_path: Path,
+) -> None:
     conf = machine_conf(f"warmstart_{module_case['name']}")
     if not _dales_exec_exists(conf):
         pytest.skip("DALES executable in machine_conf.yaml is not available")
 
     domain = copy.deepcopy(DEFAULTS["domain"])
     domain.update(module_case.get("domain", {}))
-    assert int(domain["itot"]) <= 32 and int(domain["jtot"]) <= 32 and int(domain["kmax"]) <= 96
+    assert (
+        int(domain["itot"]) <= 32
+        and int(domain["jtot"]) <= 32
+        and int(domain["kmax"]) <= 96
+    )
     timing = copy.deepcopy(DEFAULTS["timing"])
     timing.update(module_case.get("timing", {}))
     tolerances = copy.deepcopy(DEFAULTS["tolerances"])
     tolerances.update(module_case.get("tolerances", {}))
-    include_restart_time = bool(module_case.get("include_restart_time", DEFAULTS["include_restart_time"]))
+    include_restart_time = bool(
+        module_case.get("include_restart_time", DEFAULTS["include_restart_time"])
+    )
 
     assert 0 < int(timing["trestart"]) < int(timing["tfinal"])
 
@@ -476,6 +575,7 @@ def test_warmstart_continuity_module(module_case: dict[str, Any], machine_conf, 
         all_failures.extend(
             _run_single_layout(
                 module_case=module_case,
+                add_report=simulation_report,
                 base_machine_conf=conf,
                 tmp_path=tmp_path,
                 domain=domain,

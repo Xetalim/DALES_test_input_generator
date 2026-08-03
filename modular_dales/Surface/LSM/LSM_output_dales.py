@@ -113,7 +113,11 @@ class LSM_output_dales:
 
         self.setup_lu_types(lu_types)
 
-    def from_lcz(self):
+    def from_lcz(
+        self,
+        urban_natural_lcz_to_10: bool = False,
+        urban_natural_lcz_to_natural_lsm: bool = False,
+    ):
         if self.grid.crs is None:
             raise ValueError(
                 "Need a valid projection to get LSM data from a real world map!"
@@ -123,7 +127,11 @@ class LSM_output_dales:
 
         # cog = get_from_LCZ.get_cog(self.grid)
 
-        LCZ_ds = get_from_LCZ.do_everything(self.grid)
+        LCZ_ds = get_from_LCZ.do_everything(
+            self.grid,
+            urban_natural_lcz_to_10=urban_natural_lcz_to_10,
+            urban_natural_lcz_to_natural_lsm=urban_natural_lcz_to_natural_lsm,
+        )
         self.LCZ_ds = LCZ_ds
         self.value_dic["index_soil"][:, :] = LCZ_ds["index_soil"][:, :]
 
@@ -164,7 +172,8 @@ class LSM_output_dales:
         # Combined ocean / water fraction → lu types with ifs_id == 22 (laqu=True)
         frac_water_total = np.clip(frac_water + frac_sea, 0.0, 1.0)
         water_lu_keys = [
-            lu_key for lu_key, lu_dic in self.lu_types.items()
+            lu_key
+            for lu_key, lu_dic in self.lu_types.items()
             if lu_dic.get("ifs_id") == 22
         ]
         # Distribute equally among all water lu_types (usually just 'wat')
@@ -174,7 +183,8 @@ class LSM_output_dales:
 
         # Urban / SLuRB fraction → lu types with ifs_id == 20
         slb_lu_keys = [
-            lu_key for lu_key, lu_dic in self.lu_types.items()
+            lu_key
+            for lu_key, lu_dic in self.lu_types.items()
             if lu_dic.get("ifs_id") == 20
         ]
         n_slb = max(len(slb_lu_keys), 1)
@@ -185,9 +195,9 @@ class LSM_output_dales:
         # For each grid cell, frac_nature is split among non-water/non-urban IFS types
         # according to the fractional pixel count from the ESA raster.
         nature_lu_keys = [
-            lu_key for lu_key, lu_dic in self.lu_types.items()
-            if lu_dic.get("ifs_id") not in (20, 22)
-            and lu_dic.get("ifs_id") is not None
+            lu_key
+            for lu_key, lu_dic in self.lu_types.items()
+            if lu_dic.get("ifs_id") not in (20, 22) and lu_dic.get("ifs_id") is not None
         ]
         if nature_lu_keys:
             # Build a count array for each nature IFS id across the grid.
@@ -195,7 +205,9 @@ class LSM_output_dales:
             # distribution weight (each pixel = 1 unit of area).
 
             jtot, itot = frac_nature.shape
-            weights = {lu_key: np.zeros((jtot, itot), dtype=float) for lu_key in nature_lu_keys}
+            weights = {
+                lu_key: np.zeros((jtot, itot), dtype=float) for lu_key in nature_lu_keys
+            }
 
             for lu_key in nature_lu_keys:
                 ifs_id = self.lu_types[lu_key]["ifs_id"]
@@ -416,7 +428,7 @@ class LSM_output_dales:
             dims = ["y", "x"] if data.ndim == 2 else ["z", "y", "x"]
             var = nc.createVariable(field, float, dims)
             var[:] = data[:]
-        self.grid.set_cf_grid_mapping(nc, "Lambert_Conformal", self.fields)
+        self.grid.set_cf_grid_mapping(nc, "crs", self.fields)
 
         def _to_char_matrix(values, width):
             # Use null-padding to avoid trailing-space artifacts when consumers decode
@@ -452,6 +464,9 @@ class LSM_output_dales:
 
         if getattr(self, "LCZ_ds", None) is not None:
             lcz_out_path = f"{output_path}/lcz_ds_{exp_id:03d}.nc"
+            self.grid.set_cf_grid_mapping(
+                self.LCZ_ds, "crs", list(self.LCZ_ds.data_vars.keys())
+            )
             self.LCZ_ds.to_netcdf(lcz_out_path)
             logger.info(f"Saved LCZ dataset to {lcz_out_path}")
 

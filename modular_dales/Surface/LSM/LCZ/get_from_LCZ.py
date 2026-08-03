@@ -135,6 +135,60 @@ lcz_dict = {
 }
 
 
+# LCZ classes A-G (11-17) mapped to natural IFS classes when requested.
+# A=dense trees, B=scattered trees, C=bush/scrub, D=low plants,
+# E=bare rock or paved, F=bare soil or sand, G=water.
+LCZ_URBAN_NATURAL_TO_IFS = {
+    11: 17,  # A -> mixed forest/wood
+    12: 18,  # B -> interrupted forest
+    13: 16,  # C -> deciduous shrubs
+    14: 1,  # D -> short grass
+    15: 10,  # E -> semidesert (bare/paved proxy)
+    16: 7,  # F -> desert (bare soil/sand proxy)
+    17: 22,  # G -> water
+}
+
+
+def apply_urban_natural_lcz_overrides(
+    lcz_da,
+    ifs_da,
+    urban_natural_lcz_to_10=False,
+    urban_natural_lcz_to_natural_lsm=False,
+):
+    """Apply optional overrides for urban pixels with natural LCZ classes (11-17)."""
+    lcz_values = np.asarray(lcz_da.values, dtype=float).copy()
+    ifs_values = np.asarray(ifs_da.values, dtype=float).copy()
+
+    is_urban = ifs_values == 20
+    urban_natural_lcz = (
+        is_urban & np.isfinite(lcz_values) & (lcz_values >= 11) & (lcz_values <= 17)
+    )
+
+    if urban_natural_lcz_to_10:
+        lcz_values[urban_natural_lcz] = 10
+
+    if urban_natural_lcz_to_natural_lsm:
+        for lcz_class, ifs_class in LCZ_URBAN_NATURAL_TO_IFS.items():
+            mask = urban_natural_lcz & (lcz_values == lcz_class)
+            ifs_values[mask] = ifs_class
+
+    lcz_out = xr.DataArray(
+        lcz_values,
+        dims=lcz_da.dims,
+        coords=lcz_da.coords,
+        name=lcz_da.name,
+        attrs=lcz_da.attrs,
+    )
+    ifs_out = xr.DataArray(
+        ifs_values,
+        dims=ifs_da.dims,
+        coords=ifs_da.coords,
+        name=ifs_da.name,
+        attrs=ifs_da.attrs,
+    )
+    return lcz_out, ifs_out
+
+
 def map_lcz_raster(
     lcz, lcz_profile, dst_tif, lcz_dict, field, nodata_in=0, nodata_out=np.nan
 ):
@@ -229,6 +283,8 @@ def build_land_surface_dataset(
     esa_tif,
     lcz_tif,
     lcz_dict,
+    urban_natural_lcz_to_10=False,
+    urban_natural_lcz_to_natural_lsm=False,
 ):
     # --- ESA WorldCover ---
     esa = raster_to_xarray(esa_tif, "esa_worldcover")
@@ -238,6 +294,13 @@ def build_land_surface_dataset(
 
     # --- LCZ (only meaningful for built-up) ---
     lcz = raster_to_xarray(lcz_tif, "lcz")
+
+    lcz, ifs = apply_urban_natural_lcz_overrides(
+        lcz,
+        ifs,
+        urban_natural_lcz_to_10=urban_natural_lcz_to_10,
+        urban_natural_lcz_to_natural_lsm=urban_natural_lcz_to_natural_lsm,
+    )
 
     lcz_fields = map_lcz_to_fields(lcz, ifs, lcz_dict)
 
@@ -256,7 +319,11 @@ def build_land_surface_dataset(
     return ds
 
 
-def do_everything(grid):
+def do_everything(
+    grid,
+    urban_natural_lcz_to_10=False,
+    urban_natural_lcz_to_natural_lsm=False,
+):
     with tempfile.TemporaryDirectory() as tmpdirname:
         path = pathlib.Path(tmpdirname)
         lcz_file = path / "lcz.tif"
@@ -264,7 +331,13 @@ def do_everything(grid):
         get_cog(grid, lcz_file)
         get_esa(grid, esa_file)
 
-        ds = build_land_surface_dataset(esa_file, lcz_file, lcz_dict=lcz_dict)
+        ds = build_land_surface_dataset(
+            esa_file,
+            lcz_file,
+            lcz_dict=lcz_dict,
+            urban_natural_lcz_to_10=urban_natural_lcz_to_10,
+            urban_natural_lcz_to_natural_lsm=urban_natural_lcz_to_natural_lsm,
+        )
 
         #
         ds = ensure_sorted(ds)

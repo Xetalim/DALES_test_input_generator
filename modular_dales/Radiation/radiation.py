@@ -30,7 +30,6 @@ class RadiationModule(simulation_module):
 
     Possible values for `iradiation`:
         0: no radiation
-        1: full radiation
         2: parameterized radiation
         3: simple surface radiation for land surface model
         4: RRTMG radiation
@@ -171,6 +170,10 @@ class RadiationModule(simulation_module):
 
     def write_files(self):
         iradiation = self.iradiation or 0
+        if iradiation == 1:
+            raise ValueError(
+                "RadiationModule: iradiation=1 is no longer supported. Use iradiation=4 or iradiation=5 instead."
+            )
         if iradiation != 0 and self.surface_module is not None:
             if getattr(self.surface_module, "albedoav", None) is None:
                 raise ValueError(
@@ -208,14 +211,6 @@ class RadiationModule(simulation_module):
         backrad_cache = cache_root(self.sim) / "backrad"
         backrad_cache.mkdir(parents=True, exist_ok=True)
 
-        if iradiation == 1:
-            backrad_ascii = write_profile(
-                selected_profile,
-                backrad_cache / f"backrad.inp.{exp_id:03d}",
-            )
-            self.sim.required_files[f"backrad.inp.{exp_id:03d}"] = (
-                backrad_ascii.as_posix()
-            )
         if iradiation == 4:
             backrad_nc = write_profile(
                 selected_profile,

@@ -31,12 +31,18 @@ from modular_dales.Atmosphere.atmosphere import build_default_variables
 from modular_dales.Atmosphere.atmosphere import TimedAtmosphereProfile
 from modular_dales.Atmosphere.ls2d_atmosphere import LS2DAtmosphereModule
 from modular_dales.Configuration import (
+    CapeModule,
+    CrossSectionOutputModule,
     DefaultNamelistModule,
     EasyOutputModule,
+    FielddumpModule,
+    LSMCrossModule,
+    RadfieldModule,
     TimeModule,
     SamplingModule,
     ColumnStatisticsOutputModule,
-    IndependentOutputModule,
+    StatsModule,
+    TimestatModule,
     VirtualMeasurementOutputModule,
 )
 from modular_dales.Configuration.output_modules import (
@@ -159,20 +165,13 @@ if __name__ == "__main__":
         startday=7,
     )
 
-    sim += IndependentOutputModule(
-        fielddump_enabled=True,
-        fielddump_dtav=1200,
-        cape_enabled=True,
-        cape_dtav=300,
-        lsm_cross_enabled=True,
-        lsm_cross_dtav=300,
-        cross_enabled=True,
-        stats_enabled=True,
-        timestat_enabled=True,
-        budget_enabled=True,
-        radfield_enabled=True,
-        radfield_timeav=300,
-    )
+    sim += FielddumpModule(lfielddump=True, dtav=1200)
+    sim += CapeModule(enabled=True, dtav=300)
+    sim += LSMCrossModule(enabled=True, dtav=300)
+    sim += CrossSectionOutputModule(cross_enabled=True)
+    sim += StatsModule(enabled=True)
+    sim += TimestatModule(enabled=True)
+    sim += RadfieldModule(enabled=True, timeav=300)
 
     time = TimedependentModule(ltimedep=True, usesLS2DforTime=True)
     time += FromLS2D()

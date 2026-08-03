@@ -33,7 +33,9 @@ from modular_dales.Atmosphere.ls2d_atmosphere import LS2DAtmosphereModule
 from modular_dales.Configuration import (
     DefaultNamelistModule,
     EasyOutputModule,
-    IndependentOutputModule,
+    FielddumpModule,
+    StatsModule,
+    TimestatModule,
     TimeModule,
     SamplingModule,
 )
@@ -204,18 +206,9 @@ if __name__ == "__main__":
         #     output_interval=10,
         #     enable_output=True,
         # )
-        sim += IndependentOutputModule(
-            fielddump_enabled=True,
-            fielddump_dtav=3600,
-            stats_enabled=True,
-            stats_dtav=30,
-            stats_timeav=30,
-            timestat_enabled=True,
-            timestat_dtav=30,
-            budget_enabled=True,
-            budget_dtav=30,
-            budget_timeav=30,
-        )
+        sim += FielddumpModule(lfielddump=True, dtav=3600)
+        sim += StatsModule(enabled=True, dtav=30, timeav=30)
+        sim += TimestatModule(enabled=True, dtav=30)
         # sim += SamplingModule(
         #     output_interval=10,
         #     enable_output=True,

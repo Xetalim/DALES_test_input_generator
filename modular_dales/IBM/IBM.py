@@ -118,7 +118,7 @@ class IBMCreatorClass(ModifierClass):
             dims = ["y", "x"]
             bc_height_var = nc.createVariable("bc_height", float, dims)
             bc_height_var[:, :] = self.bc_height[:, :]
-            self.grid.set_cf_grid_mapping(nc, "Lambert_Conformal", ["bc_height"])
+            self.grid.set_cf_grid_mapping(nc, "crs", ["bc_height"])
 
 
 @register_module

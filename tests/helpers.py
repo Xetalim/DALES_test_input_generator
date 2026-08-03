@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import filecmp
+import subprocess
 from pathlib import Path
+from typing import Any, Callable, Sequence
 
+import pytest
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MACHINE_CONF_PATH = PROJECT_ROOT / "machine_conf.yaml"
+
+SimulationReport = Callable[[str, Any], None]
 
 
 def load_machine_conf() -> dict:
@@ -70,3 +75,96 @@ def assert_dirs_equal(left: Path, right: Path) -> None:
 
     if problems:
         raise ValueError("\n".join(problems))
+
+
+def tail_text(text: str, limit: int = 4000) -> str:
+    if not text:
+        return "<empty>"
+    return text[-limit:]
+
+
+def persist_process_logs(
+    case_dir: Path, stage: str, result: subprocess.CompletedProcess[str]
+) -> tuple[Path, Path]:
+    artifact_dir = case_dir / "pytest_artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    stdout_path = artifact_dir / f"{stage}.stdout.log"
+    stderr_path = artifact_dir / f"{stage}.stderr.log"
+    stdout_path.write_text(result.stdout or "", encoding="utf-8")
+    stderr_path.write_text(result.stderr or "", encoding="utf-8")
+    return stdout_path, stderr_path
+
+
+def report_process_result(
+    add_report: SimulationReport | None,
+    *,
+    title: str,
+    stage: str,
+    case_dir: Path,
+    result: subprocess.CompletedProcess[str],
+    info_lines: Sequence[str] = (),
+) -> str:
+    stdout_path, stderr_path = persist_process_logs(case_dir, stage, result)
+    info_block = [
+        f"stage={stage}",
+        f"command={' '.join(str(part) for part in result.args)}",
+        f"returncode={result.returncode}",
+        f"case_dir={case_dir}",
+        f"stdout_log={stdout_path}",
+        f"stderr_log={stderr_path}",
+        *info_lines,
+    ]
+    if add_report is not None:
+        add_report(
+            title,
+            {
+                "crash_message": tail_text(result.stderr),
+                "log_messages": tail_text(result.stdout),
+                "info_and_location": "\n".join(info_block),
+            },
+        )
+    return (
+        f"{title}: failed rc={result.returncode}\n"
+        f"case_dir={case_dir}\n"
+        f"stdout_log={stdout_path}\n"
+        f"stderr_log={stderr_path}\n"
+        f"stdout:\n{tail_text(result.stdout)}\n"
+        f"stderr:\n{tail_text(result.stderr)}"
+    )
+
+
+def run_command_with_report(
+    command: Sequence[str],
+    *,
+    stage: str,
+    case_dir: Path,
+    title: str,
+    add_report: SimulationReport | None = None,
+    info_lines: Sequence[str] = (),
+    timeout_seconds: int | None = None,
+) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        list(command),
+        cwd=case_dir.as_posix(),
+        text=True,
+        capture_output=True,
+        timeout=timeout_seconds,
+        check=False,
+    )
+    if result.returncode == 0:
+        return result
+
+    pytest.fail(
+        report_process_result(
+            add_report,
+            title=title,
+            stage=stage,
+            case_dir=case_dir,
+            result=result,
+            info_lines=info_lines,
+        ),
+        pytrace=False,
+    )
+
+    return result

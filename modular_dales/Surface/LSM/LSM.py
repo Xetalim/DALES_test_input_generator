@@ -5,8 +5,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 
-from modular_dales.modular.simulation_module import simulation_module
-from modular_dales.MODULE_REGISTRY import register_module, register_singleton
+from modular_dales.MODULE_REGISTRY import register_module
 from modular_dales.Surface.LSM.LSM_output_dales import LSM_output_dales, LsmModifier
 from modular_dales.Surface.LSM.modular_temps_moisture import (
     SoilTemperatureMoistureFromHarmonie,
@@ -65,11 +64,19 @@ class LandUseModifications:
         return self.__add__(modification)
 
 
-@register_singleton
 @register_module
 @dataclass
 class FromLCZ:
     """LCZ (Local Climate Zone) classification approach for LSM."""
+
+    urban_natural_lcz_to_10: bool = field(default=False, metadata={"serialize": True})
+    """If true, pixels with urban IFS cover and LCZ 11-17 are coerced to LCZ 10."""
+
+    urban_natural_lcz_to_natural_lsm: bool = field(
+        default=False,
+        metadata={"serialize": True},
+    )
+    """If true, pixels with urban IFS cover and LCZ 11-17 are remapped to natural IFS classes."""
 
 
 @register_module
@@ -91,6 +98,17 @@ class FromTop10:
         default="top10nl_landuse_010m.nc", metadata={"serialize": True}
     )
     fill_north_sea: bool = field(default=False, metadata={"serialize": True})
+    urban_natural_lcz_to_10: bool = field(
+        default=False,
+        metadata={"serialize": True},
+    )
+    """If true, urban Top10 pixels with LCZ 11-17 are coerced to LCZ 10."""
+
+    urban_natural_lcz_to_natural_lsm: bool = field(
+        default=False,
+        metadata={"serialize": True},
+    )
+    """If true, urban Top10 pixels with LCZ 11-17 are remapped to natural IFS classes."""
 
 
 @register_module
@@ -141,7 +159,7 @@ class FromNetCDF:
 
 @register_module
 @dataclass
-class LSMModule(SurfaceModule):
+class LSMModule(BaseLSMModule):
     """Land Surface Model simulation module.
 
     When added to a simulation, automatically enables LSM by setting isurf=11
@@ -344,24 +362,8 @@ class LSMModule(SurfaceModule):
         # Fill standard geometry
         self.lsm_writer.standard_fill_geometry_modification()
 
-        # Configure based on LCZ or standard approach
-        if self.from_lcz is None:
-            # Apply land use modifications
-            modifier = LsmModifier(self.lsm_writer, self.grid)
-            for modification in self.land_use_modifications.modifications:
-                modifier.apply_modification(modification)
-            self.lsm_writer = modifier.lsm_input
-            self.lsm_writer.init_lutypes_ifs()
-            self.lsm_writer.recalculate_remaining_cover()
-            self.lsm_writer.from_lcz()
-
-            # Apply SLURB parameters if SLURB is enabled and module is present
-            if self.slurb_module is not None:
-                self.slurb_module.init_generator()  # Ensure SLURB generator is initialized
-                self.lsm_writer.apply_slurb_parameters_lcz(
-                    self.slurb_module.slb_generator
-                )
-        elif self.from_netcdf is not None:
+        # Configure data source path for land-use + optional SLURB morphology.
+        if self.from_netcdf is not None:
             from modular_dales.Surface.LSM.LCZ.from_netcdf import load_from_netcdf
             from pathlib import Path
 
@@ -382,10 +384,48 @@ class LSMModule(SurfaceModule):
                 else None
             )
             self.lsm_writer.apply_from_netcdf(nc_ds, slb_gen)
+        elif self.from_lcz is not None:
+            if (
+                self.from_lcz.urban_natural_lcz_to_10
+                and self.from_lcz.urban_natural_lcz_to_natural_lsm
+            ):
+                raise ValueError(
+                    "FromLCZ options urban_natural_lcz_to_10 and "
+                    "urban_natural_lcz_to_natural_lsm are mutually exclusive"
+                )
+
+            self.lsm_writer.from_lcz(
+                urban_natural_lcz_to_10=self.from_lcz.urban_natural_lcz_to_10,
+                urban_natural_lcz_to_natural_lsm=self.from_lcz.urban_natural_lcz_to_natural_lsm,
+            )
+
+            # Apply LCZ-derived SLURB parameters if SLURB is enabled.
+            if self.slurb_module is not None:
+                self.slurb_module.init_generator()
+                self.lsm_writer.apply_slurb_parameters_lcz(
+                    self.slurb_module.slb_generator
+                )
+        else:
+            # Standard non-LCZ path: apply explicit land-use modifications only.
+            modifier = LsmModifier(self.lsm_writer, self.grid)
+            for modification in self.land_use_modifications.modifications:
+                modifier.apply_modification(modification)
+            self.lsm_writer = modifier.lsm_input
+            self.lsm_writer.init_lutypes_ifs()
+            self.lsm_writer.recalculate_remaining_cover()
 
         # Optional overlay from Top10NL; this can be used standalone or on top
         # of LCZ-derived fields.
         if self.from_top10 is not None:
+            if (
+                self.from_top10.urban_natural_lcz_to_10
+                and self.from_top10.urban_natural_lcz_to_natural_lsm
+            ):
+                raise ValueError(
+                    "FromTop10 options urban_natural_lcz_to_10 and "
+                    "urban_natural_lcz_to_natural_lsm are mutually exclusive"
+                )
+
             top10_path = (
                 pathlib.Path(self.from_top10.spatial_data_path)
                 / self.from_top10.top10_filename
@@ -395,6 +435,14 @@ class LSMModule(SurfaceModule):
                     f"Top10 file not found: {top10_path}. "
                     "Set FromTop10.spatial_data_path/top10_filename accordingly."
                 )
+            # Pass optional LCZ-over-Top10 overrides via writer attributes to keep
+            # apply_top10_to_lsm_writer backward-compatible.
+            self.lsm_writer.top10_urban_natural_lcz_to_10 = (
+                self.from_top10.urban_natural_lcz_to_10
+            )
+            self.lsm_writer.top10_urban_natural_lcz_to_natural_lsm = (
+                self.from_top10.urban_natural_lcz_to_natural_lsm
+            )
             apply_top10_to_lsm_writer(
                 self.lsm_writer,
                 top10_path=top10_path,
@@ -580,10 +628,14 @@ class LSMModule(SurfaceModule):
         prof_theta = _extract_soil_profile("theta_soil")
 
         if prof_tsoil is not None:
-            self.lsm_writer.value_dic["t_soil"][:, :, :] = prof_tsoil[:, np.newaxis, np.newaxis]
+            self.lsm_writer.value_dic["t_soil"][:, :, :] = prof_tsoil[
+                :, np.newaxis, np.newaxis
+            ]
 
         if prof_theta is not None:
-            self.lsm_writer.value_dic["theta_soil"][:, :, :] = prof_theta[:, np.newaxis, np.newaxis]
+            self.lsm_writer.value_dic["theta_soil"][:, :, :] = prof_theta[
+                :, np.newaxis, np.newaxis
+            ]
 
         # Soil type index (Fortran-style indexing from LS2D/ERA5)
         if hasattr(les_input, "type_soil"):
@@ -594,7 +646,9 @@ class LSMModule(SurfaceModule):
                     self.lsm_writer.value_dic["index_soil"][:, :, :] = soil_index
                 elif soil_type_vals.ndim == 2 and soil_type_vals.shape == (jtot, itot):
                     soil_map = soil_type_vals.astype(int)
-                    self.lsm_writer.value_dic["index_soil"][:, :, :] = soil_map[np.newaxis, :, :]
+                    self.lsm_writer.value_dic["index_soil"][:, :, :] = soil_map[
+                        np.newaxis, :, :
+                    ]
                 else:
                     soil_index = int(np.ravel(soil_type_vals)[0])
                     self.lsm_writer.value_dic["index_soil"][:, :, :] = soil_index
@@ -626,7 +680,9 @@ class LSMModule(SurfaceModule):
             try:
                 arr_ts = np.asarray(les_input["ts"].values, dtype=float)
                 if arr_ts.size > 0:
-                    self.lsm_writer.set_skin_temperature(float(arr_ts[0]), lu_type="all")
+                    self.lsm_writer.set_skin_temperature(
+                        float(arr_ts[0]), lu_type="all"
+                    )
             except (TypeError, ValueError, KeyError, IndexError):
                 pass
 

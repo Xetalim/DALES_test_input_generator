@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import List, Optional
 
 from modular_dales.MODULE_REGISTRY import register_module
@@ -356,6 +356,16 @@ class LSMHomogeneousModule(BaseLSMModule):
             "doc": "Skin temperature assigned to water tile in K.",
         },
     )
+    thls: Optional[float] = field(
+        default=None,
+        metadata={
+            "nml": "NAMSURFACE",
+            "key": "thls",
+            "required": True,
+            "serialize": True,
+            "doc": "Surface potential temperature in K.",
+        },
+    )
 
     lheterogeneous: bool = field(
         default=False,
@@ -371,8 +381,25 @@ class LSMHomogeneousModule(BaseLSMModule):
     def __post_init__(self):
         super().__post_init__()
         self.module_name = "LSMHomogeneousModule"
+        self.nlu = 6
 
     def do_config(self):
+        # Homogeneous LSM always uses the six fixed land-use tiles.
+        self.nlu = 6
+
+        # In homogeneous mode, every serialized setting must be explicitly provided.
+        missing_fields = [
+            f.name
+            for f in fields(self)
+            if f.init
+            and f.metadata.get("serialize", False)
+            and getattr(self, f.name) is None
+        ]
+        if missing_fields:
+            raise ValueError(
+                f"{self.__class__.__name__} requires all fields to be filled. Missing: {', '.join(missing_fields)}"
+            )
+
         super().do_config()
         return None
 

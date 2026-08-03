@@ -185,6 +185,7 @@ if __name__ == "__main__":
     atmo = AtmosphereModule()
     atmo.variables = build_default_variables(get_all_vars())
     atmo += AtmosphericProfile(variable=ua, shape="lin", params=dict(surf_val=3, ddz=0))
+    atmo += AtmosphericProfile(variable=va, shape="lin", params=dict(surf_val=0, ddz=0))
     atmo += AtmosphericProfile(variable=ug, shape="lin", params=dict(surf_val=3, ddz=0))
     atmo += AtmosphericProfile(
         variable=ua_nudge, shape="lin", params=dict(surf_val=3, ddz=0)
@@ -236,7 +237,7 @@ if __name__ == "__main__":
         xday=1,
         xtime=12.0,
         xyear=2023,
-        runtime=3700,
+        runtime=700,  # 3700 - 1800,
         startyear=2023,
         startmonth=1,
         startday=1,
@@ -346,19 +347,19 @@ if __name__ == "__main__":
     sim.write_module_files()
     sim.apply_job_configuration()
     sim.write_simulation_files()
-    exit()
+    # exit()
     wd = os.getcwd()
     os.chdir(sim.output_path.as_posix())
     subprocess.run("./job.001", check=True)
-    run_result = subprocess.run(
-        ["/Users/andrevanginkel/bin/combine.sh", "run_001"], check=False
-    )
-    print(run_result.stderr)
+    # run_result = subprocess.run(
+    #     ["/Users/andrevanginkel/bin/combine.sh", "run_001"], check=False
+    # )
+    # print(run_result.stderr)
     os.chdir(wd)
-    exit()
+    # exit()
     # Machine configuration (would normally come from machine_conf.yaml)
     # Create simulation instance
-    case_name = "018_test"
+    case_name = "028_netcdf_test_2"
     sim2 = dales_simulation(case_name, machine_conf)
     logger.info(f"Created simulation with case: {case_name}")
 
@@ -427,7 +428,7 @@ if __name__ == "__main__":
         xday=1,
         xtime=12.0,
         xyear=2023,
-        runtime=3700,
+        runtime=700,  # 3700 - 1800,
         startyear=2023,
         startmonth=1,
         startday=1,
@@ -464,7 +465,7 @@ if __name__ == "__main__":
         dxint=subgrid.xsize,  # / subgrid.itot,
         dyint=subgrid.ysize,  # / subgrid.jtot,
         tauh=0,
-        taum=0,
+        taum=100,
         dxturb=subgrid.xsize / subgrid.itot,
         dyturb=subgrid.ysize / subgrid.jtot,
         linithetero=True,
@@ -505,9 +506,9 @@ if __name__ == "__main__":
     wd = os.getcwd()
     os.chdir(sim2.output_path.as_posix())
     subprocess.run("./job.001", check=True)
-    run_result = subprocess.run(
-        ["/Users/andrevanginkel/bin/combine.sh", "run_001"], check=True
-    )
+    # run_result = subprocess.run(
+    #     ["/Users/andrevanginkel/bin/combine.sh", "run_001"], check=True
+    # )
     # print(run_result.stderr)
     os.chdir(wd)
     # txt = sim.save_sim_to_yaml()

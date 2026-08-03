@@ -24,7 +24,6 @@ from modular_dales.Atmosphere.atmosphere import InterpolatedProfile
 from modular_dales.Configuration import (
     DefaultNamelistModule,
     EasyOutputModule,
-    IndependentOutputModule,
     TimeModule,
 )
 from modular_dales.Configuration.output_modules import CrossSectionOutputModule
@@ -172,15 +171,9 @@ if __name__ == "__main__":
     sim += time
 
     # sim += EasyOutputModule(output_interval=1, enable_output=True)
-    # sim += IndependentOutputModule(
-    #     radfield_dtav=5,
-    #     radfield_enabled=True,
-    #     radfield_timeav=5,
-    #     timestat_dtav=5,
-    #     timestat_enabled=True,
-    #     fielddump_dtav=5,
-    #     fielddump_enabled=True,
-    # )
+    # sim += RadfieldModule(enabled=True, dtav=5, timeav=5)
+    # sim += TimestatModule(enabled=True, dtav=5)
+    # sim += FielddumpModule(lfielddump=True, dtav=5)
     # sim += CrossSectionOutputModule(
     #     cross_enabled=True,
     #     cross_dtav=1,

@@ -85,7 +85,7 @@ def IBM_case(machine_conf: dict) -> dales_simulation:
     lsm += LandUseModification(geometry=AllGeometry(), type="grs")
     sim += lsm
 
-    ibm = IBMModule()
+    ibm = IBMModule(thlibm=293.15, thlroof=293.15)
     ibm += IBMModification(geometry=AllGeometry(), height=0)
     ibm += IBMModification(
         geometry=RectangleIdxGeometry(minx=4, maxx=6, miny=4, maxy=4),

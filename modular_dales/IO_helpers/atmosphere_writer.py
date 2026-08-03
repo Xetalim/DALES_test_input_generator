@@ -41,12 +41,18 @@ class AtmosphereProfileWriter:
     ) -> None:
         plt.ioff()
         fig, ax = plt.subplots()
+        if np.max(data_2d) < 0:
+            cmap = "viridis_r"
+        else:
+            cmap = "viridis"
+        if np.max(data_2d) > 0 and np.min(data_2d) < 0:
+            cmap = "RdBu_r"
         mesh = ax.pcolormesh(
             time_values,
             z_values,
             data_2d,
             shading="nearest",
-            cmap="viridis",
+            cmap=cmap,
         )
         cbar = fig.colorbar(mesh, ax=ax)
         cbar.set_label(label)
@@ -81,7 +87,11 @@ class AtmosphereProfileWriter:
                 arr = np.asarray(nc_var[:], dtype=float)
 
                 # Time series forcings: (time,)
-                if arr.ndim == 1 and time_values is not None and arr.size == time_values.size:
+                if (
+                    arr.ndim == 1
+                    and time_values is not None
+                    and arr.size == time_values.size
+                ):
                     self._plot_time_series(
                         time_values,
                         arr,
@@ -92,11 +102,7 @@ class AtmosphereProfileWriter:
                     continue
 
                 # Time-height forcings (incl. nudging): (time, zh) or (zh, time)
-                if (
-                    arr.ndim == 2
-                    and time_values is not None
-                    and z_values is not None
-                ):
+                if arr.ndim == 2 and time_values is not None and z_values is not None:
                     if arr.shape == (time_values.size, z_values.size):
                         arr_zh_time = arr.T
                     elif arr.shape == (z_values.size, time_values.size):

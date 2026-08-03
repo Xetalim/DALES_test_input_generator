@@ -16,6 +16,7 @@ from modular_dales import (
     GridDales,
     LSMHomogeneousModule,
     RadiationModule,
+    RRTMGRadiationModule,
     SprayingModule,
     TimeModule,
     dales_simulation,
@@ -30,7 +31,7 @@ def _base_runtime_case(machine_conf: dict, case_name: str) -> dales_simulation:
     sim += GridDales(
         itot=8,
         jtot=8,
-        kmax=12,
+        kmax=64,
         xsize=160.0,
         ysize=160.0,
         kmax_soil=4,
@@ -77,20 +78,6 @@ def _base_runtime_case(machine_conf: dict, case_name: str) -> dales_simulation:
 
 def _reference_backrad_path() -> Path:
     return Path(__file__).resolve().parents[2] / "extra_data" / "backrad.inp.001.nc"
-
-
-def radiation_type_1_case(machine_conf: dict) -> dales_simulation:
-    sim = _base_runtime_case(machine_conf, "radiation_type_1_case")
-    sim += ConstantSurfaceTemperatureModule(
-        thls=293.15,
-        z0mav=1.0e-4,
-        z0hav=1.0e-4,
-        ps=100000.0,
-        albedoav=0.22,
-    )
-    sim += RadiationModule(iradiation=1)
-    sim += EasyOutputModule(output_interval=30)
-    return sim
 
 
 def radiation_type_4_case(machine_conf: dict) -> dales_simulation:
@@ -199,17 +186,50 @@ def lsm_homogeneous_runtime_case(machine_conf: dict) -> dales_simulation:
         albedoav=0.22,
         iinterp_t=1,
         iinterp_theta=1,
+        kmax_soil=4,
         dz_soil=[1.89, 0.72, 0.21, 0.07],
         c_low=0.35,
         c_high=0.25,
         c_bare=0.30,
         c_water=0.05,
         c_asph=0.05,
+        z0m_low=0.05,
+        z0m_high=0.5,
+        z0m_bare=0.01,
+        z0m_water=2.0e-4,
+        z0m_asph=0.02,
+        z0h_low=0.005,
+        z0h_high=0.05,
+        z0h_bare=0.001,
+        z0h_water=2.0e-5,
+        z0h_asph=0.002,
+        lambda_s_low=0.5,
+        lambda_s_high=0.6,
+        lambda_s_bare=0.4,
+        lambda_s_asph=0.7,
+        lambda_us_low=0.2,
+        lambda_us_high=0.25,
+        lambda_us_bare=0.15,
+        lambda_us_asph=0.3,
+        lai_low=2.0,
+        lai_high=4.0,
+        rs_min_low=100.0,
+        rs_min_high=80.0,
+        rs_min_bare=200.0,
+        rs_min_asph=250.0,
         t_soil_p=[290.0, 289.0, 288.0, 287.0],
         theta_soil_p=[0.30, 0.29, 0.28, 0.27],
         soil_index_p=[5, 5, 5, 5],
+        ar_low=3.0,
+        br_low=2.0,
+        ar_high=4.0,
+        br_high=2.5,
+        gD_high=0.05,
+        tskin_water=289.0,
+        thls=293.15,
+        lheterogeneous=False,
     )
-    sim += RadiationModule(iradiation=0)
+    sim += RRTMGRadiationModule()
     sim += EasyOutputModule(output_interval=30)
     return sim
 

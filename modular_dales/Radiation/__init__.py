@@ -3,7 +3,6 @@
 from .backrad_profile import BackradInterpolatedProfile, BackradPressureProfile
 from .radiation import RadiationModule
 from .radiation_types import (
-    FullRadiationModule,
     NoRadiationModule,
     ParameterizedRadiationModule,
     RRTMGRadiationModule,
@@ -17,7 +16,6 @@ __all__ = [
     "BackradInterpolatedProfile",
     "RadiationModule",
     "NoRadiationModule",
-    "FullRadiationModule",
     "ParameterizedRadiationModule",
     "SurfaceLSMRadiationModule",
     "RRTMGRadiationModule",

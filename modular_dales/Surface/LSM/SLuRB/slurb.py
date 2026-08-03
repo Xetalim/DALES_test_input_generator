@@ -123,9 +123,7 @@ class slbCreatorClass(ModifierClass):
                     nc.createVariable(var, dtype, ["y", "x"])[:, :] = getattr(
                         self, var
                     )[:, :]
-            self.grid.set_cf_grid_mapping(
-                nc, "Lambert_Conformal", list(self.vars.keys())
-            )
+            self.grid.set_cf_grid_mapping(nc, "crs", list(self.vars.keys()))
 
 
 @register_module

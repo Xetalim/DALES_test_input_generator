@@ -198,7 +198,7 @@ class GridDales(simulation_module):
         elif self.wkt:
             self.crs = self.wkt
         else:
-            logger.warning(
+            logger.debug(
                 "Neither proj4 nor wkt is set on GridDales. CRS will be undefined and some functionality may not work."
             )
             self.crs = None
@@ -264,7 +264,10 @@ class GridDales(simulation_module):
             self.zm = np.arange(0, self.zsize + self.dz0, self.dz0)
 
     def as_openbc(self):
-        return GridDalesOpenBC(**self.input_dic)
+        openbc_grid = GridDalesOpenBC(**self.input_dic)
+        openbc_grid.zt = self.zt
+        openbc_grid.zm = self.zm
+        return openbc_grid
 
     def set_cf_grid_mapping(
         self,
@@ -297,7 +300,7 @@ class GridDales(simulation_module):
         """
 
         if not self.crs:
-            logger.warning(
+            logger.debug(
                 "GridDales.set_cf_grid_mapping called but no CRS (proj4 or wkt) is set on the grid"
             )
             return ds
@@ -326,7 +329,7 @@ class GridDales(simulation_module):
             )
 
         if self.crs:
-            crs = CRS(self.crs)
+            crs = CRS.from_user_input(self.crs)
         else:
             logger.warning(
                 "GridDales.set_cf_grid_mapping called but neither proj4 nor wkt is set on the grid"
@@ -335,16 +338,54 @@ class GridDales(simulation_module):
         cf_attributes = crs.to_cf()
         if cf_attributes.get("grid_mapping_name") is None:
             logger.warning(
-                "CRS provided to GridDales does not contain enough information to derive CF grid mapping attributes"
+                "CRS provided to GridDales has no CF grid_mapping_name; writing WKT-only CRS attributes"
             )
-            return ds
-        if cf_attributes["grid_mapping_name"] == "lambert_conformal_conic":
-            logger.warning(
-                "Patching latitude of projection origin of cf attributes. this is dangerous behaviour and should be fixed in the future!!!"
-            )
-            cf_attributes["latitude_of_projection_origin"] = cf_attributes[
-                "standard_parallel"
-            ]
+
+        # GDAL/QGIS look for one of these WKT keys on the grid mapping variable.
+        crs_wkt = crs.to_wkt()
+        cf_attributes["crs_wkt"] = crs_wkt
+        cf_attributes["spatial_ref"] = crs_wkt
+
+        mapping_var_name = "crs"
+
+        def _find_spatial_var_names_netcdf4(dataset):
+            horizontal_dims = {
+                dim_name
+                for dim_name in ("x", "y", "xt", "yt", "xm", "ym")
+                if dim_name in dataset.dimensions
+            }
+            spatial_names = []
+            for var_name, var in dataset.variables.items():
+                if var_name == mapping_var_name:
+                    continue
+                if len(var.dimensions) < 2:
+                    continue
+                if any(dim in horizontal_dims for dim in var.dimensions):
+                    spatial_names.append(var_name)
+            return spatial_names
+
+        def _find_spatial_var_names_xarray(dataset):
+            horizontal_dims = {
+                dim_name
+                for dim_name in ("x", "y", "xt", "yt", "xm", "ym")
+                if dim_name in dataset.dims
+            }
+            spatial_names = []
+            for var_name, var in dataset.data_vars.items():
+                if var_name == mapping_var_name:
+                    continue
+                if len(var.dims) < 2:
+                    continue
+                if any(dim in horizontal_dims for dim in var.dims):
+                    spatial_names.append(var_name)
+            return spatial_names
+
+        if data_var_names is None:
+            if is_netcdf4:
+                data_var_names = _find_spatial_var_names_netcdf4(ds)
+            else:
+                data_var_names = _find_spatial_var_names_xarray(ds)
+
         # Ensure the grid mapping variable exists and carries CF attributes
         if is_netcdf4:
             if mapping_var_name in ds.variables:

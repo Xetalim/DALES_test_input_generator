@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 import logging
+from pathlib import Path
 
 import numpy as np
 import xarray as xr
@@ -23,7 +24,12 @@ logger.debug("Entered module: %s", __name__)
 
 
 @logwrap
-def boundaries_timestep0(input_json, grid: GridDalesOpenBC, indices: "NestingIndices"):
+def boundaries_timestep0(
+    input_json,
+    grid: GridDalesOpenBC,
+    indices: "NestingIndices",
+    chunks=None,
+):
     """Return boundary fields for the initial timestep.
 
     If the host run produced ``initfields.inp.*.nc`` we use that file for
@@ -32,12 +38,21 @@ def boundaries_timestep0(input_json, grid: GridDalesOpenBC, indices: "NestingInd
     ``init.*.nc`` where ``zh == zt`` and construct horizontally uniform
     boundary fields for all variables and boundaries from that profile.
     """
+    inpath_coarse = Path(input_json["inpath_coarse"])
+    crosssection_chunks = chunks
+    if crosssection_chunks is None:
+        tchunk = input_json.get("tchunk")
+        crosssection_chunks = (
+            {"time": int(tchunk)} if tchunk is not None else {"time": 1}
+        )
+
     if input_json["time0"] == input_json["start"]:
         # Prefer initfields.inp.*.nc if available
         try:
             all_ls = []
             with xr.open_mfdataset(
-                f"{input_json['inpath_coarse']}initfields.inp.*.nc"
+                (inpath_coarse / "initfields.inp.*.nc").as_posix(),
+                join="outer",
             ) as ds:
                 for boundary in ["west", "east", "north", "south", "top"]:
                     for var in ["u", "v", "w", "thl", "qt", "e12"]:
@@ -74,7 +89,10 @@ def boundaries_timestep0(input_json, grid: GridDalesOpenBC, indices: "NestingInd
 
             # Fallback: build horizontally uniform boundaries from init.*.nc,
             # which contains 1D profiles along zh == zt.
-            init_ds = xr.open_mfdataset(f"{input_json['inpath_coarse']}/init.*.nc")
+            init_ds = xr.open_mfdataset(
+                (inpath_coarse / "init.*.nc").as_posix(),
+                join="outer",
+            )
 
             # Mapping from openboundary variable names to candidate variable
             # names in init.*.nc. We pick the first one that exists.
@@ -91,6 +109,8 @@ def boundaries_timestep0(input_json, grid: GridDalesOpenBC, indices: "NestingInd
 
             def _get_profile(var: str) -> np.ndarray:
                 if var in profile_var_candidates:
+                    if var == "w":
+                        return np.zeros_like(zh, dtype=float)
                     for cand in profile_var_candidates[var]:
                         if cand in init_ds:
                             return np.asarray(init_ds[cand].values, dtype=float)
@@ -204,7 +224,9 @@ def boundaries_timestep0(input_json, grid: GridDalesOpenBC, indices: "NestingInd
         all_ls = []
         for boundary, (boundaryfile, sel_index) in boundary_dict.items():
             with xr.open_mfdataset(
-                glob.glob(boundaryfile.as_posix()), join="outer"
+                glob.glob(boundaryfile.as_posix()),
+                chunks=crosssection_chunks,
+                join="outer",
             ) as ds:
                 for var in [
                     "u",
@@ -219,7 +241,6 @@ def boundaries_timestep0(input_json, grid: GridDalesOpenBC, indices: "NestingInd
                         var_postfix = "0"
                     else:
                         var_postfix = ""
-                    sel_index = sel_index
                     all_ls.append(
                         load_any_boundary_var(
                             ds.sel(sel_index),

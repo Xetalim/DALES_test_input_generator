@@ -155,9 +155,10 @@ def _deserialize_value(field_type: Any, value: Any) -> Any:
     if field_type is VariableDefinition:
         return get_var_by_name()[value]
 
-    if field_type.__name__ in SINGLETON_REGISTRY:
+    field_type_name = getattr(field_type, "__name__", None)
+    if field_type_name in SINGLETON_REGISTRY:
         return SINGLETON_REGISTRY[
-            field_type.__name__
+            field_type_name
         ]()  # call the singleton factory to get the instance
 
     def is_union(t: object) -> bool:
@@ -282,6 +283,7 @@ def _deserialize_dataclass(cls: Any, data: dict) -> Any:
     Parent(child=Child(x=1), children=[Child(x=2), Child(x=3)])
     """
     kwargs = {}
+
     # Iterate over all dataclass fields and look up corresponding entries in the raw dict
     for f in fields(cls):
         if f.name not in data:

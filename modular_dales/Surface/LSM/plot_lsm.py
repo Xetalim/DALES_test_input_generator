@@ -165,7 +165,7 @@ def _plot_all_cover_weighted_spatial_maps(ds, x, y, short_names, output_path):
         plt.close(fig)
 
 
-def _plot_lcz_variables(lsm_netcdf_path, output_path):
+def _plot_lcz_variables(lsm_netcdf_path, output_path, urban_cover_mask=None):
     lsm_name = pathlib.Path(lsm_netcdf_path).name
     if not lsm_name.startswith("lsm.inp_"):
         logger.info("Could not infer LCZ dataset from %s", lsm_name)
@@ -189,15 +189,97 @@ def _plot_lcz_variables(lsm_netcdf_path, output_path):
 
         if values.ndim == 2:
             fig, ax = plt.subplots(figsize=(8, 6))
-            if x is not None and y is not None and values.shape == (y.size, x.size):
-                mesh = _plot_2d_field(ax, x, y, values, f"LCZ: {var_name}")
-            else:
-                mesh = ax.imshow(values, origin="lower", cmap="viridis")
+            is_lcz_class_map = var_name.lower() == "lcz"
+
+            if is_lcz_class_map:
+                lcz_cmap, lcz_norm, lcz_ticks, lcz_ticklabels = _get_lcz_plot_style()
+                if x is not None and y is not None and values.shape == (y.size, x.size):
+                    mesh = ax.pcolormesh(
+                        x - np.min(x),
+                        y - np.min(y),
+                        values,
+                        shading="nearest",
+                        cmap=lcz_cmap,
+                        norm=lcz_norm,
+                    )
+                    ax.set_aspect("equal")
+                    ax.set_xlabel("x")
+                    ax.set_ylabel("y")
+                else:
+                    mesh = ax.imshow(
+                        values,
+                        origin="lower",
+                        cmap=lcz_cmap,
+                        norm=lcz_norm,
+                    )
                 ax.set_title(f"LCZ: {var_name}")
-            fig.colorbar(mesh, ax=ax)
+                cbar = fig.colorbar(mesh, ax=ax, ticks=lcz_ticks)
+                cbar.ax.set_yticklabels(lcz_ticklabels)
+            else:
+                if x is not None and y is not None and values.shape == (y.size, x.size):
+                    mesh = _plot_2d_field(ax, x, y, values, f"LCZ: {var_name}")
+                else:
+                    mesh = ax.imshow(values, origin="lower", cmap="viridis")
+                    ax.set_title(f"LCZ: {var_name}")
+                fig.colorbar(mesh, ax=ax)
             fig.tight_layout()
             fig.savefig(output_path / "lcz" / f"{var_name}.png", dpi=300)
             plt.close(fig)
+
+            if is_lcz_class_map and urban_cover_mask is not None:
+                if urban_cover_mask.shape != values.shape:
+                    logger.warning(
+                        "Skipping urban-vs-LCZ diagnostic map: urban mask shape %s does not match LCZ shape %s",
+                        urban_cover_mask.shape,
+                        values.shape,
+                    )
+                else:
+                    natural_lcz = np.isfinite(values) & (values >= 11) & (values <= 17)
+                    urban_but_natural_lcz = urban_cover_mask & natural_lcz
+                    diagnostic = np.where(urban_but_natural_lcz, values, np.nan)
+
+                    lcz_cmap, lcz_norm, _, _ = _get_lcz_plot_style()
+                    diag_cmap = ListedColormap(lcz_cmap.colors)
+                    diag_cmap.set_bad(color="#efefef")
+
+                    fig_diag, ax_diag = plt.subplots(figsize=(8, 6))
+                    if (
+                        x is not None
+                        and y is not None
+                        and diagnostic.shape == (y.size, x.size)
+                    ):
+                        mesh_diag = ax_diag.pcolormesh(
+                            x - np.min(x),
+                            y - np.min(y),
+                            diagnostic,
+                            shading="nearest",
+                            cmap=diag_cmap,
+                            norm=lcz_norm,
+                        )
+                        ax_diag.set_aspect("equal")
+                        ax_diag.set_xlabel("x")
+                        ax_diag.set_ylabel("y")
+                    else:
+                        mesh_diag = ax_diag.imshow(
+                            diagnostic,
+                            origin="lower",
+                            cmap=diag_cmap,
+                            norm=lcz_norm,
+                        )
+
+                    ax_diag.set_title("Urban-cover points with LCZ 11-17 (A-G)")
+                    cbar_diag = fig_diag.colorbar(
+                        mesh_diag, ax=ax_diag, ticks=np.arange(11, 18)
+                    )
+                    cbar_diag.ax.set_yticklabels(
+                        [f"{chr(54 + i)} ({i})" for i in range(11, 18)]
+                    )
+                    fig_diag.tight_layout()
+                    fig_diag.savefig(
+                        output_path / "lcz" / "urban_cover_with_natural_lcz.png",
+                        dpi=300,
+                    )
+                    plt.close(fig_diag)
             continue
 
         if values.ndim == 1:
@@ -249,6 +331,69 @@ def _plot_lcz_variables(lsm_netcdf_path, output_path):
         )
 
     ds_lcz.close()
+
+
+def _get_lcz_plot_style():
+    """Return a discrete LCZ style with urban grays (1-10) and green natural classes (11-17)."""
+    lcz_colors = [
+        "#4a4a4a",  # 1
+        "#5a5a5a",  # 2
+        "#666666",  # 3
+        "#737373",  # 4
+        "#808080",  # 5
+        "#8f8f8f",  # 6
+        "#5f5650",  # 7
+        "#7e7a74",  # 8
+        "#959189",  # 9
+        "#a9a59c",  # 10
+        "#1b5e20",  # 11 (A)
+        "#2e7d32",  # 12 (B)
+        "#388e3c",  # 13 (C)
+        "#4caf50",  # 14 (D)
+        "#689f38",  # 15 (E)
+        "#7cb342",  # 16 (F)
+        "#9ccc65",  # 17 (G)
+    ]
+    cmap = ListedColormap(lcz_colors, name="lcz_discrete")
+    bounds = np.arange(0.5, 18.5, 1.0)
+    norm = BoundaryNorm(bounds, cmap.N)
+    ticks = np.arange(1, 18)
+    ticklabels = [str(i) for i in range(1, 11)] + [
+        f"{chr(54 + i)} ({i})" for i in range(11, 18)
+    ]
+    return cmap, norm, ticks, ticklabels
+
+
+def _build_urban_cover_mask(lsm_ds):
+    """Infer a 2D urban cover mask from available LSM cover fractions."""
+    mask = None
+
+    for luname, lushort in zip(lsm_ds["luname"].values, lsm_ds["lushort"].values):
+        short_name = _decode_text(lushort)
+        long_name = _decode_text(luname).lower()
+
+        is_urban_cover = (
+            "urban" in long_name
+            or "road" in long_name
+            or "built" in long_name
+            or short_name.lower() in {"urban", "road", "built", "built_up", "built-up"}
+        )
+        if not is_urban_cover:
+            continue
+
+        cover_name = f"cover_{short_name}"
+        if cover_name not in lsm_ds:
+            continue
+
+        cover_values = np.asarray(lsm_ds[cover_name].values, dtype=float)
+        if cover_values.ndim != 2:
+            continue
+
+        if mask is None:
+            mask = np.zeros_like(cover_values, dtype=bool)
+        mask |= cover_values > 0
+
+    return mask
 
 
 def plot_lsm_cover(lsm_netcdf_path, plot_base_path):
@@ -406,7 +551,9 @@ def plot_lsm_cover(lsm_netcdf_path, plot_base_path):
 
     # Plot every variable available in the matching LCZ output dataset
     _plot_lcz_variables(
-        lsm_netcdf_path=lsm_netcdf_path, output_path=pathlib.Path(plot_base_path)
+        lsm_netcdf_path=lsm_netcdf_path,
+        output_path=pathlib.Path(plot_base_path),
+        urban_cover_mask=_build_urban_cover_mask(ds),
     )
 
     ds.close()

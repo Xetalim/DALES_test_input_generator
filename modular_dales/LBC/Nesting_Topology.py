@@ -57,6 +57,15 @@ class NestingTopology(simulation_module):
         },
         init=False,
     )
+    lstat: Optional[bool] = field(
+        default=True,
+        metadata={
+            "nml": "namgenstat",
+            "key": "lstat",
+            "required": True,
+        },
+        init=False,
+    )
 
     def __post_init__(self):
         super().__init__(self.sim)

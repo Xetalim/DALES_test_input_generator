@@ -1,7 +1,10 @@
 # pytest.toml
 [pytest]
 minversion = "9.0"
-addopts = ["-n","4", "--basetemp=/Users/andrevanginkel/Documents/40_Input_and_Runs/42_Dales_Cases/42.01_generated_cases/tests"]
+addopts = [
+    "--basetemp=/Users/andrevanginkel/Documents/40_Input_and_Runs/42_Dales_Cases/42.01_generated_cases/tests",
+    "--html=report.html"
+]
 testpaths = [
     "tests",
 ]
@@ -9,3 +12,5 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "serial",
 ]
+[tool.pytest.ini_options]
+generate_report_on_test = true

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -34,7 +35,8 @@ class OpenBCAtmosphereWorker:
 
     def prepare(self) -> Tuple[xr.Dataset, xr.Dataset]:
         atmo_module, ls2d_module = self._prepare_modules()
-        mapping = self._build_mapping()
+        profile_mapping = self._build_mapping()
+        mapping = dict(profile_mapping)
         mapping = self._enforce_nudging_mapping(mapping)
 
         timed_forcings_by_name = self._collect_atmo_timed_forcings_by_name(atmo_module)
@@ -46,6 +48,11 @@ class OpenBCAtmosphereWorker:
 
         profiles_1d = self._extract_openbc_base_profiles(
             mapping,
+            atmo_module,
+            timed_forcings_by_name,
+        )
+        init_profiles_1d = self._extract_openbc_base_profiles(
+            profile_mapping,
             atmo_module,
             timed_forcings_by_name,
         )
@@ -68,12 +75,127 @@ class OpenBCAtmosphereWorker:
             }
         }
 
-        initfields = xr.Dataset(coords={"time": [0]})
+        initfields = self._build_initfields_dataset(init_profiles_1d)
         boundaries_ds = boundary_fields_fine.set_openboundary_attrs(
             config["openboundary"],
             ds,
         )
         return boundaries_ds, initfields
+
+    def _build_initfields_dataset(
+        self,
+        profiles_1d: Dict[str, np.ndarray],
+    ) -> xr.Dataset:
+        coords = {
+            "xt": ("xt", self.module.openBCgrid.xt),
+            "xm": ("xm", self.module.openBCgrid.xm),
+            "yt": ("yt", self.module.openBCgrid.yt),
+            "ym": ("ym", self.module.openBCgrid.ym),
+            "zt": ("zt", self.module.openBCgrid.zt),
+            "zm": ("zm", self.module.openBCgrid.zm),
+        }
+
+        data_vars = {
+            "u0": (
+                ("zt", "yt", "xm"),
+                self._broadcast_profile(
+                    np.asarray(profiles_1d["u"], dtype=float),
+                    ("zt", "yt", "xm"),
+                    coords,
+                ),
+            ),
+            "v0": (
+                ("zt", "ym", "xt"),
+                self._broadcast_profile(
+                    np.asarray(profiles_1d["v"], dtype=float),
+                    ("zt", "ym", "xt"),
+                    coords,
+                ),
+            ),
+            "w0": (
+                ("zm", "yt", "xt"),
+                self._broadcast_profile(
+                    self._interpolate_profile(
+                        np.asarray(profiles_1d["w"], dtype=float),
+                        self.module.openBCgrid.zt,
+                        self.module.openBCgrid.zm,
+                    ),
+                    ("zm", "yt", "xt"),
+                    coords,
+                ),
+            ),
+            "thl0": (
+                ("zt", "yt", "xt"),
+                self._broadcast_profile(
+                    np.asarray(profiles_1d["thl"], dtype=float),
+                    ("zt", "yt", "xt"),
+                    coords,
+                ),
+            ),
+            "qt0": (
+                ("zt", "yt", "xt"),
+                self._broadcast_profile(
+                    np.asarray(profiles_1d["qt"], dtype=float),
+                    ("zt", "yt", "xt"),
+                    coords,
+                ),
+            ),
+            "e120": (
+                ("zt", "yt", "xt"),
+                self._broadcast_profile(
+                    np.asarray(profiles_1d["e12"], dtype=float),
+                    ("zt", "yt", "xt"),
+                    coords,
+                ),
+            ),
+        }
+
+        initfields = xr.Dataset(data_vars=data_vars, coords=coords)
+        initfields = initfields.assign_attrs(
+            {
+                "history": f"Created on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC",
+                "author": "author",
+                "time0": self.module.time0,
+            }
+        )
+        return initfields
+
+    def _interpolate_profile(
+        self,
+        values: np.ndarray,
+        source_z: np.ndarray,
+        target_z: np.ndarray,
+    ) -> np.ndarray:
+        src_z = np.asarray(source_z, dtype=float)
+        prof = np.asarray(values, dtype=float)
+        if src_z.shape[0] != prof.shape[0]:
+            raise ValueError(
+                f"Vertical coordinate length {src_z.shape[0]} does not match profile length {prof.shape[0]}"
+            )
+
+        sort_idx = np.argsort(src_z)
+        src_z = src_z[sort_idx]
+        prof = prof[sort_idx]
+        return np.interp(np.asarray(target_z, dtype=float), src_z, prof)
+
+    def _broadcast_profile(
+        self,
+        profile: np.ndarray,
+        dims: Tuple[str, ...],
+        coords: Dict[str, Tuple[str, np.ndarray]],
+    ) -> np.ndarray:
+        shape = [len(coords[d][1]) for d in dims]
+        out = np.zeros(shape, dtype=float)
+        if "zm" in dims:
+            vertical_dim = "zm"
+        else:
+            vertical_dim = "zt"
+        kdim = dims.index(vertical_dim)
+        for k in range(len(profile)):
+            idx = [slice(None)] * len(shape)
+            idx[kdim] = k
+            out[tuple(idx)] = profile[k]
+        return out
 
     def _prepare_modules(
         self,
@@ -92,6 +214,8 @@ class OpenBCAtmosphereWorker:
             )
 
         ls2d_module: Optional[LS2DAtmosphereModule] = None
+        if isinstance(atmo_module, LS2DAtmosphereModule):
+            ls2d_module = atmo_module
         if self.module.module_exists(LS2DAtmosphereModule):
             ls2d_module = self.module.retrieve_module(LS2DAtmosphereModule)
             if not ls2d_module.prepare_calculation_done:
@@ -196,17 +320,20 @@ class OpenBCAtmosphereWorker:
         n_levels = len(self.module.openBCgrid.zt)
         n_times = len(ls2d_times)
 
+        shaped_profiles = getattr(atmo_module, "shaped_profiles", [])
+        interpolated_profiles = getattr(atmo_module, "interpolated_profiles", [])
+        timed_profiles = getattr(atmo_module, "timed_profiles", [])
+
         explicit_nudging_names = set()
         explicit_nudging_names.update(
             profile.variable.name
-            for profile in atmo_module.shaped_profiles
-            + atmo_module.interpolated_profiles
+            for profile in shaped_profiles + interpolated_profiles
             if profile.variable.name
             in {"ua_nudge", "va_nudge", "wa_nudge", "thl_nudge", "qt_nudge"}
         )
         explicit_nudging_names.update(
             timed_profile.profile.variable.name
-            for timed_profile in atmo_module.timed_profiles
+            for timed_profile in timed_profiles
             if timed_profile.profile.variable.name
             in {"ua_nudge", "va_nudge", "wa_nudge", "thl_nudge", "qt_nudge"}
         )
@@ -274,19 +401,33 @@ class OpenBCAtmosphereWorker:
     ) -> Dict[str, np.ndarray]:
         profiles_1d: Dict[str, np.ndarray] = {}
         vars_by_name = get_var_by_name()
+        atmo_variables = getattr(atmo_module, "variables", None)
         for obc_var, atmo_name in mapping.items():
             if atmo_name not in vars_by_name:
                 raise ValueError(
                     f"Unknown atmosphere variable '{atmo_name}' in mapping for '{obc_var}'"
                 )
             atmo_definition = vars_by_name[atmo_name]
-            if atmo_definition not in atmo_module.variables:
-                raise ValueError(
-                    f"AtmosphereModule is missing required profile '{atmo_name}' for open boundary variable '{obc_var}'"
-                )
-            var_container = atmo_module.variables[atmo_definition]
-            if var_container.values is not None:
-                profile = np.asarray(var_container.values, dtype=float)
+            profile = None
+            if atmo_variables is not None and atmo_definition in atmo_variables:
+                var_container = atmo_variables[atmo_definition]
+                if var_container.values is not None:
+                    profile = np.asarray(var_container.values, dtype=float)
+
+            # For LS2D-driven nudging boundaries, prefer explicit evaluated
+            # nudging profiles over timed-series fallback.
+            if profile is None and isinstance(atmo_module, LS2DAtmosphereModule):
+                if atmo_name in {
+                    "ua_nudge",
+                    "va_nudge",
+                    "wa_nudge",
+                    "thl_nudge",
+                    "qt_nudge",
+                }:
+                    profile = self._extract_ls2d_profile(atmo_module, atmo_name)
+
+            if profile is not None:
+                pass
             elif (
                 atmo_name in timed_forcings_by_name
                 and 0.0 in timed_forcings_by_name[atmo_name]
@@ -298,6 +439,8 @@ class OpenBCAtmosphereWorker:
                     "_prepare_from_atmosphere: base profile for '%s' not evaluated; using t=0 of timed series as fallback",
                     atmo_name,
                 )
+            elif isinstance(atmo_module, LS2DAtmosphereModule):
+                profile = self._extract_ls2d_profile(atmo_module, atmo_name)
             else:
                 raise ValueError(
                     f"AtmosphereModule variable '{atmo_name}' has no evaluated values; "
@@ -313,6 +456,73 @@ class OpenBCAtmosphereWorker:
                 )
 
         return profiles_1d
+
+    def _extract_ls2d_profile(
+        self,
+        ls2d_module: LS2DAtmosphereModule,
+        atmo_name: str,
+    ) -> np.ndarray:
+        zt = np.asarray(self.module.openBCgrid.zt, dtype=float)
+        nz = len(zt)
+
+        if atmo_name == "tke":
+            return np.ones(nz, dtype=float) * float(ls2d_module.init_tke)
+
+        nudging_name_map = {
+            "ua_nudge": "ua",
+            "va_nudge": "va",
+            "wa_nudge": "wa",
+            "thl_nudge": "thetal",
+            "qt_nudge": "qt",
+        }
+        if atmo_name in nudging_name_map:
+            raw_nudge = ls2d_module._nudging_var_dic.get(nudging_name_map[atmo_name])
+            if raw_nudge is None:
+                raise ValueError(
+                    f"LS2DAtmosphereModule is missing nudging profile for '{atmo_name}'"
+                )
+            arr = np.asarray(raw_nudge, dtype=float)
+            if arr.ndim == 2:
+                if arr.shape[0] == nz:
+                    return arr[:, 0]
+                if arr.shape[1] == nz:
+                    return arr[0, :]
+            raise ValueError(
+                f"Unexpected nudging profile shape for '{atmo_name}': {arr.shape}"
+            )
+
+        source_field_map = {
+            "ua": "u",
+            "va": "v",
+            "w": "wls",
+            "thetal": "thl",
+            "qt": "qt",
+        }
+        field_name = source_field_map.get(atmo_name)
+        if (
+            ls2d_module.les_input is not None
+            and field_name is not None
+            and hasattr(ls2d_module.les_input, field_name)
+        ):
+            values = np.asarray(
+                getattr(ls2d_module.les_input, field_name).values,
+                dtype=float,
+            )
+            if values.ndim == 2:
+                if (
+                    values.shape[0] == len(ls2d_module._times_with_zero)
+                    and values.shape[1] == nz
+                ):
+                    return values[0, :]
+                if (
+                    values.shape[1] == len(ls2d_module._times_with_zero)
+                    and values.shape[0] == nz
+                ):
+                    return values[:, 0]
+
+        raise ValueError(
+            f"LS2DAtmosphereModule could not provide profile for '{atmo_name}'"
+        )
 
     def _build_uniform_boundary(
         self,

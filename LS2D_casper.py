@@ -37,15 +37,21 @@ from modular_dales.Atmosphere.atmosphere import (
 )
 from modular_dales.Atmosphere.ls2d_atmosphere import LS2DAtmosphereModule
 from modular_dales.Configuration import (
+    CapeModule,
     ColumnStatisticsOutputModule,
+    CrossSectionOutputModule,
     DefaultNamelistModule,
     EasyOutputModule,
+    FielddumpModule,
+    LSMCrossModule,
+    RadfieldModule,
     SamplingModule,
+    StatsModule,
+    TimestatModule,
     TimeModule,
 )
 from modular_dales.Configuration.output_modules import (
     CheckSimulationModule,
-    IndependentOutputModule,
     VirtualMeasurementOutputModule,
 )
 from modular_dales.Emission.emission import EmissionModule, EmissionTracer
@@ -151,20 +157,13 @@ if __name__ == "__main__":
         deep_soil_temperature=283.15, building_indoor_temperature=273.15 + 20
     )
 
-    sim += IndependentOutputModule(
-        fielddump_enabled=True,
-        fielddump_dtav=1200,
-        cape_enabled=True,
-        cape_dtav=300,
-        lsm_cross_enabled=True,
-        lsm_cross_dtav=300,
-        cross_enabled=True,
-        stats_enabled=True,
-        timestat_enabled=True,
-        budget_enabled=True,
-        radfield_enabled=True,
-        radfield_timeav=300,
-    )
+    sim += FielddumpModule(lfielddump=True, dtav=1200)
+    sim += CapeModule(enabled=True, dtav=300)
+    sim += LSMCrossModule(enabled=True, dtav=300)
+    sim += CrossSectionOutputModule(cross_enabled=True)
+    sim += StatsModule(enabled=True)
+    sim += TimestatModule(enabled=True)
+    sim += RadfieldModule(enabled=True, timeav=300)
 
     time = TimedependentModule(ltimedep=True, usesLS2DforTime=True)
     time += FromLS2D()

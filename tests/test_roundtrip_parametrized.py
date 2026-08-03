@@ -44,13 +44,17 @@ from .sim_builders.test_openbc_atmosphere_profiles import (
     assert_openbc_atmosphere_profiles_files_written,
     assert_openbc_atmosphere_profiles_timedep_files_written,
 )
+from .sim_builders.test_openbc_triple_nesting import openbc_triple_nesting_case
+from .sim_builders.test_openbc_triple_nesting import (
+    assert_openbc_triple_nesting_scaled64_plots,
+    openbc_triple_nesting_scaled64_case,
+)
 from .sim_builders.test_runtime_special_cases import (
     assert_sprayed_salt_in_fielddump,
     lsm_homogeneous_runtime_case,
     radiation_backrad_interpolated_case,
     radiation_backrad_profile_case,
     radiation_backrad_source_case,
-    radiation_type_1_case,
     radiation_type_4_case,
     radiation_type_5_case,
     spraying_runtime_case,
@@ -109,7 +113,17 @@ def sim_builder(request):
             openbc_atmosphere_profiles_timedep_case,
             id="openbc_atmosphere_profiles_timedep_case",
         ),
-        pytest.param(radiation_type_1_case, id="radiation_type_1_case"),
+        pytest.param(
+            openbc_triple_nesting_case,
+            id="openbc_triple_nesting_case",
+        ),
+        pytest.param(
+            (
+                openbc_triple_nesting_scaled64_case,
+                assert_openbc_triple_nesting_scaled64_plots,
+            ),
+            id="openbc_triple_nesting_scaled64_case",
+        ),
         pytest.param(radiation_type_4_case, id="radiation_type_4_case"),
         pytest.param(radiation_type_5_case, id="radiation_type_5_case"),
         pytest.param(
@@ -166,16 +180,22 @@ def sim_builder_for_write_test(request):
     return request.param
 
 
-def test_roundtrip_simulation_outputs_identical(machine_conf, sim_builder) -> None:
+def test_roundtrip_simulation_outputs_identical(
+    machine_conf, sim_builder, simulation_report
+) -> None:
     """End-to-end roundtrip test, parametrized over all simulation builders."""
 
-    assert_roundtrip_simulation_outputs_identical(sim_builder, machine_conf)
+    assert_roundtrip_simulation_outputs_identical(
+        sim_builder, machine_conf, add_report=simulation_report
+    )
 
 
-def test_simulation_runs(machine_conf, sim_builder_to_run) -> None:
+def test_simulation_runs(machine_conf, sim_builder_to_run, simulation_report) -> None:
     """Simulation run + job.001 test, parametrized over all simulation builders."""
 
-    run_simulation_and_check_job(sim_builder_to_run, machine_conf)
+    run_simulation_and_check_job(
+        sim_builder_to_run, machine_conf, add_report=simulation_report
+    )
 
 
 def test_files_written(machine_conf, sim_builder_for_write_test) -> None:

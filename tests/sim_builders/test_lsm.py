@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -31,6 +30,7 @@ from modular_dales.Surface.LSM.modular_temps_moisture import (
     UniformSoilMoisture,
     UniformSoilTemperature,
 )
+from tests.helpers import run_command_with_report
 from modular_dales.vars import (
     VariableDefinition,
     get_all_vars,
@@ -225,7 +225,7 @@ def lsm_emission_ags_co2_case(machine_conf: dict) -> dales_simulation:
 
 
 @pytest.mark.slow
-def test_lsm_emission_ags_co2_openbc_run(machine_conf) -> None:
+def test_lsm_emission_ags_co2_openbc_run(machine_conf, simulation_report) -> None:
     """Run test for AGS+LSM with CO2 tracer/emission.
 
     The pipeline generates init.001.nc and tracers.001.nc.  backrad.inp.001.nc
@@ -246,7 +246,13 @@ def test_lsm_emission_ags_co2_openbc_run(machine_conf) -> None:
         CROSSAGS / "namoptions.001", sim.output_path / "input" / "namoptions.001"
     )
 
-    subprocess.run(["./job.001"], check=True, cwd=sim.output_path.as_posix())
+    run_command_with_report(
+        ["./job.001"],
+        stage="job_001",
+        case_dir=sim.output_path,
+        title="lsm_emission_ags_co2 job.001 crash",
+        add_report=simulation_report,
+    )
 
     run_dir = sim.output_path / "run_001"
     assert run_dir.is_dir(), "Expected run_001 directory after job.001"
@@ -255,7 +261,7 @@ def test_lsm_emission_ags_co2_openbc_run(machine_conf) -> None:
 
 
 @pytest.mark.slow
-def test_depcross(tmp_path: Path, machine_conf) -> None:
+def test_depcross(tmp_path: Path, machine_conf, simulation_report) -> None:
     """Manual crossdep run: copy folder to tmp and run DALES in-place."""
 
     source_dir = Path(__file__).parent / "crossdep"
@@ -270,10 +276,13 @@ def test_depcross(tmp_path: Path, machine_conf) -> None:
     run_dir = tmp_path / "crossdep"
     shutil.copytree(source_dir, run_dir)
 
-    subprocess.run(
+    run_command_with_report(
         [dales_exec.as_posix(), "namoptions.009"],
-        check=True,
-        cwd=run_dir.as_posix(),
+        stage="depcross_manual",
+        case_dir=run_dir,
+        title="depcross manual crash",
+        add_report=simulation_report,
+        info_lines=[f"dales_exec={dales_exec}"],
     )
 
     assert (

@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import xarray as xr
@@ -26,9 +27,14 @@ def initial_fields_fine(input_json, grid: GridDalesOpenBC, output_path):
     vertical-profile file ``init.*.nc`` (where zh == zt) and build a
     horizontally uniform 3D initial field from those profiles.
     """
+    inpath = Path(input_json["inpath"])
+
     # Load data: prefer initfields.inp.*.nc, fall back to init.*.nc
     try:
-        with xr.open_mfdataset(f"{input_json['inpath']}/initfields.inp.*.nc") as ds:
+        with xr.open_mfdataset(
+            (inpath / "initfields.inp.*.nc").as_posix(),
+            join="outer",
+        ) as ds:
             initfields_fine = ds.interp(
                 xt=grid.xt,
                 xm=grid.xm,
@@ -51,11 +57,14 @@ def initial_fields_fine(input_json, grid: GridDalesOpenBC, output_path):
         logger.warning(
             "initfields.inp.*.nc not found or not readable in '%s' (%s); "
             "falling back to init.*.nc profile for initial 3D fields.",
-            input_json["inpath"],
+            inpath,
             exc,
         )
 
-        init_ds = xr.open_mfdataset(f"{input_json['inpath']}/init.*.nc")
+        init_ds = xr.open_mfdataset(
+            (inpath / "init.*.nc").as_posix(),
+            join="outer",
+        )
 
         # Map openBC / DALES variables to candidate profile names in init.*.nc
         profile_var_candidates = {
@@ -74,6 +83,9 @@ def initial_fields_fine(input_json, grid: GridDalesOpenBC, output_path):
                 for cand in profile_var_candidates[var]:
                     if cand in init_ds:
                         return np.asarray(init_ds[cand].values, dtype=float)
+                if var == "w":
+                    # For vertical velocity, if no profile is found, assume zero
+                    return np.zeros_like(zh, dtype=float)
                 raise KeyError(
                     f"None of {profile_var_candidates[var]} found in init.*.nc for '{var}'"
                 )
@@ -129,7 +141,7 @@ def initial_fields_fine(input_json, grid: GridDalesOpenBC, output_path):
                 prof_target = np.interp(grid.zm, zh, prof_zt)
                 dims_no_time = ("zm", "yt", "xt")
                 arr = _make_uniform_field(prof_target, dims_no_time)
-                data_vars["w"] = ("time",) + dims_no_time, arr[None, ...]
+                data_vars["w0"] = ("time",) + dims_no_time, arr[None, ...]
             else:
                 # Interpolate profile from zh to the current grid zt before broadcasting
                 prof_target = np.interp(grid.zt, zh, prof_zt)
@@ -137,16 +149,16 @@ def initial_fields_fine(input_json, grid: GridDalesOpenBC, output_path):
                 if var == "u":
                     dims_no_time = ("zt", "yt", "xm")
                     arr = _make_uniform_field(prof_target, dims_no_time)
-                    data_vars["u"] = ("time",) + dims_no_time, arr[None, ...]
+                    data_vars["u0"] = ("time",) + dims_no_time, arr[None, ...]
                 elif var == "v":
                     dims_no_time = ("zt", "ym", "xt")
                     arr = _make_uniform_field(prof_target, dims_no_time)
-                    data_vars["v"] = ("time",) + dims_no_time, arr[None, ...]
+                    data_vars["v0"] = ("time",) + dims_no_time, arr[None, ...]
                 else:
                     # Scalars (thl, qt, e12, tracers): defined on (yt, xt, zt)
                     dims_no_time = ("zt", "yt", "xt")
                     arr = _make_uniform_field(prof_target, dims_no_time)
-                    data_vars[var] = ("time",) + dims_no_time, arr[None, ...]
+                    data_vars[f"{var}0"] = ("time",) + dims_no_time, arr[None, ...]
 
         initfields_fine = xr.Dataset(data_vars=data_vars, coords=coords)
         initfields_fine = initfields_fine.assign_coords(

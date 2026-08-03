@@ -9,6 +9,10 @@ import xarray as xr
 from modular_dales.Surface.LSM.translation_tables.vegetation_properties import (
     top10_to_ifs,
 )
+from modular_dales.Surface.LSM.LCZ.get_from_LCZ import (
+    LCZ_URBAN_NATURAL_TO_IFS,
+    lcz_dict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +129,105 @@ def _sample_on_grid(da: xr.DataArray, grid) -> np.ndarray:
     return np.asarray(sampled.values)
 
 
+def _apply_lcz_urban_natural_overrides_after_top10(
+    lsm_writer,
+    *,
+    urban_natural_lcz_to_10: bool,
+    urban_natural_lcz_to_natural_lsm: bool,
+) -> None:
+    """Re-apply LCZ urban-natural overrides after Top10 reset/reassignment.
+
+    This keeps behavior consistent when Top10 is used as an overlay on top of
+    LCZ-derived fields.
+    """
+    if not urban_natural_lcz_to_10 and not urban_natural_lcz_to_natural_lsm:
+        return
+
+    lcz_ds = getattr(lsm_writer, "LCZ_ds", None)
+    if lcz_ds is None or "lcz" not in lcz_ds:
+        logger.warning(
+            "Top10 LCZ override requested, but no LCZ dataset is available on lsm_writer"
+        )
+        return
+
+    lcz_values = np.asarray(lcz_ds["lcz"].values, dtype=float)
+    if lcz_values.shape != (lsm_writer.grid.jtot, lsm_writer.grid.itot):
+        logger.warning(
+            "Top10 LCZ override skipped due to shape mismatch: lcz=%s grid=(%s,%s)",
+            lcz_values.shape,
+            lsm_writer.grid.jtot,
+            lsm_writer.grid.itot,
+        )
+        return
+
+    urban_lu_keys = [
+        lu_key
+        for lu_key, lu_dic in lsm_writer.lu_types.items()
+        if lu_dic.get("ifs_id") == 20
+    ]
+    if not urban_lu_keys:
+        return
+
+    urban_cover = np.zeros((lsm_writer.grid.jtot, lsm_writer.grid.itot), dtype=float)
+    for lu_key in urban_lu_keys:
+        urban_cover += np.asarray(lsm_writer.lu_types[lu_key]["lu_frac"], dtype=float)
+
+    urban_mask = urban_cover > 0
+    natural_lcz_mask = (
+        urban_mask & np.isfinite(lcz_values) & (lcz_values >= 11) & (lcz_values <= 17)
+    )
+
+    if urban_natural_lcz_to_10:
+        lcz_values[natural_lcz_mask] = 10
+        lcz_ds["lcz"].values[:, :] = lcz_values
+
+        # Keep LCZ-derived morphology fields consistent with the new LCZ=10 class.
+        for field_name in (
+            "svf",
+            "aspect_ratio",
+            "building_surface_fraction",
+            "impervious_surface_fraction",
+            "pervious_surface_fraction",
+            "height_roughness_element",
+            "terrain_roughness_class",
+            "roughness_length",
+            "albedo",
+        ):
+            if field_name in lcz_ds:
+                field_vals = np.asarray(lcz_ds[field_name].values, dtype=float).copy()
+                field_vals[natural_lcz_mask] = getattr(lcz_dict[10], field_name)
+                lcz_ds[field_name].values[:, :] = field_vals
+
+    if urban_natural_lcz_to_natural_lsm:
+        all_lu_keys = list(lsm_writer.lu_types.keys())
+        for lcz_class, ifs_class in LCZ_URBAN_NATURAL_TO_IFS.items():
+            class_mask = natural_lcz_mask & (lcz_values == lcz_class)
+            if not np.any(class_mask):
+                continue
+
+            target_lu_keys = [
+                lu_key
+                for lu_key, lu_dic in lsm_writer.lu_types.items()
+                if lu_dic.get("ifs_id") == ifs_class
+            ]
+            if not target_lu_keys:
+                logger.warning(
+                    "No lu_type found for mapped IFS class %s (from LCZ %s)",
+                    ifs_class,
+                    lcz_class,
+                )
+                continue
+
+            for lu_key in all_lu_keys:
+                frac = lsm_writer.lu_types[lu_key]["lu_frac"]
+                frac[class_mask] = 0.0
+
+            frac_per_lu = 1.0 / float(len(target_lu_keys))
+            for lu_key in target_lu_keys:
+                frac = lsm_writer.lu_types[lu_key]["lu_frac"]
+                frac[class_mask] = frac_per_lu
+
+
 def apply_top10_to_lsm_writer(
     lsm_writer,
     top10_path: Path,
@@ -171,6 +274,16 @@ def apply_top10_to_lsm_writer(
                 lsm_writer.lu_types[lu]["lu_frac"][sea_mask] = 0.0
             lsm_writer.lu_types["aqu"]["lu_frac"][sea_mask] = 1.0
             lsm_writer.value_dic["c_aqu"][:, :] = lsm_writer.lu_types["aqu"]["lu_frac"]
+
+    _apply_lcz_urban_natural_overrides_after_top10(
+        lsm_writer,
+        urban_natural_lcz_to_10=getattr(
+            lsm_writer, "top10_urban_natural_lcz_to_10", False
+        ),
+        urban_natural_lcz_to_natural_lsm=getattr(
+            lsm_writer, "top10_urban_natural_lcz_to_natural_lsm", False
+        ),
+    )
 
     lsm_writer.init_lutypes_ifs()
     lsm_writer.recalculate_remaining_cover()

@@ -152,27 +152,24 @@ def load_any_boundary_var(
         isel_dict = isel
     else:
         raise TypeError(f"Unknown type for isel {isel}")
-
+    interpolated_ds = (
+        ds[f"{var}{var_postfix}"]
+        .isel(isel_dict, drop=True)
+        .interp(interp_coords, kwargs=interp_kwargs)
+        .rename(f"{var}{boundary}")
+        .assign_coords(assign_coords)
+    )
     if expand_dims:
         if expand_dims_time0 is None:
             raise ValueError("Missing time0!")
         if not isel:
             logger.warning("Are you sure you want to do this?")
-        interpolated_ds = (
-            ds[f"{var}{var_postfix}"]
-            .isel(isel_dict, drop=True)
-            .interp(interp_coords, kwargs=interp_kwargs)
-            .rename(f"{var}{boundary}")
-            .assign_coords(assign_coords)
-        ).expand_dims({"time": [pd.Timestamp(expand_dims_time0)]}, axis=0)
-    else:
-        interpolated_ds = (
-            ds[f"{var}{var_postfix}"]
-            .isel(isel_dict, drop=True)
-            .interp(interp_coords, kwargs=interp_kwargs)
-            .rename(f"{var}{boundary}")
-            .assign_coords(assign_coords)
-        )
+        if "time" in interpolated_ds.dims:
+            pass
+        else:
+            interpolated_ds = interpolated_ds.expand_dims(
+                {"time": [pd.Timestamp(expand_dims_time0)]}, axis=0
+            )
 
     if interpolated_ds.isnull().sum() > 0:
         raise ValueError(f"Found NaN in dataset {boundary} {var}")
