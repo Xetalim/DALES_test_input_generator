@@ -485,6 +485,21 @@ class LSM_output_dales:
             self.value_dic[f"tskin_{lu_type}"] = temp_arr
 
     @logwrap
+    def get_laqu_lu_names(self):
+        return [
+            lu_name
+            for lu_name, lu_cfg in self.lu_types.items()
+            if bool(lu_cfg.get("laqu", False))
+        ]
+
+    @logwrap
+    def set_skin_temperature_laqu(self, temperature):
+        shape = (self.grid.jtot, self.grid.itot)
+        temp_arr = np.full(shape, temperature)
+        for lu_name in self.get_laqu_lu_names():
+            self.value_dic[f"tskin_{lu_name}"] = temp_arr
+
+    @logwrap
     def set_skin_temperature_array(
         self, temperature_array, lu_type: Union[Literal["all"], str] = "all"
     ):

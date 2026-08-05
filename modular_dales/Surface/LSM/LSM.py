@@ -240,6 +240,12 @@ class LSMModule(BaseLSMModule):
         repr=True,
         metadata={"serialize": True},
     )
+    tskin_laqu: Optional[float] = field(
+        default=None,
+        init=True,
+        repr=True,
+        metadata={"serialize": True},
+    )
     soil_temperature: Optional[
         Union[
             UniformSoilTemperature,
@@ -513,6 +519,26 @@ class LSMModule(BaseLSMModule):
                 "Add a SkinTemperatures object to LSMModule: lsm += SkinTemperatures()"
             )
 
+    def _resolve_laqu_skin_temperature_override(self) -> Optional[float]:
+        candidate = getattr(self, "tskin_laqu", None)
+        if self.skin_temperature is not None:
+            module_candidate = getattr(
+                self.skin_temperature, "aquatic_skin_temperature", None
+            )
+            if module_candidate is not None:
+                candidate = module_candidate
+        if candidate is None:
+            return None
+        return float(candidate)
+
+    def _apply_laqu_skin_temperature_override(self) -> None:
+        if self.lsm_writer is None:
+            return
+        laqu_skin_temp = self._resolve_laqu_skin_temperature_override()
+        if laqu_skin_temp is None:
+            return
+        self.lsm_writer.set_skin_temperature_laqu(laqu_skin_temp)
+
     def _override_soil_from_ls2d_if_available(self) -> None:
         """Override soil fields with LS2D data when available.
 
@@ -683,6 +709,7 @@ class LSMModule(BaseLSMModule):
                     self.lsm_writer.set_skin_temperature(
                         float(arr_ts[0]), lu_type="all"
                     )
+                    self._apply_laqu_skin_temperature_override()
             except (TypeError, ValueError, KeyError, IndexError):
                 pass
 
@@ -750,6 +777,8 @@ class LSMModule(BaseLSMModule):
             raise ValueError(
                 "Invalid skin temperature configuration. Must be UniformSkinTemperature or VaryingSkinTemperature."
             )
+
+        self._apply_laqu_skin_temperature_override()
 
     def write_files(self):
         """Write LSM input files and generate plots."""

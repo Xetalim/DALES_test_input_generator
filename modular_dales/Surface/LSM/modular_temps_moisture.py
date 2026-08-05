@@ -14,6 +14,7 @@ from modular_dales.MODULE_REGISTRY import register_module, register_special_seri
 @dataclass
 class VaryingSkinTemperature:
     skin_temperature: np.ndarray
+    aquatic_skin_temperature: Optional[float] = None
     """Spatially varying skin temperature over the horizontal domain.
 
     Init: provide values as a list or array-like object.
@@ -47,6 +48,7 @@ class VaryingSoilMoisture:
 @dataclass
 class UniformSkinTemperature:
     skin_temperature: float
+    aquatic_skin_temperature: Optional[float] = None
     """Uniform skin temperature (K) across the horizontal domain."""
 
 
@@ -86,6 +88,9 @@ class SoilTemperatureMoistureFromHarmonie:
     )
     use_as_tskin: bool = field(
         default=False, init=True, repr=True, metadata={"serialize": True}
+    )
+    aquatic_skin_temperature: Optional[float] = field(
+        default=None, init=True, repr=True, metadata={"serialize": True}
     )
     data: Optional[xr.Dataset] = field(
         default=None, init=False, repr=False, metadata={"serialize": False}
