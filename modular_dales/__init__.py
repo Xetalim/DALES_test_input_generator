@@ -20,6 +20,7 @@ from .Geometry.GridDales import GridDales, GridDalesOpenBC
 from .Geometry.geometry_modification import (
     AllGeometry,
     CircleRealGeometry,
+    FuncGeometry,
     RectangleRealGeometry,
     RectangleIdxGeometry,
     CircleIdxGeometry,
@@ -163,6 +164,7 @@ __all__ = [
     "ModifierClass",
     "AllGeometry",
     "CircleRealGeometry",
+    "FuncGeometry",
     "RectangleRealGeometry",
     "RectangleIdxGeometry",
     "CircleIdxGeometry",

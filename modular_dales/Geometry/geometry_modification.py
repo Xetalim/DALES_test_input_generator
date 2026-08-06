@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Protocol, Union
+from typing import Any, Callable, Protocol, Union
 
 import numpy as np
 
@@ -115,6 +115,28 @@ class MaskGeometry:
         return mask_arr.astype(bool)
 
 
+@register_special_serializing
+@register_module
+@dataclass
+class FuncGeometry:
+    """Explicit boolean function geometry.
+
+    The provided function must return a boolean array with shape ``(jtot, itot)``
+    after conversion to a numpy array and will be interpreted as a boolean selection.
+    """
+
+    func: Callable[["ModifierClass"], np.ndarray]
+
+    def to_mask(self, modifier: "ModifierClass") -> np.ndarray:
+        mask_arr = np.asarray(self.func(modifier))
+        if mask_arr.shape != modifier.meshx.shape:
+            raise ValueError(
+                "FuncGeometry shape mismatch: "
+                f"expected {modifier.meshx.shape}, got {mask_arr.shape}"
+            )
+        return mask_arr.astype(bool)
+
+
 class GeometryLike(Protocol):
     """Protocol for typed geometry objects that produce a boolean mask."""
 
@@ -128,6 +150,7 @@ GeometrySpec = Union[
     RectangleIdxGeometry,
     CircleIdxGeometry,
     MaskGeometry,
+    FuncGeometry,
 ]
 
 

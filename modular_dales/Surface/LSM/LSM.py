@@ -43,6 +43,8 @@ class LandUseModification(GeometricModification):
     """Land use type (grs, urb, fbd, etc.)"""
     frac: float = 1.0
     """Optional fractional land-use coverage for selected cells."""
+    mode: str = field(default="replace")
+    """How to apply fraction on selected cells: replace or add."""
 
 
 @register_module

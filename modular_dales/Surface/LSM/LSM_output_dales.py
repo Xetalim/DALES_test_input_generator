@@ -641,30 +641,43 @@ class LsmModifier(ModifierClass):
         self.lsm_input = lsm_input
         super().__init__(grid)
 
-    def set_type(self, mask, lu_type, frac=1):
-        if frac != 1:
-            raise Warning(
-                "No code yet to handle half fractions correctly, so check if fractions add up to 1"
-            )
-        if not (lu_type in self.lsm_input.lu_types.keys()):
+    def set_type(self, mask, lu_type, frac=1, mode="replace"):
+        frac = float(frac)
+        if frac < 0 or frac > 1:
+            raise ValueError(f"Land-use fraction must be in [0, 1], got {frac}")
+
+        if lu_type not in self.lsm_input.lu_types.keys():
             raise KeyError(
                 f"Incorrect lu_type given {lu_type}, {self.lsm_input.lu_types.keys()}"
             )
-        if not (lu_type in self.lsm_input.lu_types.keys()):
-            raise KeyError(
-                f"Incorrect lu_type given {lu_type}, {self.lsm_input.lu_types.keys()}"
-            )
-        self.lsm_input.lu_types[lu_type]["lu_frac"][mask] = frac
-        if frac == 1:
-            for other_lu_type in self.lsm_input.lu_types.keys():
-                if lu_type != other_lu_type:
-                    self.lsm_input.lu_types[other_lu_type]["lu_frac"][mask] = 0
-        self.lsm_input.lu_types[lu_type]["lu_frac"][mask] = frac
-        if frac == 1:
-            for other_lu_type in self.lsm_input.lu_types.keys():
-                if lu_type != other_lu_type:
-                    self.lsm_input.lu_types[other_lu_type]["lu_frac"][mask] = 0
+
+        mode_norm = str(mode).strip().lower()
+        lu_frac = self.lsm_input.lu_types[lu_type]["lu_frac"]
+
+        if mode_norm == "replace":
+            lu_frac[mask] = frac
+            if frac == 1:
+                for other_lu_type in self.lsm_input.lu_types.keys():
+                    if lu_type != other_lu_type:
+                        self.lsm_input.lu_types[other_lu_type]["lu_frac"][mask] = 0
+            return
+
+        if mode_norm == "add":
+            target = lu_frac[mask] + frac
+            if np.any(target > 1.0):
+                raise ValueError(
+                    "Add mode would set land-use fraction above 1.0 for type "
+                    f"'{lu_type}'"
+                )
+            lu_frac[mask] = target
+            return
+
+        raise ValueError(
+            f"Unsupported land-use modification mode '{mode}'. "
+            "Expected one of: replace, add"
+        )
 
     def do_modification(self, geometry, modification):
         frac = modification.frac if modification.frac is not None else 1.0
-        self.set_type(geometry, modification.type, frac=frac)
+        mode = getattr(modification, "mode", "replace")
+        self.set_type(geometry, modification.type, frac=frac, mode=mode)
