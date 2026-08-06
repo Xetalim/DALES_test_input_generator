@@ -137,6 +137,36 @@ class FuncGeometry:
         return mask_arr.astype(bool)
 
 
+@register_special_serializing
+@register_module
+@dataclass
+class CheckerboardIdxGeometry:
+    """Checkerboard mask in index-space coordinates.
+
+    Cells are grouped in square blocks of size ``block`` (in grid cells).
+    ``phase_x`` and ``phase_y`` shift the checkerboard pattern in index space.
+    """
+
+    block: int = 1
+    phase_x: int = 0
+    phase_y: int = 0
+    select_even: bool = True
+
+    def to_mask(self, modifier: "ModifierClass") -> np.ndarray:
+        if self.block <= 0:
+            raise ValueError(
+                f"CheckerboardIdxGeometry.block must be > 0, got {self.block}"
+            )
+
+        parity = (
+            ((modifier.idxmesh - self.phase_x) // self.block)
+            + ((modifier.idymesh - self.phase_y) // self.block)
+        ) % 2 == 0
+        if self.select_even:
+            return parity
+        return ~parity
+
+
 class GeometryLike(Protocol):
     """Protocol for typed geometry objects that produce a boolean mask."""
 
@@ -151,6 +181,7 @@ GeometrySpec = Union[
     CircleIdxGeometry,
     MaskGeometry,
     FuncGeometry,
+    CheckerboardIdxGeometry,
 ]
 
 
